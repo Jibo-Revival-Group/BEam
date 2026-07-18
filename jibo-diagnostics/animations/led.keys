@@ -1,0 +1,134 @@
+{
+    "framerate": 30,
+    "duration": 90,
+    "layers": [
+        {
+            "id": "628d4c96e3b84eac94ebe703a8a9e71b",
+            "name": "LEDLEDLEDLED",
+            "type": "LED",
+            "visible": true,
+            "locked": false,
+            "keyframes": [
+                {
+                    "value": {
+                        "Color": {
+                            "r": 255,
+                            "g": 255,
+                            "b": 255
+                        }
+                    },
+                    "time": 0
+                },
+                {
+                    "value": {
+                        "Color": {
+                            "r": 255,
+                            "g": 8.499999999999998,
+                            "b": 0
+                        }
+                    },
+                    "time": 10
+                },
+                {
+                    "value": {
+                        "Color": {
+                            "r": 255,
+                            "g": 76.50000000000001,
+                            "b": 0
+                        }
+                    },
+                    "time": 20
+                },
+                {
+                    "value": {
+                        "Color": {
+                            "r": 225.25,
+                            "g": 255,
+                            "b": 0
+                        }
+                    },
+                    "time": 30
+                },
+                {
+                    "value": {
+                        "Color": {
+                            "r": 72.25000000000003,
+                            "g": 255,
+                            "b": 0
+                        }
+                    },
+                    "time": 40
+                },
+                {
+                    "value": {
+                        "Color": {
+                            "r": 0,
+                            "g": 233.74999999999997,
+                            "b": 255
+                        }
+                    },
+                    "time": 50
+                },
+                {
+                    "value": {
+                        "Color": {
+                            "r": 0,
+                            "g": 17.000000000000053,
+                            "b": 255
+                        }
+                    },
+                    "time": 60
+                },
+                {
+                    "value": {
+                        "Color": {
+                            "r": 97.7500000000001,
+                            "g": 0,
+                            "b": 255
+                        }
+                    },
+                    "time": 70
+                },
+                {
+                    "value": {
+                        "Color": {
+                            "r": 255,
+                            "g": 0,
+                            "b": 238.00000000000006
+                        }
+                    },
+                    "time": 80
+                },
+                {
+                    "value": {
+                        "Color": {
+                            "r": 255,
+                            "g": 255,
+                            "b": 255
+                        }
+                    },
+                    "time": 89
+                }
+            ]
+        },
+        {
+            "id": "d4e0506cebb34b889452da260a3c75a4",
+            "name": "Body #1",
+            "type": "Body",
+            "visible": true,
+            "locked": false,
+            "keyframes": [
+                {
+                    "value": {
+                        "Head": 0,
+                        "Torso": 0,
+                        "Pelvis": 0
+                    },
+                    "time": 0
+                }
+            ]
+        }
+    ],
+    "version": "0.5.0",
+    "scale": 1
+}

@@ -26,18 +26,27 @@ To launch the Diagnostics Skill:
 
 ## Packaging for buildroot
 
-1. Get latest published version of diagnostics on your computer
+1. Get diagnostics on your computer if you don't have it already (otherwise git pull origin master and skip to `npm install`)
 
  ```bash
- cd ~/npm (create directory if doesn't exist)
- yarn install jibo-diagnostics
-  ```
+ git clone git@github.jibo.com:sdk/sdk.git
+ cd packages/jibo-diagnostics
+ npm install
+ ```
 2. Update stash's [diagnostic skill](https://git.jibo.com/projects/PLAT/repos/buildroot.jibo/browse/package/jibo-diagnostics-skill)
 
  ```bash
- # pack the skill, copy file to repo and create shasum to be used in step 3
- cd node_modules/jibo-diagnostics
- ./bin/package.sh <version> <LDAP user>
+ cd ../
+ # pack the skill
+ tar -cvzf jibo-diagnostics-skill-<version>.tar.gz \
+     diagnostics --exclude='diagnostics/.git'
+ 
+ # Copy the file to repo
+ scp jibo-diagnostics-skill-<version>.tar.gz \
+     <your user>@repository.jibo.com:/data001/www/sdk/jibo-diagnostics-skill/
+     
+ # to use later
+ get shasum of tar- shasum -a 256 jibo-diagnostics-skill-<version>.tar.gz
  ```
 3. Get latest and create branch of buildroot
 

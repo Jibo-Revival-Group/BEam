@@ -1,0 +1,9 @@
+log as actual objects instead of just a message string? (use EventEmitter)
+where can we put in a jiboId?
+get a jiboId to put in
+send log messages in batches instead of one line at a time
+capture and send all log messages including ones before cloud is finished connecting
+handle disconnects and automatically reconnect
+have PLAT wire up a Splunk instance
+have log.error report a stack trace even if there is no Error object
+

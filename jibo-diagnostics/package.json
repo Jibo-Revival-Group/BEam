@@ -1,111 +1,89 @@
 {
-  "_args": [
-    [
-      {
-        "raw": "jibo-diagnostics@6.0.18",
-        "scope": null,
-        "escapedName": "jibo-diagnostics",
-        "name": "jibo-diagnostics",
-        "rawSpec": "6.0.18",
-        "spec": "6.0.18",
-        "type": "version"
-      },
-      "/var/lib/jenkins/workspace/OTA/ota-builder"
-    ]
-  ],
-  "_from": "jibo-diagnostics@6.0.18",
-  "_id": "jibo-diagnostics@6.0.18",
-  "_inCache": true,
-  "_installable": true,
-  "_location": "/jibo-diagnostics",
-  "_nodeVersion": "6.5.0",
-  "_npmUser": {
-    "name": "jonathan-marston",
-    "email": "jonathan.marston@jibo.com"
-  },
-  "_npmVersion": "3.10.3",
-  "_phantomChildren": {},
-  "_requested": {
-    "raw": "jibo-diagnostics@6.0.18",
-    "scope": null,
-    "escapedName": "jibo-diagnostics",
-    "name": "jibo-diagnostics",
-    "rawSpec": "6.0.18",
-    "spec": "6.0.18",
-    "type": "version"
-  },
-  "_requiredBy": [
-    "#USER"
-  ],
-  "_resolved": "http://10.0.0.106:8080/j/jibo-diagnostics/_attachments/jibo-diagnostics-6.0.18.tgz",
-  "_shasum": "2a37ecaa73f642d4542f9ab33bea7993981ce7dc",
-  "_shrinkwrap": null,
-  "_spec": "jibo-diagnostics@6.0.18",
-  "_where": "/var/lib/jenkins/workspace/OTA/ota-builder",
-  "copyright": "Copyright (c) 2014-2018 Jibo, Inc. All Rights Reserved",
-  "dependencies": {
-    "@jibo/three": "latest",
-    "jibo": "latest",
-    "jibo-cai-utils": "latest",
-    "jibo-log": "latest",
-    "moment": "^2.10.6"
-  },
+  "name": "jibo-diagnostics",
+  "version": "3.1.2",
   "description": "Diagnostics skill for manually testing jibo APIs",
-  "devDependencies": {
-    "jibo-dev": "^5.0.0"
-  },
-  "directories": {},
-  "dist": {
-    "shasum": "2a37ecaa73f642d4542f9ab33bea7993981ce7dc",
-    "tarball": "http://10.0.0.106:8080/j/jibo-diagnostics/_attachments/jibo-diagnostics-6.0.18.tgz"
-  },
-  "distribution": "PROPRIETARY AND CONFIDENTIAL - NOT FOR DISTRIBUTION",
-  "engines": {
-    "node": ">=6.0"
-  },
-  "files": [
-    "index.*",
-    "animations",
-    "assets",
-    "audio",
-    "bin",
-    "launch.rule",
-    "npm-shrinkwrap.json"
-  ],
   "jibo": {
     "main": "index.html",
     "display-name": "Diagnostics Skill",
     "launchRule": "launch.rule"
   },
+  "sdk-output": "index.js",
+  "config": {
+    "watch": "src",
+    "flows_src": "src/flows",
+    "app": "src/index.ts",
+    "bundle": "index.js",
+    "map": "index.js.map",
+    "tslint": "tslint.json"
+  },
+  "scripts": {
+    "start": "npm run watch",
+    "clean": "cross-conf-env rimraf npm_package_config_behaviors npm_package_config_bundle npm_package_config_map",
+    "lint": "npm run lint:ts",
+    "lint:ts": "cross-conf-env tslint -c npm_package_config_tslint npm_package_config_app || exit 0",
+    "prebuild": "npm run lint",
+    "build": "npm run build:ts",
+    "build:ts": "cross-conf-env browserify --extension=bt --extension=flow -s npm_package_name npm_package_config_app -o npm_package_config_bundle -p mapstraction -p [tsify --target=\"es6\"] --no-bundle-external --debug",
+    "watch:lint": "cross-conf-env watch 'npm run lint' npm_package_config_watch || exit 0",
+    "watch:ts": "cross-conf-env watchify  --extension=bt --extension=flow -s npm_package_name npm_package_config_app -o npm_package_config_bundle -p mapstraction -p [tsify --target=\"es6\"] --no-bundle-external --debug -dv",
+    "watch": "parallelshell 'npm run watch:ts' 'npm run watch:lint'",
+    "prerelease": "npm run clean && npm run lint",
+    "release": "cross-conf-env browserify --extension=bt --extension=flow -s npm_package_name npm_package_config_app -o npm_package_config_bundle -p [tsify --removeComments --target=\"es6\"] --no-bundle-external",
+    "publish:patch": "npm version patch --no-git-tag-version && npm run build && npm publish",
+    "publish:minor": "npm version minor --no-git-tag-version && npm run build && npm publish",
+    "publish:major": "npm version major --no-git-tag-version && npm run build && npm publish",
+    "postversion": "git add -A && git commit --no-verify -m \"bump\""
+  },
+  "browserify": {
+    "transform": [
+      "jibo-dev/browserify-transform"
+    ]
+  },
+  "devDependencies": {
+    "browserify": "^13.1.0",
+    "cross-conf-env": "^1.0.6",
+    "jibo-dev": "^1.1.0",
+    "mapstraction": "^1.0.0",
+    "parallelshell": "^2.0.0",
+    "rimraf": "^2.5.4",
+    "tsify": "^1.0.7",
+    "tslint": "^3.15.1",
+    "typescript": "^2.0.0",
+    "watch": "^0.19.2",
+    "watchify": "^3.7.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@github.jibo.com:sdk/sdk.git"
+  },
+  "publishConfig": {
+    "registry": "http://npm.jibo.com:8080"
+  },
+  "dependencies": {
+    "jibo": "^5.0.0",
+    "jibo-log": "^2.0.0",
+    "moment": "^2.10.6"
+  },
   "license": "UNLICENSED",
+  "_id": "jibo-diagnostics@3.1.2",
+  "_shasum": "e578ca3b1382023f551f7a33fbf45903f7624c9f",
+  "_from": "jibo-diagnostics@latest",
+  "_npmVersion": "2.14.20",
+  "_nodeVersion": "4.4.0",
+  "_npmUser": {
+    "name": "mattkarl",
+    "email": "matt.karl@jibo.com"
+  },
+  "dist": {
+    "shasum": "e578ca3b1382023f551f7a33fbf45903f7624c9f",
+    "tarball": "http://10.0.0.106:8080/j/jibo-diagnostics/_attachments/jibo-diagnostics-3.1.2.tgz"
+  },
   "maintainers": [
     {
       "name": "mattkarl",
       "email": "matt.karl@jibo.com"
     }
   ],
-  "monorailConfig": {
-    "shrinkwrap": true,
-    "public": false,
-    "output": "index.js"
-  },
-  "name": "jibo-diagnostics",
-  "optionalDependencies": {},
-  "publishConfig": {
-    "registry": "http://npm.jibo.com:8080"
-  },
-  "readme": "ERROR: No README data found!",
-  "repository": {
-    "type": "git",
-    "url": "git@github.jibo.com:sdk/sdk.git"
-  },
-  "scripts": {
-    "build": "jibo-dev build",
-    "build:release": "jibo-dev build --prod",
-    "clean": "jibo-dev clean",
-    "gitcommit": "node ../../scripts/gitcommit",
-    "sync": "jibo-rsync",
-    "watch": "jibo-dev watch"
-  },
-  "version": "6.0.18"
+  "directories": {},
+  "_resolved": "http://10.0.0.106:8080/j/jibo-diagnostics/_attachments/jibo-diagnostics-3.1.2.tgz"
 }

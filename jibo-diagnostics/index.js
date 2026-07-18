@@ -1,61 +1,62 @@
-(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
+(function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.jiboDiagnostics = f()}})(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 (function (__dirname){
 "use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : new P(function (resolve) { resolve(result.value); }).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const fs = require("fs");
-const path = require("path");
-const jibo = require("jibo");
-const log_1 = require("./log");
+const fs = require('fs');
+const path = require('path');
+const Common_1 = require('./Common');
+const jibo = require('jibo');
 const root = jibo.utils.PathUtils.findRoot(__dirname);
 const statsPath = path.join(root, 'diagnostics.log');
+/**
+ * Base class for all diagnostic tests
+ */
 class BaseTest {
-    constructor(testName) {
+    constructor() {
+        // log data
         this.logKey = undefined;
         this.logData = undefined;
-        this._log = log_1.default.createChild(testName);
     }
+    // Required (start test)
     enter() {
-        return __awaiter(this, void 0, void 0, function* () {
-            this._log.info("enter");
-            yield jibo.expression.centerRobot({ centerGlobally: true });
-        });
+        throw 'Implement enter';
     }
+    // Required (do your clean up here)
     exit() {
-        this._log.info("exit");
+        throw 'Implement exit';
     }
+    // Optionally do stuff in an update interval
     update() {
+        // throw 'Implement update';
     }
-    click(event) {
-        this._log.info("[tap event]", event.screenX, event.screenY);
+    // Optionally handle a user tapping or mouse-clicking the screen
+    click() {
     }
+    // logging stuff...
+    //
+    // attempt to read persistent data if logKey is defined; this is automatically called *before* enter!
     readPersistentData() {
         if (!this.logKey || (!fs.existsSync(statsPath))) {
-            return;
+            return; // nothing to read
         }
         try {
+            // Load stats file
             let data = JSON.parse(fs.readFileSync(statsPath, 'utf8'));
             if (data.hasOwnProperty(this.logKey)) {
                 this.logData = data[this.logKey];
             }
         }
         catch (error) {
-            this._log.error('\nError parsing \'' + statsPath + '\'. ' + error + '\n');
+            Common_1.default.error('\nError parsing \'' + statsPath + '\'. ' + error + '\n');
         }
     }
+    // write out the persistent data if logKey is defined; this is automatically called *before* exit
     writePersistentData() {
         if (!this.logKey) {
-            return;
+            return; // nothing flagged to write anything
         }
         let data = {};
         if (fs.existsSync(statsPath)) {
+            // read in old one first
             data = JSON.parse(fs.readFileSync(statsPath, 'utf8'));
         }
         data[this.logKey] = ((this.logData !== undefined) ? this.logData : {});
@@ -63,36 +64,80 @@ class BaseTest {
             fs.writeFileSync(statsPath, JSON.stringify(data, null, '    '), 'utf8');
         }
         catch (error) {
-            this._log.error('\nError writing \'' + statsPath + '\'. ' + error + '\n');
+            Common_1.default.error('\nError writing \'' + statsPath + '\'. ' + error + '\n');
         }
     }
 }
+Object.defineProperty(exports, "__esModule", { value: true });
 exports.default = BaseTest;
 
 }).call(this,"/src")
 
-},{"./log":9,"fs":undefined,"jibo":undefined,"path":undefined}],2:[function(require,module,exports){
+},{"./Common":2,"fs":undefined,"jibo":undefined,"path":undefined}],2:[function(require,module,exports){
 "use strict";
+const jibo = require('jibo');
+const Log = require('jibo-log');
+const log = new Log('Diagnostics');
+log.toSyslog(); // only works on linux/arm
+// only do logging to file if we're not on robot
+if (process.platform !== 'linux' && process.arch !== 'arm') {
+    log.toFile('diagnostics-skill.log');
+}
+/**
+ * Common robot utilities
+ */
+class Common {
+    /**
+     * Helper method to set robot to 0-position and clear out the LED
+     **/
+    static centerRobot() {
+        // index position
+        const animUtils = jibo.animate.createAnimationUtilities();
+        animUtils.centerRobot(undefined, true); // true === center globally
+    }
+    static resetLED() {
+        const animUtils = jibo.animate.createAnimationUtilities();
+        animUtils.setLEDColor([0, 0, 0]);
+    }
+    static log(...args) {
+        log.info.apply(log, arguments);
+    }
+    static error(...args) {
+        log.error.apply(log, arguments);
+    }
+}
 Object.defineProperty(exports, "__esModule", { value: true });
-const jibo = require("jibo");
-const querySelector_1 = require("./utils/querySelector");
-const tests_1 = require("./tests");
-const log_1 = require("./log");
+exports.default = Common;
+
+},{"jibo":undefined,"jibo-log":undefined}],3:[function(require,module,exports){
+"use strict";
+const jibo = require('jibo');
+const querySelector_1 = require('./utils/querySelector');
+const tests_1 = require('./tests');
+/**
+ * Main skill entry point
+ */
 class DiagnosticsSkill {
     constructor() {
         this._update = this.update.bind(this);
-        querySelector_1.default('#touch-screen').addEventListener('mousedown', (event) => {
-            this.clickScreen(event);
+        querySelector_1.default('#touch-screen').addEventListener('mousedown', () => {
+            this.clickScreen();
         });
         window.onbeforeunload = () => {
             this.stopCurrentTest();
         };
     }
+    /**
+     * Entry point for diagnostic app
+     */
     start() {
+        // start off hiding notification warning
         this._enableShutdownWarning(false, '');
+        // set up listening for shutdown notifications
+        //jibo.systemManager.on('shutdown', this._onShutdown.bind(this));
         const button = querySelector_1.default('#menu-button');
         button.onmousedown = (event) => {
-            log_1.default.info("[tap event] menu button", event.screenX, event.screenY);
+            // toggle visibility
             const selector = querySelector_1.default('#select-menu');
             if (selector.style.display === 'none') {
                 selector.style.display = 'block';
@@ -101,18 +146,29 @@ class DiagnosticsSkill {
                 selector.style.display = 'none';
             }
         };
+        // start off hiding menu
         const selector = querySelector_1.default('#select-menu');
         selector.style.display = 'none';
+        // hook up change notifications when user clicks the select
         selector.onclick = (event) => {
-            log_1.default.info("[tap event] select menu", event.screenX, event.screenY);
+            // hide selector when user clicked on it
             selector.style.display = 'none';
             const target = this.getEventTarget(event);
             this.selectTest(target);
-            event.stopPropagation();
+            event.stopPropagation(); // so test doesn't report the 'click'
         };
+        // start first test
         const first = selector.firstElementChild;
         this.selectTest(first);
+        // HACK: turn off stuff and go directly into a specific test
+        //startTest('photo-test');
+        //button.style.display = 'none';
+        //$('#stats').style.display = 'none';
     }
+    /**
+     * IE does not know about the target attribute. It looks for srcElement
+     * This function will get the event target in a browser-compatible way
+     */
     getEventTarget(e) {
         e = e || window.event;
         return e.target || e.srcElement;
@@ -122,22 +178,40 @@ class DiagnosticsSkill {
         notification.style.display = (enable ? 'initial' : 'none');
         notification.innerHTML = msg;
     }
+    // _onShutdown(event) {
+    //     this._enableShutdownWarning(true, 'SHUTDOWN WARNING: ' + event.data.eta + 'ms left (' + event.data.reason + ')');
+    // }
+    /**
+     * Select test (highlight) and start an instance of a specific test
+     */
     selectTest(element) {
+        // update selection state
         const tests = querySelector_1.default('#select-menu').getElementsByTagName('li');
         const len = tests.length;
         for (let i = 0; i < len; i++) {
             tests[i].style.backgroundColor = 'lightgray';
         }
+        // highlight the one we selected
         element.style.backgroundColor = 'gold';
+        // actually launch the test
         this.startTest(element.getAttribute('value'));
     }
+    /**
+     * Create an instance of a specific test
+     */
     createTest(testName) {
         const testClass = tests_1.default[testName];
-        return new testClass(testName);
+        return new testClass();
     }
+    /**
+     * Start a specific test (shutting down existing test if applicable)
+     */
     startTest(testName) {
+        // exit old test
         this.stopCurrentTest();
+        // create new test
         this.currentTest = this.createTest(testName);
+        // enter new test
         if (this.currentTest) {
             this.currentTest.readPersistentData();
             this.currentTest.enter();
@@ -149,22 +223,30 @@ class DiagnosticsSkill {
             this.currentTest.update();
         }
     }
+    /**
+     * Stop the current test
+     */
     stopCurrentTest() {
+        // exit current test
         if (this.currentTest) {
             jibo.timer.off('update', this._update);
             this.currentTest.writePersistentData();
             this.currentTest.exit();
         }
     }
-    clickScreen(event) {
+    /**
+     * Optionally handle a user tapping or mouse-clicking on the screen
+     */
+    clickScreen() {
         if (this.currentTest) {
-            this.currentTest.click(event);
+            this.currentTest.click();
         }
     }
 }
+Object.defineProperty(exports, "__esModule", { value: true });
 exports.default = DiagnosticsSkill;
 
-},{"./log":9,"./tests":23,"./utils/querySelector":24,"jibo":undefined}],3:[function(require,module,exports){
+},{"./tests":23,"./utils/querySelector":24,"jibo":undefined}],4:[function(require,module,exports){
 'use strict';
 module.exports = function (blackboard, notepad, result, emitter) {
     return {
@@ -349,7 +431,7 @@ module.exports = function (blackboard, notepad, result, emitter) {
         'meta': { 'version': 1 }
     };
 };
-},{}],4:[function(require,module,exports){
+},{}],5:[function(require,module,exports){
 'use strict';
 module.exports = function (blackboard, notepad, result, emitter) {
     return {
@@ -402,11 +484,10 @@ module.exports = function (blackboard, notepad, result, emitter) {
                     'getTarget': () => {
                         let jibo = require('jibo');
                         let entity = jibo.lps.getClosestAudibleEntity();
-                        let valid = entity !== undefined && entity.confidence >= 0.2;
+                        let valid = entity !== undefined && entity.confidence >= 0.6;
                         if (valid) {
                             let pos = entity.position;
-                            let THREE = require('@jibo/three');
-                            pos = new THREE.Vector3(pos.x, pos.y, pos.z);
+                            pos = new jibo.animate.THREE.Vector3(pos.x, pos.y, pos.z);
                             pos.normalize();
                             let newZ = pos.z;
                             if (newZ > 0.5) {
@@ -430,9 +511,6 @@ module.exports = function (blackboard, notepad, result, emitter) {
                             document.getElementById('test-label').innerHTML = `Conf=${ confid } Can't hear you :(`;
                             return notepad.position;
                         }
-                    },
-                    'isContinuous': false,
-                    'config': lookAt => {
                     }
                 }
             };
@@ -468,7 +546,7 @@ module.exports = function (blackboard, notepad, result, emitter) {
         'meta': { 'version': 1 }
     };
 };
-},{"@jibo/three":undefined,"jibo":undefined}],5:[function(require,module,exports){
+},{"jibo":undefined}],6:[function(require,module,exports){
 'use strict';
 module.exports = function (blackboard, notepad, result, emitter) {
     return {
@@ -481,9 +559,10 @@ module.exports = function (blackboard, notepad, result, emitter) {
                 3,
                 4,
                 7,
-                '0bb8471f-a335-4499-90ae-ffdfaac8eb54',
+                10,
+                8,
                 '9060be94-52ce-46f0-9254-e7d44c1f2a16',
-                '7989bfde-f8e9-44c0-b680-83dd87d5571e',
+                11,
                 6
             ],
             'options': {}
@@ -497,12 +576,9 @@ module.exports = function (blackboard, notepad, result, emitter) {
                 'class': 'PlayAnimation',
                 'options': {
                     'animPath': 'spin_head.keys',
-                    'config': builder => {
-                        builder.setSpeed(notepad.animSpeed);
-                    },
-                    'animSelector': 1,
-                    'cache': true,
-                    'upload': true
+                    'config': animation => {
+                        animation.builder.setSpeed(notepad.animSpeed);
+                    }
                 }
             };
         },
@@ -515,12 +591,9 @@ module.exports = function (blackboard, notepad, result, emitter) {
                 'class': 'PlayAnimation',
                 'options': {
                     'animPath': 'spin_torso.keys',
-                    'config': builder => {
-                        builder.setSpeed(notepad.animSpeed);
-                    },
-                    'animSelector': 1,
-                    'cache': true,
-                    'upload': true
+                    'config': animation => {
+                        animation.builder.setSpeed(notepad.animSpeed);
+                    }
                 }
             };
         },
@@ -533,12 +606,9 @@ module.exports = function (blackboard, notepad, result, emitter) {
                 'class': 'PlayAnimation',
                 'options': {
                     'animPath': 'spin_pelvis.keys',
-                    'config': builder => {
-                        builder.setSpeed(notepad.animSpeed);
-                    },
-                    'animSelector': 1,
-                    'cache': true,
-                    'upload': true
+                    'config': animation => {
+                        animation.builder.setSpeed(notepad.animSpeed);
+                    }
                 }
             };
         },
@@ -582,10 +652,56 @@ module.exports = function (blackboard, notepad, result, emitter) {
                 'options': {
                     'animPath': 'twist.keys',
                     'config': animation => {
-                    },
-                    'animSelector': 1,
-                    'cache': true,
-                    'upload': true
+                    }
+                }
+            };
+        },
+        '8': function () {
+            return {
+                'id': '8',
+                'name': 'index',
+                'parent': 1,
+                'asset-pack': 'core',
+                'class': 'PlayAnimation',
+                'skipped': true,
+                'options': {
+                    'animPath': 'index.keys',
+                    'config': animation => {
+                        document.getElementById('test-label3').innerHTML = 'indexing...';
+                        console.log('indexing...');
+                    }
+                }
+            };
+        },
+        '10': function () {
+            return {
+                'id': '10',
+                'name': 'center',
+                'parent': 1,
+                'asset-pack': 'core',
+                'class': 'ExecuteScript',
+                'options': {
+                    'exec': () => {
+                        console.log('centering #1');
+                        let common = require('../Common').default;
+                        common.centerRobot();
+                    }
+                }
+            };
+        },
+        '11': function () {
+            return {
+                'id': '11',
+                'name': 'center',
+                'parent': 1,
+                'asset-pack': 'core',
+                'class': 'ExecuteScript',
+                'options': {
+                    'exec': () => {
+                        console.log('centering #2');
+                        let common = require('../Common').default;
+                        common.centerRobot();
+                    }
                 }
             };
         },
@@ -600,47 +716,17 @@ module.exports = function (blackboard, notepad, result, emitter) {
                 'options': {
                     'exec': (succeed, fail) => {
                         document.getElementById('test-label3').innerHTML = 'indexing...';
-                        jibo.expression.indexRobot().then(() => {
-                            succeed();
-                        }).catch(error => {
-                            console.error(error);
+                        jibo.system.index(function (error) {
+                            console.log(error ? error : 'Robot is re-indexed');
                             succeed();
                         });
-                    }
-                }
-            };
-        },
-        '0bb8471f-a335-4499-90ae-ffdfaac8eb54': function () {
-            return {
-                'id': '0bb8471f-a335-4499-90ae-ffdfaac8eb54',
-                'name': 'Center',
-                'parent': 1,
-                'asset-pack': 'core',
-                'class': 'ExecuteScriptAsync',
-                'options': {
-                    'exec': (succeed, fail) => {
-                        jibo.expression.centerRobot({ centerGlobally: true }).then(succeed);
-                    }
-                }
-            };
-        },
-        '7989bfde-f8e9-44c0-b680-83dd87d5571e': function () {
-            return {
-                'id': '7989bfde-f8e9-44c0-b680-83dd87d5571e',
-                'name': 'Center',
-                'parent': 1,
-                'asset-pack': 'core',
-                'class': 'ExecuteScriptAsync',
-                'options': {
-                    'exec': (succeed, fail) => {
-                        jibo.expression.centerRobot({ centerGlobally: true }).then(succeed);
                     }
                 }
             };
         }
     };
 };
-},{}],6:[function(require,module,exports){
+},{"../Common":2}],7:[function(require,module,exports){
 'use strict';
 module.exports = function (blackboard, notepad, result, emitter) {
     return {
@@ -885,14 +971,12 @@ module.exports = function (blackboard, notepad, result, emitter) {
                 'class': 'ExecuteScript',
                 'options': {
                     'exec': () => {
+                        let AnimationUtilities = require('jibo/node_modules/animation-utilities');
+                        let animUtils = jibo.animate.createAnimationUtilities();
                         let r = Math.floor(Math.random() * 256) / 255;
                         let g = Math.floor(Math.random() * 256) / 255;
                         let b = Math.floor(Math.random() * 256) / 255;
-                        jibo.expression.setLEDColor([
-                            r,
-                            g,
-                            b
-                        ]);
+                        animUtils.setLEDColor(new AnimationUtilities.THREE.Color(r, g, b));
                     }
                 }
             };
@@ -1017,7 +1101,7 @@ module.exports = function (blackboard, notepad, result, emitter) {
         'meta': { 'version': 1 }
     };
 };
-},{}],7:[function(require,module,exports){
+},{"jibo/node_modules/animation-utilities":undefined}],8:[function(require,module,exports){
 'use strict';
 module.exports = function (blackboard, notepad, result, emitter) {
     return {
@@ -1066,75 +1150,34 @@ module.exports = function (blackboard, notepad, result, emitter) {
         'meta': { 'version': 1 }
     };
 };
-},{"jibo":undefined}],8:[function(require,module,exports){
+},{"jibo":undefined}],9:[function(require,module,exports){
 "use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-const jibo = require("jibo");
-require("./utils/stats");
-const DiagnosticsSkill_1 = require("./DiagnosticsSkill");
-const log_1 = require("./log");
+/// <reference path="../node_modules/jibo/typings/index.d.ts" />
+const jibo = require('jibo');
+require('./utils/stats');
+const DiagnosticsSkill_1 = require('./DiagnosticsSkill');
+// Create the skill
 const skill = new DiagnosticsSkill_1.default();
+// Initialize jibo and start the skill
 jibo.init({ display: 'face' }, () => {
-    log_1.loadLogConfig();
-    jibo.action.configure({ orientToHJ: false });
-    jibo.expression.setAttentionMode(jibo.expression.AttentionMode.OFF)
-        .then(() => {
-        return jibo.expression.indexRobot();
-    })
-        .then(() => {
-        skill.start();
-    })
-        .catch((error) => {
-        log_1.default.error(error);
+    jibo.system.index(() => {
         skill.start();
     });
 });
 
-},{"./DiagnosticsSkill":2,"./log":9,"./utils/stats":25,"jibo":undefined}],9:[function(require,module,exports){
+},{"./DiagnosticsSkill":3,"./utils/stats":25,"jibo":undefined}],10:[function(require,module,exports){
 "use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-const jibo = require("jibo");
-const path = require("path");
-const fs = require("fs");
-const jibo_log_1 = require("jibo-log");
-jibo_log_1.Log.processName = "jibo-diagnostics";
-const log = new jibo_log_1.Log('Diagnostics');
-exports.default = log;
-function loadLogConfig() {
-    let configPath = path.join(jibo.utils.PathUtils.findRoot(), 'logging.json');
-    if (fs.existsSync(configPath)) {
-        try {
-            jibo_log_1.Log.loadConfig(JSON.parse(fs.readFileSync(configPath, 'utf-8')));
-            log.info(`Loaded log configuration from '${configPath}'`);
-        }
-        catch (err) {
-            console.error(`Error parsing logging config file '${configPath}': ${err.message}`);
-        }
-    }
-    else {
-        console.error(`No logging configuration found at '${configPath}'`);
-    }
-}
-exports.loadLogConfig = loadLogConfig;
-
-},{"fs":undefined,"jibo":undefined,"jibo-log":undefined,"path":undefined}],10:[function(require,module,exports){
-"use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : new P(function (resolve) { resolve(result.value); }).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const jibo = require("jibo");
-const BaseTest_1 = require("../BaseTest");
-const querySelector_1 = require("../utils/querySelector");
+const jibo = require('jibo');
+const BaseTest_1 = require('../BaseTest');
+const Common_1 = require('../Common');
+const querySelector_1 = require('../utils/querySelector');
 const asrTest = require('../behaviors/asr-test');
+/*
+* ASR diagnostic test
+* */
 class ASRTest extends BaseTest_1.default {
-    constructor(testName) {
-        super(testName);
+    constructor() {
+        super();
         const blackboard = {
             setLabel: this.setLabel
         };
@@ -1144,14 +1187,12 @@ class ASRTest extends BaseTest_1.default {
         querySelector_1.default('#test-label').innerHTML = label;
     }
     enter() {
-        const _super = name => super[name];
-        return __awaiter(this, void 0, void 0, function* () {
-            _super("enter").call(this);
-            this.root.start();
-        });
+        this.root.start();
+        Common_1.default.log('enter asr');
+        Common_1.default.centerRobot();
     }
     exit() {
-        super.exit();
+        Common_1.default.log('exit asr');
         this.root.stop();
         querySelector_1.default('#test-label').innerHTML = '';
     }
@@ -1159,33 +1200,30 @@ class ASRTest extends BaseTest_1.default {
         this.root.update();
     }
 }
+Object.defineProperty(exports, "__esModule", { value: true });
 exports.default = ASRTest;
 
-},{"../BaseTest":1,"../behaviors/asr-test":3,"../utils/querySelector":24,"jibo":undefined}],11:[function(require,module,exports){
+},{"../BaseTest":1,"../Common":2,"../behaviors/asr-test":4,"../utils/querySelector":24,"jibo":undefined}],11:[function(require,module,exports){
 "use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : new P(function (resolve) { resolve(result.value); }).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const jibo = require("jibo");
-const BaseTest_1 = require("../BaseTest");
-const querySelector_1 = require("../utils/querySelector");
+const jibo = require('jibo');
+const BaseTest_1 = require('../BaseTest');
+const Common_1 = require('../Common');
+const querySelector_1 = require('../utils/querySelector');
 const audioContext = new AudioContext();
 let buffer = null;
+/**
+ * Audio diagnostic test
+ */
 class AudioTest extends BaseTest_1.default {
-    constructor(testName) {
-        super(testName);
+    constructor() {
+        super();
         this.bufferSource = null;
         const request = new XMLHttpRequest();
         const url = jibo.utils.PathUtils.getAssetUri('audio/FX_Bleep.mp3');
         request.open('GET', url, true);
         request.responseType = 'arraybuffer';
         request.onload = () => {
+            // Decode asynchronously
             audioContext.decodeAudioData(request.response, (_buffer) => {
                 buffer = _buffer;
             }, (error) => {
@@ -1195,19 +1233,17 @@ class AudioTest extends BaseTest_1.default {
         request.send();
     }
     enter() {
-        const _super = name => super[name];
-        return __awaiter(this, void 0, void 0, function* () {
-            _super("enter").call(this);
-            querySelector_1.default('#test-label').innerHTML = 'Click to play';
-        });
+        Common_1.default.log('enter audio');
+        Common_1.default.centerRobot();
+        querySelector_1.default('#test-label').innerHTML = 'Click to play';
     }
     exit() {
-        super.exit();
+        Common_1.default.log('exit audio');
         this._stop();
         querySelector_1.default('#test-label').innerHTML = '';
     }
-    click(event) {
-        super.click(event);
+    click() {
+        Common_1.default.log('clicked for audio');
         this._stop();
         this._play();
     }
@@ -1220,47 +1256,44 @@ class AudioTest extends BaseTest_1.default {
     }
     _play() {
         if (!buffer) {
-            this._log.info('Audio buffer not loaded yet...');
+            Common_1.default.log('Audio buffer not loaded yet...');
             return;
         }
         this.bufferSource = audioContext.createBufferSource();
+        // Tell the source which sound to play
         this.bufferSource.buffer = buffer;
+        // Connect the source to the context's destination (the speakers)
         this.bufferSource.connect(audioContext.destination);
+        // play the source now
         this.bufferSource.start(0);
     }
 }
+Object.defineProperty(exports, "__esModule", { value: true });
 exports.default = AudioTest;
 
-},{"../BaseTest":1,"../utils/querySelector":24,"jibo":undefined}],12:[function(require,module,exports){
+},{"../BaseTest":1,"../Common":2,"../utils/querySelector":24,"jibo":undefined}],12:[function(require,module,exports){
 "use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : new P(function (resolve) { resolve(result.value); }).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const BaseTest_1 = require("../BaseTest");
-const jibo = require("jibo");
-const querySelector_1 = require("../utils/querySelector");
+const BaseTest_1 = require('../BaseTest');
+const jibo = require('jibo');
+const Common_1 = require('../Common');
+const querySelector_1 = require('../utils/querySelector');
 const audioTracking = require('../behaviors/audio-tracking');
+/*
+* LPS audio tracking diagnostic test
+* */
 class AudioTrackingTest extends BaseTest_1.default {
-    constructor(testName) {
-        super(testName);
+    constructor() {
+        super();
         this.root = jibo.bt.create(audioTracking);
     }
     enter() {
-        const _super = name => super[name];
-        return __awaiter(this, void 0, void 0, function* () {
-            _super("enter").call(this);
-            querySelector_1.default('#test-label').innerHTML = 'Say something and I\'ll follow your voice!';
-            this.root.start();
-        });
+        Common_1.default.centerRobot();
+        Common_1.default.log('enter audio tracking');
+        querySelector_1.default('#test-label').innerHTML = 'Say something and I\'ll follow your voice!';
+        this.root.start();
     }
     exit() {
-        super.exit();
+        Common_1.default.log('exit audio tracking');
         querySelector_1.default('#test-label').innerHTML = '';
         this.root.stop();
     }
@@ -1268,28 +1301,24 @@ class AudioTrackingTest extends BaseTest_1.default {
         this.root.update();
     }
 }
+Object.defineProperty(exports, "__esModule", { value: true });
 exports.default = AudioTrackingTest;
 
-},{"../BaseTest":1,"../behaviors/audio-tracking":4,"../utils/querySelector":24,"jibo":undefined}],13:[function(require,module,exports){
+},{"../BaseTest":1,"../Common":2,"../behaviors/audio-tracking":5,"../utils/querySelector":24,"jibo":undefined}],13:[function(require,module,exports){
 "use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : new P(function (resolve) { resolve(result.value); }).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const jibo = require("jibo");
-const moment = require("moment");
-const BaseTest_1 = require("../BaseTest");
-const querySelector_1 = require("../utils/querySelector");
+const jibo = require('jibo');
+const moment = require('moment');
+const BaseTest_1 = require('../BaseTest');
+const Common_1 = require('../Common');
+const querySelector_1 = require('../utils/querySelector');
 const body = require('../behaviors/body');
 const Status = jibo.bt.Status;
+/*
+* Body diagnostic test
+* */
 class BodyTest extends BaseTest_1.default {
-    constructor(testName) {
-        super(testName);
+    constructor() {
+        super();
         this.logKey = 'bodytest';
         this.root = jibo.bt.create(body);
         this.exiting = false;
@@ -1301,50 +1330,51 @@ class BodyTest extends BaseTest_1.default {
             'count': this.cyclesSoFar,
             'time': moment().format()
         };
-        this.writePersistentData();
+        this.writePersistentData(); // tell it to save right then in case test crashes (we also save on exit)
     }
     enter() {
-        const _super = name => super[name];
-        return __awaiter(this, void 0, void 0, function* () {
-            _super("enter").call(this);
-            if (this.logData !== undefined) {
-                if (this.logData.hasOwnProperty('second')) {
-                    this.logData['third'] = this.logData['second'];
-                }
-                if (this.logData.hasOwnProperty('first')) {
-                    this.logData['second'] = this.logData['first'];
-                }
-            }
-            else {
-                this.logData = {};
-            }
-            this._updateLogData();
-            let div = querySelector_1.default('#misc-log');
-            div.style.display = 'block';
-            div.innerHTML += '<h4>Previous Runs</h4>';
-            let last1 = 'N/A';
-            let last2 = 'N/A';
+        Common_1.default.log('enter body');
+        // store off some data to show on screen
+        if (this.logData !== undefined) {
             if (this.logData.hasOwnProperty('second')) {
-                last1 = this.logData['second'].time + ': ' + this.logData['second'].count;
-                if (this.logData.hasOwnProperty('third')) {
-                    last2 = this.logData['third'].time + ': ' + this.logData['third'].count;
-                }
+                this.logData['third'] = this.logData['second'];
             }
-            div.innerHTML += '<span class="item">' + last1 + '</span>';
-            div.innerHTML += '<span class="item">' + last2 + '</span>';
-            this._startCycle();
-        });
+            if (this.logData.hasOwnProperty('first')) {
+                this.logData['second'] = this.logData['first'];
+            }
+        }
+        else {
+            this.logData = {};
+        }
+        this._updateLogData(); // update
+        // display last 2 runs' data
+        let div = querySelector_1.default('#misc-log');
+        div.style.display = 'block';
+        div.innerHTML += '<h4>Previous Runs</h4>';
+        let last1 = 'N/A';
+        let last2 = 'N/A';
+        if (this.logData.hasOwnProperty('second')) {
+            last1 = this.logData['second'].time + ': ' + this.logData['second'].count;
+            if (this.logData.hasOwnProperty('third')) {
+                last2 = this.logData['third'].time + ': ' + this.logData['third'].count;
+            }
+        }
+        div.innerHTML += '<span class="item">' + last1 + '</span>';
+        div.innerHTML += '<span class="item">' + last2 + '</span>';
+        this._startCycle();
     }
     _startCycle() {
+        // start behavior
         this.root.start();
+        // dirty for render update
         this.dirty = true;
     }
     _isPaused() {
         return (this.root && (this.root.currentStatus === Status.PAUSED));
     }
     exit() {
-        super.exit();
         this.exiting = true;
+        Common_1.default.log('exit body');
         querySelector_1.default('#test-label').innerHTML = '';
         querySelector_1.default('#test-label2').innerHTML = '';
         querySelector_1.default('#test-label3').innerHTML = '';
@@ -1364,10 +1394,12 @@ class BodyTest extends BaseTest_1.default {
             return;
         }
         this.root.update();
+        //console.log('body test: root.currentStatus === ' + this.root.currentStatus);
         if (this.root.currentStatus === Status.SUCCEEDED) {
+            // is cycle over? start it back up
             querySelector_1.default('#test-label3').innerHTML = '';
             this.cyclesSoFar++;
-            this._updateLogData();
+            this._updateLogData(); // update persistent data after cycle is completed
             this._startCycle();
             this.dirty = true;
         }
@@ -1376,8 +1408,8 @@ class BodyTest extends BaseTest_1.default {
             querySelector_1.default('#test-label2').innerHTML = 'cycles completed: ' + this.cyclesSoFar;
         }
     }
-    click(event) {
-        super.click(event);
+    click() {
+        // toggle pause
         if (this._isPaused()) {
             this.root.unpause();
         }
@@ -1386,104 +1418,87 @@ class BodyTest extends BaseTest_1.default {
         }
     }
 }
+Object.defineProperty(exports, "__esModule", { value: true });
 exports.default = BodyTest;
 
-},{"../BaseTest":1,"../behaviors/body":5,"../utils/querySelector":24,"jibo":undefined,"moment":undefined}],14:[function(require,module,exports){
+},{"../BaseTest":1,"../Common":2,"../behaviors/body":6,"../utils/querySelector":24,"jibo":undefined,"moment":undefined}],14:[function(require,module,exports){
 "use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : new P(function (resolve) { resolve(result.value); }).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const BaseTest_1 = require("../BaseTest");
-const jibo = require("jibo");
-const querySelector_1 = require("../utils/querySelector");
-const jibo_cai_utils_1 = require("jibo-cai-utils");
-let colors = [
-    [1, 1, 1],
-    [1, 0, 0],
-    [1, 77 / 255, 0],
-    [1, 1, 0],
-    [72 / 255, 1, 0],
-    [0, 234 / 255, 1],
-    [0, 17 / 255, 1],
-    [98 / 255, 0, 1],
-    [1, 0, 1],
-    [1, 1, 1]
-];
+const BaseTest_1 = require('../BaseTest');
+const jibo = require('jibo');
+const Common_1 = require('../Common');
+const querySelector_1 = require('../utils/querySelector');
+let animInstance = undefined;
+/*
+* LED diagnostic test
+* */
 class LEDTest extends BaseTest_1.default {
-    constructor(testName) {
-        super(testName);
+    constructor() {
+        super();
+        this.animutils = jibo.animate.createAnimationUtilities();
+        // this.animutils.blink();
+        this.animPath = jibo.utils.PathUtils.getAssetUri('animations/led.keys');
         this.exiting = false;
     }
     enter() {
-        const _super = name => super[name];
-        return __awaiter(this, void 0, void 0, function* () {
-            _super("enter").call(this);
-            yield jibo.expression.blink();
-            yield jibo.expression.centerRobot({ centerGlobally: true });
-            querySelector_1.default('#test-label').innerHTML = 'Pretty colors';
-            this.exiting = false;
-            this.laodAndPlay();
-        });
-    }
-    laodAndPlay() {
-        return __awaiter(this, void 0, void 0, function* () {
-            for (let i = 0; i < colors.length; i++) {
-                jibo.expression.setLEDColor(colors[i]);
-                yield jibo_cai_utils_1.PromiseUtils.promisify(cb => setTimeout(cb, 500));
-            }
-            if (!this.exiting) {
-                this.laodAndPlay();
-            }
+        Common_1.default.log('enter LED');
+        Common_1.default.centerRobot();
+        querySelector_1.default('#test-label').innerHTML = 'Pretty colors';
+        this.exiting = false;
+        this._exitHelper();
+        const builder = this.animutils.createAnimationBuilderFromKeysPath(this.animPath, '.', (builder) => {
+            builder.on('STOPPED', () => {
+                if (!this.exiting) {
+                    animInstance = builder.play(); // loop if we are not exiting test
+                }
+            });
+            builder.setTransitionIn(null);
+            animInstance = builder.play();
         });
     }
     exit() {
-        super.exit();
         querySelector_1.default('#test-label').innerHTML = '';
+        Common_1.default.log('exit LED');
         this.exiting = true;
-        jibo.expression.setLEDColor([0, 0, 0]);
+        this._exitHelper();
+    }
+    _exitHelper() {
+        if (animInstance) {
+            animInstance.stop();
+            animInstance = undefined;
+            Common_1.default.resetLED();
+        }
     }
 }
+Object.defineProperty(exports, "__esModule", { value: true });
 exports.default = LEDTest;
 
-},{"../BaseTest":1,"../utils/querySelector":24,"jibo":undefined,"jibo-cai-utils":undefined}],15:[function(require,module,exports){
+},{"../BaseTest":1,"../Common":2,"../utils/querySelector":24,"jibo":undefined}],15:[function(require,module,exports){
 "use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : new P(function (resolve) { resolve(result.value); }).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const BaseTest_1 = require("../BaseTest");
-const jibo = require("jibo");
-const querySelector_1 = require("../utils/querySelector");
+const BaseTest_1 = require('../BaseTest');
+const jibo = require('jibo');
+const Common_1 = require('../Common');
+const querySelector_1 = require('../utils/querySelector');
 const lifecycle = require('../behaviors/lifecycle');
 const Status = jibo.bt.Status;
+/*
+ * Life Cycle diagnostic test
+ * */
 class LifeCycleTest extends BaseTest_1.default {
-    constructor(testName) {
-        super(testName);
+    constructor() {
+        super();
         this.root = jibo.bt.create(lifecycle);
         this.exiting = false;
         this.cyclesSoFar = 0;
-        this.looping = true;
+        this.looping = true; // on by default
         this.dirty = false;
     }
     enter() {
-        const _super = name => super[name];
-        return __awaiter(this, void 0, void 0, function* () {
-            _super("enter").call(this);
-            this._startCycle();
-        });
+        Common_1.default.log('entering lifecycle test');
+        this._startCycle();
     }
     _startCycle() {
+        // start behavior & set appropriate flags
+        // 1. say random greeting...
         const phrases = [
             'What\'s up',
             'Yo',
@@ -1499,15 +1514,19 @@ class LifeCycleTest extends BaseTest_1.default {
         const randomInt = Math.floor(Math.random() * phrases.length);
         const phrase = phrases[randomInt];
         jibo.tts.speak(phrase, function (err) {
+            // What to do when service is down? Just ignore, or switch
+            // here to chrome's implementation if we're not running on the robot
             if (err) {
-                this._log.error('tts.speak() error: ' + err);
+                Common_1.default.error('tts.speak() error: ' + err);
             }
         });
+        // 2. start behavior
         this.root.start();
+        // 3. dirty for render update
         this.dirty = true;
     }
     exit() {
-        super.exit();
+        Common_1.default.log('exit lifecycle test');
         querySelector_1.default('#test-label').innerHTML = '';
         querySelector_1.default('#test-label2').innerHTML = '';
         querySelector_1.default('#test-label3').innerHTML = '';
@@ -1519,11 +1538,10 @@ class LifeCycleTest extends BaseTest_1.default {
             this.root.stop();
             this.root = undefined;
         }
-        jibo.expression.setLEDColor([0, 0, 0]);
+        Common_1.default.resetLED();
     }
-    click(event) {
-        super.click(event);
-        this.looping = !this.looping;
+    click() {
+        this.looping = !this.looping; // toggle looping
         this.dirty = true;
     }
     update() {
@@ -1532,13 +1550,16 @@ class LifeCycleTest extends BaseTest_1.default {
         }
         this.root.update();
         if (this.root.currentStatus === Status.SUCCEEDED) {
+            // one cycle is over, so pause it
             this.root.pause();
             this.cyclesSoFar++;
             this.dirty = true;
         }
+        // check if we need to start it again
         if (this.looping && (this.root.currentStatus === Status.PAUSED)) {
             this._startCycle();
         }
+        // update text if needed
         if (this.dirty) {
             querySelector_1.default('#test-label').innerHTML = (this.looping ? 'Looping (tap to toggle)' : 'Not looping (tap to toggle)');
             querySelector_1.default('#test-label2').innerHTML = 'cycles completed: ' + this.cyclesSoFar;
@@ -1546,93 +1567,87 @@ class LifeCycleTest extends BaseTest_1.default {
         }
     }
 }
+Object.defineProperty(exports, "__esModule", { value: true });
 exports.default = LifeCycleTest;
 
-},{"../BaseTest":1,"../behaviors/lifecycle":6,"../utils/querySelector":24,"jibo":undefined}],16:[function(require,module,exports){
+},{"../BaseTest":1,"../Common":2,"../behaviors/lifecycle":7,"../utils/querySelector":24,"jibo":undefined}],16:[function(require,module,exports){
 "use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : new P(function (resolve) { resolve(result.value); }).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const BaseTest_1 = require("../BaseTest");
-const querySelector_1 = require("../utils/querySelector");
+const BaseTest_1 = require('../BaseTest');
+const Common_1 = require('../Common');
+const querySelector_1 = require('../utils/querySelector');
+/*
+* ASR diagnostic test
+* */
 class MathTest extends BaseTest_1.default {
-    constructor(testName) {
-        super(testName);
+    constructor() {
+        super();
     }
     enter() {
-        const _super = name => super[name];
-        return __awaiter(this, void 0, void 0, function* () {
-            _super("enter").call(this);
-            const tests = {
-                'abs': ['(-99)', 99],
-                'acos': ['(-1)', 3.141592653589793],
-                'acosh': ['(2)', 1.3169578969248166],
-                'asin': ['(1)', 1.5707963267948966],
-                'asinh': ['(1)', 0.8813735870195429],
-                'atan': ['(1)', 0.7853981633974483],
-                'atan2': ['(0,0)', 0],
-                'atanh': ['(0.5)', 0.5493061443340549],
-                'cbrt': ['(-1)', -1],
-                'ceil': ['(0.95)', 1],
-                'clz32': ['(1)', 31],
-                'cos': ['(Math.PI)', -1],
-                'cosh': ['(1)', 1.5430806348152437],
-                'exp': ['(-1)', 0.3678794411714424],
-                'expm1': ['(-1)', -0.6321205588285577],
-                'floor': ['(3.5)', 3],
-                'fround': ['(1.337)', 1.3370000123977661],
-                'hypot': ['(3, 4)', 5],
-                'imul': ['(2, 4)', 8],
-                'log': ['(10)', 2.302585092994046],
-                'log10': ['(100000)', 5],
-                'log1p': ['(1)', 0.6931471805599453],
-                'log2': ['(1024)', 10],
-                'max': ['(1,2)', 2],
-                'min': ['(1,2)', 1],
-                'pow': ['(7, 2)', 49],
-                'round': ['(20.49)', 20],
-                'sign': ['(-3)', -1],
-                'sin': ['(Math.PI/2)', 1],
-                'sinh': ['(1)', 1.1752011936438014],
-                'sqrt': ['(4)', 2],
-                'tan': ['(1)', 1.5574077246549023],
-                'tanh': ['(1)', 0.7615941559557649],
-                'trunc': ['(13.37)', 13],
-                'E': ['', 2.718281828459045],
-                'LN2': ['', 0.6931471805599453],
-                'LN10': ['', 2.302585092994046],
-                'LOG2E': ['', 1.4426950408889634],
-                'LOG10E': ['', 0.4342944819032518],
-                'PI': ['', 3.141592653589793],
-                'SQRT1_2': ['', 0.7071067811865476],
-                'SQRT2': ['', 1.4142135623730951]
-            };
-            let successful = '', errors = '';
-            for (let name in tests) {
-                let answer = eval('Math.' + name + tests[name][0]);
-                if (Math.abs(answer - tests[name][1]) < Number.EPSILON) {
-                    successful += '<span class="left"><a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Math/' + name + '">Math.' + name + tests[name][0] + '</a> = ' + answer + '</span><span class="right">' + tests[name][1] + '</span><div style="clear:both"></div>';
-                }
-                else {
-                    errors += '<span class="left"><span class="error"><a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Math/' + name + '">Math.' + name + tests[name][0] + '</a> = ' + answer + '</span></span><span class="right">' + tests[name][1] + '</span></span><div style="clear:both"></div>';
-                }
+        Common_1.default.log('enter math');
+        Common_1.default.centerRobot();
+        const tests = {
+            'abs': ['(-99)', 99],
+            'acos': ['(-1)', 3.141592653589793],
+            'acosh': ['(2)', 1.3169578969248166],
+            'asin': ['(1)', 1.5707963267948966],
+            'asinh': ['(1)', 0.8813735870195429],
+            'atan': ['(1)', 0.7853981633974483],
+            'atan2': ['(0,0)', 0],
+            'atanh': ['(0.5)', 0.5493061443340549],
+            'cbrt': ['(-1)', -1],
+            'ceil': ['(0.95)', 1],
+            'clz32': ['(1)', 31],
+            'cos': ['(Math.PI)', -1],
+            'cosh': ['(1)', 1.5430806348152437],
+            'exp': ['(-1)', 0.3678794411714424],
+            'expm1': ['(-1)', -0.6321205588285577],
+            'floor': ['(3.5)', 3],
+            'fround': ['(1.337)', 1.3370000123977661],
+            'hypot': ['(3, 4)', 5],
+            'imul': ['(2, 4)', 8],
+            'log': ['(10)', 2.302585092994046],
+            'log10': ['(100000)', 5],
+            'log1p': ['(1)', 0.6931471805599453],
+            'log2': ['(1024)', 10],
+            'max': ['(1,2)', 2],
+            'min': ['(1,2)', 1],
+            'pow': ['(7, 2)', 49],
+            'round': ['(20.49)', 20],
+            'sign': ['(-3)', -1],
+            'sin': ['(Math.PI/2)', 1],
+            'sinh': ['(1)', 1.1752011936438014],
+            'sqrt': ['(4)', 2],
+            'tan': ['(1)', 1.5574077246549023],
+            'tanh': ['(1)', 0.7615941559557649],
+            'trunc': ['(13.37)', 13],
+            'E': ['', 2.718281828459045],
+            'LN2': ['', 0.6931471805599453],
+            'LN10': ['', 2.302585092994046],
+            'LOG2E': ['', 1.4426950408889634],
+            'LOG10E': ['', 0.4342944819032518],
+            'PI': ['', 3.141592653589793],
+            'SQRT1_2': ['', 0.7071067811865476],
+            'SQRT2': ['', 1.4142135623730951]
+        };
+        let successful = '', errors = '';
+        for (let name in tests) {
+            let answer = eval('Math.' + name + tests[name][0]);
+            if (answer === tests[name][1]) {
+                successful += '<span class="left"><a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Math/' + name + '">Math.' + name + tests[name][0] + '</a> = ' + answer + '</span><span class="right">' + tests[name][1] + '</span><div style="clear:both"></div>';
             }
-            const mathDiv = querySelector_1.default('#math-results');
-            mathDiv.style.display = 'block';
-            mathDiv.innerHTML = '<span class="left"><h2>Tests</h2></span><span class="right"><h2>Should be</h2></span><p></p><p></p><p></p><div style="clear:both"></div>';
-            mathDiv.innerHTML += errors + successful;
-            document.body.style.overflowX = 'hidden';
-            document.body.style.overflowY = 'scroll';
-        });
+            else {
+                errors += '<span class="left"><span class="error"><a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Math/' + name + '">Math.' + name + tests[name][0] + '</a> = ' + answer + '</span></span><span class="right">' + tests[name][1] + '</span></span><div style="clear:both"></div>';
+            }
+        }
+        const mathDiv = querySelector_1.default('#math-results');
+        mathDiv.style.display = 'block';
+        mathDiv.innerHTML = '<span class="left"><h2>Tests</h2></span><span class="right"><h2>Should be</h2></span><p></p><p></p><p></p><div style="clear:both"></div>';
+        mathDiv.innerHTML += errors + successful;
+        document.body.style.overflowX = 'hidden';
+        document.body.style.overflowY = 'scroll';
     }
     exit() {
-        super.exit();
+        Common_1.default.log('exit math');
         const mathDiv = querySelector_1.default('#math-results');
         mathDiv.style.display = 'none';
         mathDiv.innerHTML = '';
@@ -1641,53 +1656,68 @@ class MathTest extends BaseTest_1.default {
     update() {
     }
 }
+Object.defineProperty(exports, "__esModule", { value: true });
 exports.default = MathTest;
 
-},{"../BaseTest":1,"../utils/querySelector":24}],17:[function(require,module,exports){
+},{"../BaseTest":1,"../Common":2,"../utils/querySelector":24}],17:[function(require,module,exports){
 "use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : new P(function (resolve) { resolve(result.value); }).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const BaseTest_1 = require("../BaseTest");
-const jibo = require("jibo");
-const path = require("path");
-const querySelector_1 = require("../utils/querySelector");
+const BaseTest_1 = require('../BaseTest');
+const Common_1 = require('../Common');
+const jibo = require('jibo');
+const path = require('path');
+const querySelector_1 = require('../utils/querySelector');
+/*
+* No diagnostic test
+* */
 class NoTest extends BaseTest_1.default {
-    constructor(testName) {
-        super(testName);
+    constructor() {
+        super();
         this.exiting = false;
         this.bodyConnected = true;
     }
     enter() {
-        const _super = name => super[name];
-        return __awaiter(this, void 0, void 0, function* () {
-            _super("enter").call(this);
-            jibo.systemManager.getDisplayVersion(function (error, version) {
-                if (!error) {
-                    querySelector_1.default('#test-label').innerHTML = version;
-                }
-                else {
-                    querySelector_1.default('#test-label').innerHTML = 'Cannot retrieve jibo-version';
-                }
-            });
-            const packageInfo = require(path.resolve('package.json'));
-            querySelector_1.default('#test-label2').innerHTML = 'Diagnostic Version: ' + packageInfo.version;
-            const div = querySelector_1.default('#misc-log');
-            div.style.display = 'block';
-            div.innerHTML += '<h4>Body Service Data</h4>';
-            div.innerHTML += '<span id="temp" class="item"></span>';
-            div.innerHTML += '<span id="fan-speed" class="item"></span>';
-            div.innerHTML += '<span id="battery-level" class="item"></span>';
+        Common_1.default.log('enter no-test');
+        Common_1.default.centerRobot();
+        // build version
+        jibo.systemManager.getDisplayVersion(function (error, version) {
+            if (!error) {
+                querySelector_1.default('#test-label').innerHTML = version;
+            }
+            else {
+                querySelector_1.default('#test-label').innerHTML = 'Cannot retrieve jibo-version';
+            }
         });
+        // get test version
+        const packageInfo = require(path.resolve('package.json'));
+        querySelector_1.default('#test-label2').innerHTML = 'Diagnostic Version: ' + packageInfo.version;
+        const div = querySelector_1.default('#misc-log');
+        div.style.display = 'block';
+        div.innerHTML += '<h4>Body Service Data</h4>';
+        div.innerHTML += '<span id="temp" class="item"></span>';
+        div.innerHTML += '<span id="fan-speed" class="item"></span>';
+        div.innerHTML += '<span id="battery-level" class="item"></span>';
+        //
+        //let previewData = {
+        //    'enable': true,
+        //    'x': 50,
+        //    'y': 50,
+        //    'width': 50,
+        //    'height': 50
+        //};
+        //jibo.lps.setPreview(previewData, function(error, success ) {
+        //    if (error) {
+        //        Common.log('LPS setPreview false error: ' + error);
+        //    }
+        //    else {
+        //        Common.log('LPS setPreview false success: ' + success);
+        //    }
+        //});
+        //jibo.systemManager.getIdentity(function(error, id) {
+        //    $('#test-label3').innerHTML = 'name: ' + id.name + '  mac: ' + id.wifi_mac;
+        //});
     }
     exit() {
-        super.exit();
+        Common_1.default.log('exit no-test');
         this.exiting = true;
         querySelector_1.default('#test-label').innerHTML = '';
         querySelector_1.default('#test-label2').innerHTML = '';
@@ -1695,6 +1725,14 @@ class NoTest extends BaseTest_1.default {
         let div = querySelector_1.default('#misc-log');
         div.style.display = 'none';
         div.innerHTML = '';
+        //jibo.lps.setPreview({'enable': false}, function(error, success ) {
+        //    if (error) {
+        //        Common.log('LPS setPreview true error: ' + error);
+        //    }
+        //    else {
+        //        Common.log('LPS setPreview true success: ' + success);
+        //    }
+        //});
     }
     update() {
         if (this.exiting) {
@@ -1725,6 +1763,7 @@ class NoTest extends BaseTest_1.default {
             });
         }
         else {
+            // don't bother trying to connect again
             _updateFanDiv(0);
         }
         const charging = (jibo.system.batteryCharging ? 'charging' : 'not charging');
@@ -1738,67 +1777,83 @@ class NoTest extends BaseTest_1.default {
         }
     }
 }
+Object.defineProperty(exports, "__esModule", { value: true });
 exports.default = NoTest;
 
-},{"../BaseTest":1,"../utils/querySelector":24,"jibo":undefined,"path":undefined}],18:[function(require,module,exports){
+},{"../BaseTest":1,"../Common":2,"../utils/querySelector":24,"jibo":undefined,"path":undefined}],18:[function(require,module,exports){
 "use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : new P(function (resolve) { resolve(result.value); }).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
+const BaseTest_1 = require('../BaseTest');
+const jibo = require('jibo');
+const Common_1 = require('../Common');
+const querySelector_1 = require('../utils/querySelector');
+const testCreds = {
+    'accessKeyId': 'aO5cbPlPRL7oOvUiDzTe',
+    'secretAccessKey': 'iHD2Rc88NXWFQ6UAkIDiOnODltKGCBXmYvMLNmoH',
+    'region': 'dev1-entrypoint'
 };
-Object.defineProperty(exports, "__esModule", { value: true });
-const BaseTest_1 = require("../BaseTest");
-const jibo = require("jibo");
-const querySelector_1 = require("../utils/querySelector");
+/*
+* OTA diagnostic test
+* */
 class OTATest extends BaseTest_1.default {
-    constructor(testName) {
-        super(testName);
-        this._haveCredentials = false;
+    constructor() {
+        super();
+        this.restoreCreds = undefined;
+        this.exiting = false;
         this.downloading = false;
         this.installing = false;
         this.dirty = false;
     }
     enter() {
-        const _super = name => super[name];
-        return __awaiter(this, void 0, void 0, function* () {
-            _super("enter").call(this);
-            querySelector_1.default('#test-label').innerHTML = 'No updates available';
-            querySelector_1.default('#test-label2').innerHTML = '';
-            this.exiting = false;
-            jibo.systemManager.getCredentials((error) => {
+        Common_1.default.log('enter OTA');
+        Common_1.default.centerRobot();
+        querySelector_1.default('#test-label').innerHTML = 'No updates available';
+        querySelector_1.default('#test-label2').innerHTML = '';
+        this.exiting = false;
+        // get previous credentials
+        jibo.systemManager.getCredentials((error, creds) => {
+            if (error) {
+                Common_1.default.log('Error during getCredentials: ' + error);
+            }
+            else {
+                this.restoreCreds = creds;
+            }
+            // set test credentials
+            jibo.systemManager.setCredentials(testCreds, (error) => {
                 if (error) {
-                    this._log.info('No credentials set? ' + error);
-                    querySelector_1.default('#test-label').innerHTML = 'Cannot OTA. Get credentials on your robot first!';
+                    Common_1.default.log('Error during setCredentials: ' + error);
                 }
                 else {
-                    this._haveCredentials = true;
+                    this.dirty = true; // check for updates next time
                 }
             });
         });
     }
     exit() {
-        super.exit();
         querySelector_1.default('#test-label').innerHTML = '';
         querySelector_1.default('#test-label2').innerHTML = '';
+        Common_1.default.log('exit OTA');
         this.exiting = true;
+        // set previous credentials
+        if (this.restoreCreds) {
+            jibo.systemManager.setCredentials(this.restoreCreds, (error) => {
+                if (error) {
+                    Common_1.default.log('Error during setCredentials: ' + error);
+                }
+            });
+        }
     }
-    click(event) {
-        super.click(event);
+    click() {
         if (this.exiting ||
             this.downloading ||
-            this.installing ||
-            !this._haveCredentials) {
-            return;
+            this.installing) {
+            return; // nope
         }
         jibo.systemManager.checkForUpdates((error, updateList) => {
             if (error) {
-                this._log.info('Error during checkForUpdates: ' + error);
+                Common_1.default.log('Error during checkForUpdates: ' + error);
             }
             else {
+                // get the next item that is available for download
                 let downloadData = { 'ids': [] };
                 let installData = { 'ids': [] };
                 for (let i = 0; i < updateList.length; i++) {
@@ -1806,10 +1861,12 @@ class OTATest extends BaseTest_1.default {
                         installData.ids.push(updateList[i].id);
                     }
                     else {
+                        // then we've found one
                         downloadData.ids.push(updateList[i].id);
-                        break;
+                        break; // stop at first one we need to download
                     }
                 }
+                // any thing to download still?
                 if (downloadData.ids.length > 0) {
                     this.downloading = true;
                     querySelector_1.default('#test-label2').innerHTML = 'Downloading...';
@@ -1821,6 +1878,7 @@ class OTATest extends BaseTest_1.default {
                     this.installing = true;
                     let label = querySelector_1.default('#test-label2');
                     label.innerHTML = 'Installing...see you on the other side (hopefully)!';
+                    // check if we should be installing instead?
                     jibo.systemManager.installUpdates(installData, (error) => {
                         if (error) {
                             label.innerHTML = 'Error installing! (' + error + ')';
@@ -1832,7 +1890,7 @@ class OTATest extends BaseTest_1.default {
     }
     _downloadCB(error, data) {
         if (!this.downloading) {
-            return;
+            return; //nothing to display
         }
         let progressMsg = '';
         if (error) {
@@ -1847,7 +1905,7 @@ class OTATest extends BaseTest_1.default {
             }
             else if (data.status === 'downloading') {
                 progressMsg = 'Downloading (' + Math.round((data.received / data.length * 100)) + '%)';
-                this.downloading = true;
+                this.downloading = true; // still true!
             }
             else if (data.status === 'failed') {
                 progressMsg = 'Download failed: ' + data.reason;
@@ -1856,7 +1914,7 @@ class OTATest extends BaseTest_1.default {
             }
         }
         if (progressMsg.length > 0) {
-            this._log.info(progressMsg);
+            Common_1.default.log(progressMsg);
         }
         querySelector_1.default('#test-label2').innerHTML = progressMsg;
     }
@@ -1866,6 +1924,7 @@ class OTATest extends BaseTest_1.default {
         if (updateList && updateList.length > 0) {
             available = updateList.length;
         }
+        // check what has already been downloaded
         for (let i = 0; i < available; i++) {
             if (updateList[i].downloaded) {
                 downloaded++;
@@ -1883,11 +1942,12 @@ class OTATest extends BaseTest_1.default {
         }
     }
     update() {
-        if (this.dirty && !this.exiting) {
+        if (this.dirty) {
             this.dirty = false;
+            // update download details if needed
             jibo.systemManager.checkForUpdates((error, updateList) => {
                 if (error) {
-                    this._log.info('Error during checkForUpdates: ' + error);
+                    Common_1.default.log('Error during checkForUpdates: ' + error);
                 }
                 else {
                     this._updateProgress(updateList);
@@ -1896,63 +1956,59 @@ class OTATest extends BaseTest_1.default {
         }
     }
 }
+Object.defineProperty(exports, "__esModule", { value: true });
 exports.default = OTATest;
 
-},{"../BaseTest":1,"../utils/querySelector":24,"jibo":undefined}],19:[function(require,module,exports){
+},{"../BaseTest":1,"../Common":2,"../utils/querySelector":24,"jibo":undefined}],19:[function(require,module,exports){
 "use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : new P(function (resolve) { resolve(result.value); }).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const BaseTest_1 = require("../BaseTest");
-const jibo_1 = require("jibo");
-const querySelector_1 = require("../utils/querySelector");
+const BaseTest_1 = require('../BaseTest');
+const jibo_1 = require('jibo');
+const Common_1 = require('../Common');
+const querySelector_1 = require('../utils/querySelector');
+/*
+* Take a photo diagnostic test
+* */
 class PhotoTest extends BaseTest_1.default {
-    constructor(testName) {
-        super(testName);
+    constructor() {
+        super();
         this.running = false;
-        this.autoRun = true;
+        this.autoRun = true; // turn on if you want it to take a picture every 3 seconds 20 times
         this.myIntervalId = undefined;
         this.autoRunAttempts = 0;
         this.autoRunSuccesses = 0;
     }
     enter() {
-        const _super = name => super[name];
-        return __awaiter(this, void 0, void 0, function* () {
-            _super("enter").call(this);
-            this.running = true;
-            querySelector_1.default('#face').style.display = 'none';
-            if (this.autoRun) {
-                querySelector_1.default('#test-label').innerHTML = 'Auto-run photo test';
-            }
-            else {
-                querySelector_1.default('#test-label').innerHTML = 'Click to take photo';
-            }
-            this._setShowBackground(false, '');
-            this.autoRunAttempts = 0;
-            this.autoRunSuccesses = 0;
-            if (this.autoRun) {
-                this.myIntervalId = setInterval(() => {
-                    if (this.autoRunAttempts < 20) {
-                        this._takePhoto();
-                        const failures = this.autoRunAttempts - this.autoRunSuccesses;
-                        this.autoRunAttempts++;
-                        querySelector_1.default('#test-label').innerHTML = ('Auto-run attempts: ' + this.autoRunAttempts + '/20');
-                        if (failures >= 0) {
-                            querySelector_1.default('#test-label2').innerHTML = ('(' + failures + ' failures)');
-                        }
+        Common_1.default.centerRobot();
+        this.running = true;
+        Common_1.default.log('enter photo');
+        // hide eye
+        querySelector_1.default('#face').style.display = 'none';
+        if (this.autoRun) {
+            querySelector_1.default('#test-label').innerHTML = 'Auto-run photo test';
+        }
+        else {
+            querySelector_1.default('#test-label').innerHTML = 'Click to take photo';
+        }
+        this._setShowBackground(false, '');
+        // reset
+        this.autoRunAttempts = 0;
+        this.autoRunSuccesses = 0;
+        if (this.autoRun) {
+            this.myIntervalId = setInterval(() => {
+                if (this.autoRunAttempts < 20) {
+                    this.click();
+                    const failures = this.autoRunAttempts - this.autoRunSuccesses;
+                    this.autoRunAttempts++;
+                    querySelector_1.default('#test-label').innerHTML = ('Auto-run attempts: ' + this.autoRunAttempts + '/20');
+                    if (failures >= 0) {
+                        querySelector_1.default('#test-label2').innerHTML = ('(' + failures + ' failures)');
                     }
-                    else {
-                        this.stop();
-                    }
-                }, 3000);
-            }
-        });
+                }
+                else {
+                    this.stop();
+                }
+            }, 3000);
+        }
     }
     stop() {
         if (this.autoRun && (this.myIntervalId !== undefined)) {
@@ -1960,6 +2016,7 @@ class PhotoTest extends BaseTest_1.default {
             querySelector_1.default('#test-label').innerHTML = 'Click to take photo';
             let failures = this.autoRunAttempts - this.autoRunSuccesses;
             querySelector_1.default('#test-label2').innerHTML = ('(Last auto-run: ' + this.autoRunAttempts + ' attempts and ' + failures + ' failures)');
+            // clear everything.
             this.myIntervalId = null;
             this.autoRunAttempts = 0;
             this.autoRunSuccesses = 0;
@@ -1968,24 +2025,25 @@ class PhotoTest extends BaseTest_1.default {
         }
     }
     exit() {
-        super.exit();
-        this.stop();
+        Common_1.default.log('exit photo');
+        this.stop(); // stop if we are in middle of auto-running
+        // clear text
         querySelector_1.default('#test-label').innerHTML = '';
         querySelector_1.default('#test-label2').innerHTML = '';
+        // reset background image
         this._setShowBackground(false, '');
+        // show eye
         querySelector_1.default('#face').style.display = 'block';
         this.running = false;
     }
-    click(event) {
-        super.click(event);
-        this._takePhoto();
-    }
-    _takePhoto() {
+    click() {
         this._setShowBackground(false, '');
         if (!this.autoRun) {
+            // clear it if user clicked manually
             querySelector_1.default('#test-label2').innerHTML = '';
         }
-        jibo_1.media.takePhoto((error, data) => {
+        // just do full (aka SNAP) image for this test with no distortion
+        jibo_1.lps.takePhoto(jibo_1.lps.PhotoRes.MEDIUM, true, jibo_1.lps.CameraID.LEFT, jibo_1.lps.PhotoType.FULL, (error, imageUrl) => {
             if (!this.running) {
                 return;
             }
@@ -1995,8 +2053,8 @@ class PhotoTest extends BaseTest_1.default {
                 this._setShowBackground(true, 'assets/off-air.gif');
             }
             else {
-                this._log.info('photo taken');
-                this._setShowBackground(true, data.url);
+                Common_1.default.log('photo taken');
+                this._setShowBackground(true, imageUrl);
                 if (this.autoRun) {
                     this.autoRunSuccesses++;
                     const failures = this.autoRunAttempts - this.autoRunSuccesses;
@@ -2013,78 +2071,66 @@ class PhotoTest extends BaseTest_1.default {
         bkg.src = source;
     }
 }
+Object.defineProperty(exports, "__esModule", { value: true });
 exports.default = PhotoTest;
 
-},{"../BaseTest":1,"../utils/querySelector":24,"jibo":undefined}],20:[function(require,module,exports){
+},{"../BaseTest":1,"../Common":2,"../utils/querySelector":24,"jibo":undefined}],20:[function(require,module,exports){
 "use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : new P(function (resolve) { resolve(result.value); }).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const BaseTest_1 = require("../BaseTest");
-const jibo_1 = require("jibo");
-const querySelector_1 = require("../utils/querySelector");
+const BaseTest_1 = require('../BaseTest');
+const Common_1 = require('../Common');
+const jibo_1 = require('jibo');
+const querySelector_1 = require('../utils/querySelector');
+/*
+* TTS diagnostic test
+* */
 class TTSTest extends BaseTest_1.default {
-    constructor(testName) {
-        super(testName);
+    constructor() {
+        super();
     }
     enter() {
-        const _super = name => super[name];
-        return __awaiter(this, void 0, void 0, function* () {
-            _super("enter").call(this);
-            jibo_1.tts.speak('Hello, my name is Jibo', function (error) {
-                if (error) {
-                    querySelector_1.default('#test-label').innerHTML = error;
-                }
-            });
-            jibo_1.tts.word.on(function (word) {
-                querySelector_1.default('#test-label').innerHTML = word.token;
-            });
+        Common_1.default.centerRobot();
+        Common_1.default.log('enter tts');
+        jibo_1.tts.speak('Hello, my name is Jibo', function (error) {
+            if (error) {
+                querySelector_1.default('#test-label').innerHTML = error;
+            }
+        });
+        jibo_1.tts.on('word', function (word) {
+            querySelector_1.default('#test-label').innerHTML = word.token;
         });
     }
     exit() {
-        super.exit();
+        Common_1.default.log('exit tts');
         querySelector_1.default('#test-label').innerHTML = '';
-        jibo_1.tts.word.removeAllListeners();
+        jibo_1.tts.removeAllListeners();
     }
 }
+Object.defineProperty(exports, "__esModule", { value: true });
 exports.default = TTSTest;
 
-},{"../BaseTest":1,"../utils/querySelector":24,"jibo":undefined}],21:[function(require,module,exports){
+},{"../BaseTest":1,"../Common":2,"../utils/querySelector":24,"jibo":undefined}],21:[function(require,module,exports){
 "use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : new P(function (resolve) { resolve(result.value); }).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const BaseTest_1 = require("../BaseTest");
-const jibo = require("jibo");
-const querySelector_1 = require("../utils/querySelector");
+const BaseTest_1 = require('../BaseTest');
+const jibo = require('jibo');
+const Common_1 = require('../Common');
+const querySelector_1 = require('../utils/querySelector');
 const tracking = require('../behaviors/tracking');
+/*
+* LPS tracking diagnostic test
+* */
 class TrackingTest extends BaseTest_1.default {
-    constructor(testName) {
-        super(testName);
+    constructor() {
+        super();
         this.root = jibo.bt.create(tracking);
     }
     enter() {
-        const _super = name => super[name];
-        return __awaiter(this, void 0, void 0, function* () {
-            _super("enter").call(this);
-            querySelector_1.default('#test-label').innerHTML = 'Look at me!';
-            this.root.start();
-        });
+        Common_1.default.centerRobot();
+        Common_1.default.log('enter tracking');
+        querySelector_1.default('#test-label').innerHTML = 'Look at me!';
+        this.root.start();
     }
     exit() {
-        super.exit();
+        Common_1.default.log('exit tracking');
         querySelector_1.default('#test-label').innerHTML = '';
         this.root.stop();
     }
@@ -2092,59 +2138,54 @@ class TrackingTest extends BaseTest_1.default {
         this.root.update();
     }
 }
+Object.defineProperty(exports, "__esModule", { value: true });
 exports.default = TrackingTest;
 
-},{"../BaseTest":1,"../behaviors/tracking":7,"../utils/querySelector":24,"jibo":undefined}],22:[function(require,module,exports){
+},{"../BaseTest":1,"../Common":2,"../behaviors/tracking":8,"../utils/querySelector":24,"jibo":undefined}],22:[function(require,module,exports){
 "use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : new P(function (resolve) { resolve(result.value); }).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const BaseTest_1 = require("../BaseTest");
-const querySelector_1 = require("../utils/querySelector");
+const BaseTest_1 = require('../BaseTest');
+const Common_1 = require('../Common');
+const querySelector_1 = require('../utils/querySelector');
+/*
+* No diagnostic test
+* */
 class WebGLTest extends BaseTest_1.default {
-    constructor(testName) {
-        super(testName);
+    constructor() {
+        super();
     }
     enter() {
-        const _super = name => super[name];
-        return __awaiter(this, void 0, void 0, function* () {
-            _super("enter").call(this);
-            const webDiv = querySelector_1.default('#webgl');
-            webDiv.src = 'http://webglreport.com/?v=1';
-            webDiv.style.display = 'block';
-        });
+        Common_1.default.log('enter webgl test');
+        Common_1.default.centerRobot();
+        const webDiv = querySelector_1.default('#webgl');
+        webDiv.src = 'http://webglreport.com/?v=1';
+        webDiv.style.display = 'block';
     }
     exit() {
-        super.exit();
+        Common_1.default.log('exit webgl test');
         const webDiv = querySelector_1.default('#webgl');
         webDiv.src = '';
         webDiv.style.display = 'none';
     }
 }
+Object.defineProperty(exports, "__esModule", { value: true });
 exports.default = WebGLTest;
 
-},{"../BaseTest":1,"../utils/querySelector":24}],23:[function(require,module,exports){
+},{"../BaseTest":1,"../Common":2,"../utils/querySelector":24}],23:[function(require,module,exports){
 "use strict";
+const ASRTest_1 = require('./ASRTest');
+const AudioTest_1 = require('./AudioTest');
+const AudioTrackingTest_1 = require('./AudioTrackingTest');
+const BodyTest_1 = require('./BodyTest');
+const LEDTest_1 = require('./LEDTest');
+const LifeCycleTest_1 = require('./LifeCycleTest');
+const MathTest_1 = require('./MathTest');
+const NoTest_1 = require('./NoTest');
+const OTATest_1 = require('./OTATest');
+const PhotoTest_1 = require('./PhotoTest');
+const TrackingTest_1 = require('./TrackingTest');
+const TTSTest_1 = require('./TTSTest');
+const WebGLTest_1 = require('./WebGLTest');
 Object.defineProperty(exports, "__esModule", { value: true });
-const ASRTest_1 = require("./ASRTest");
-const AudioTest_1 = require("./AudioTest");
-const AudioTrackingTest_1 = require("./AudioTrackingTest");
-const BodyTest_1 = require("./BodyTest");
-const LEDTest_1 = require("./LEDTest");
-const LifeCycleTest_1 = require("./LifeCycleTest");
-const MathTest_1 = require("./MathTest");
-const NoTest_1 = require("./NoTest");
-const OTATest_1 = require("./OTATest");
-const PhotoTest_1 = require("./PhotoTest");
-const TrackingTest_1 = require("./TrackingTest");
-const TTSTest_1 = require("./TTSTest");
-const WebGLTest_1 = require("./WebGLTest");
 exports.default = {
     ASRTest: ASRTest_1.default,
     AudioTest: AudioTest_1.default,
@@ -2168,7 +2209,9 @@ exports.default = document.querySelector.bind(document);
 
 },{}],25:[function(require,module,exports){
 "use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
+/**
+ * @author mrdoob / http://mrdoob.com/
+ */
 const Stats = function () {
     const now = (self.performance && self.performance.now) ? self.performance.now.bind(performance) : Date.now;
     let startTime = now(), prevTime = startTime;
@@ -2202,21 +2245,25 @@ const Stats = function () {
         const child = dom.appendChild(dom.firstChild);
         child.style.height = Math.min(30, 30 - value * 30) + 'px';
     }
+    //
     const container = createElement('div', 'stats', 'width:80px;opacity:0.9;cursor:pointer');
     container.addEventListener('mousedown', function (event) {
         event.preventDefault();
         setMode(++mode % container.children.length);
     }, false);
+    // FPS
     let fps = 0, fpsMin = Infinity, fpsMax = 0;
     const fpsDiv = createPanel('fps', '#0ff', '#002');
     const fpsText = fpsDiv.children[0];
     const fpsGraph = fpsDiv.children[1];
     container.appendChild(fpsDiv);
+    // MS
     let ms = 0, msMin = Infinity, msMax = 0;
     const msDiv = createPanel('ms', '#0f0', '#020');
     const msText = msDiv.children[0];
     const msGraph = msDiv.children[1];
     container.appendChild(msDiv);
+    // MEM
     let mem, memMin, memMax, memText, memGraph;
     if (self.performance && self.performance.memory) {
         memMin = Infinity;
@@ -2227,6 +2274,7 @@ const Stats = function () {
         memGraph = memDiv.children[1];
         container.appendChild(memDiv);
     }
+    //
     setMode(mode);
     return {
         REVISION: 14,
@@ -2269,7 +2317,9 @@ const Stats = function () {
     };
 };
 const stats = new Stats();
-stats.setMode(0);
+stats.setMode(0); // 0: fps, 1: ms, 2: mb
+// If the body is ready then inject the stats element, otherwise listen for
+// when it will be ready
 if (document.readyState === 'complete') {
     init();
 }
@@ -2278,7 +2328,9 @@ else {
         init();
     });
 }
+// Auto inject stats when the body is ready
 function init() {
+    // align top-left
     stats.id = 'jibo-stats';
     stats.domElement.style.position = 'absolute';
     stats.domElement.style.left = '0px';
@@ -2294,7 +2346,9 @@ function init() {
     };
     requestAnimationFrame(update);
 }
+Object.defineProperty(exports, "__esModule", { value: true });
 exports.default = stats;
 
-},{}]},{},[8])
+},{}]},{},[9])(9)
+});
 //# sourceMappingURL=index.js.map
