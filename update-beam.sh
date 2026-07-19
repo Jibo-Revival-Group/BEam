@@ -41,9 +41,13 @@ echo "Deploying new BEam skills..."
 mv Beam-master/* .
 rm -rf Beam-master master.zip
 
+# 7. Fix permissions (it's ALWAYS THE PERMS!!!!!)
+echo "Fixing permissions..."
+chmod 777 -R /opt/jibo/Jibo/Skills/
+
 echo "Update complete!"
 
-# 7. Restart the BEam service via SSM
+# 8. Restart the BEam service via SSM
 echo "Restarting BEam service via SSM..."
 
 # Terminate the current instance
@@ -59,4 +63,5 @@ curl -s -X POST http://192.168.7.197:8779/launch-dev \
   -H 'Content-Type: application/x-www-form-urlencoded' \
   --data-raw '{"command":"@be/be"}'
 
-echo "Restart command sent. BEam should be active now."
+echo ""
+echo "Restart command sent. BEam should be starting now."
