@@ -21,16 +21,17 @@ done
 echo "Downloading BEam repository..."
 wget -q --show-progress https://github.com/Jibo-Revival-Group/Beam/archive/refs/heads/master.zip
 
-# 5. Iterative extraction (Memory-safe for Jibo)
+# 5. Iterative extraction (Compatible with Python 2.7+)
 echo "Extracting files (this may take a moment)..."
 python -c "
 import zipfile, sys
 z = zipfile.ZipFile('master.zip')
 namelist = z.namelist()
-total = len(namelist)
+total = float(len(namelist))
 for i, name in enumerate(namelist):
     z.extract(name)
-    sys.stdout.write(f'\rProgress: {((i+1)/total)*100:.1f}%')
+    percent = ((i + 1) / total) * 100
+    sys.stdout.write('\rProgress: %.1f%%' % percent)
     sys.stdout.flush()
 print('\nExtraction complete.')
 "
