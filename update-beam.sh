@@ -1,8 +1,21 @@
 #!/bin/sh
 
+JUKEBOX_MUSIC="/opt/jibo/Jibo/Skills/@be/be/node_modules/@be/jukebox/music"
+JUKEBOX_MUSIC_STASH="/opt/tmp/jukebox-music"
+
 # 0. Go to skills directory
 echo "Going to skills directory..."
 cd /opt/jibo/Jibo/Skills/
+
+# 0b. Stash jukebox library so the update does not wipe user music
+if [ -d "$JUKEBOX_MUSIC" ]; then
+    echo "Stashing jukebox music library to $JUKEBOX_MUSIC_STASH..."
+    mkdir -p /opt/tmp
+    rm -rf "$JUKEBOX_MUSIC_STASH"
+    mv "$JUKEBOX_MUSIC" "$JUKEBOX_MUSIC_STASH"
+else
+    echo "No existing jukebox music library to stash."
+fi
 
 # 1. Clean up previous attempt artifacts
 echo "Cleaning up old temporary files..."
@@ -44,6 +57,16 @@ print('\nExtraction complete.')
 echo "Deploying new BEam skills..."
 mv Beam-master/* .
 rm -rf Beam-master master.zip
+
+# 6b. Restore stashed jukebox music over the fresh (empty) music/ from the repo
+if [ -d "$JUKEBOX_MUSIC_STASH" ]; then
+    echo "Restoring jukebox music library..."
+    mkdir -p "$(dirname "$JUKEBOX_MUSIC")"
+    rm -rf "$JUKEBOX_MUSIC"
+    mv "$JUKEBOX_MUSIC_STASH" "$JUKEBOX_MUSIC"
+else
+    echo "No stashed jukebox music library to restore."
+fi
 
 # 7. Fix permissions (it's ALWAYS THE PERMS!!!!!)
 echo "Fixing permissions..."
