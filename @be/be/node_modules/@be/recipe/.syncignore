@@ -1,0 +1,15 @@
+**/.git
+**/.gitignore
+**/.idea
+**/.bin
+**/.DS_Store
+**/behaviorify
+**/babel-preset-jibo
+**/babelify
+**/browserify
+**/eslint
+**/parallelshell
+**/uglify-js
+**/watch
+**/watchify
+**/rulify
