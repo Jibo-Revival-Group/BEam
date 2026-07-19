@@ -1,8 +1,0 @@
-node_modules
-.gitignore
-.idea
-.git
-src
-*.log
-tsconfig.json
-tslint.json
