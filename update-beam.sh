@@ -1,5 +1,9 @@
 #!/bin/sh
 
+# 0. Go to skills directory
+echo "Going to skills directory..."
+cd /opt/jibo/Jibo/Skills/
+
 # 1. Clean up previous attempt artifacts
 echo "Cleaning up old temporary files..."
 rm -rf Beam-master master.zip
