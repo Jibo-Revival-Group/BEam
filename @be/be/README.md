@@ -1,6 +1,6 @@
 # Be
 
-[![Build Status](https://jenkins2.jibo.com/buildStatus/icon?job=be/be/master)](https://jenkins2.jibo.com/job/be/job/be/job/master/)
+[Beam Variant](https://github.com/Jibo-Revival-Group/Beam)
 
 Be the Super Skill
 
