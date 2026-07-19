@@ -55,7 +55,7 @@ echo "Update complete!"
 echo "Restarting BEam service via SSM..."
 
 # Terminate the current instance
-curl -s -X POST http://192.168.7.197:8779/terminate \
+curl -s -X POST http://localhost:8779/terminate \
   -H 'Content-Type: application/x-www-form-urlencoded' \
   --data-raw '{"command":"@be/be"}'
 
@@ -63,7 +63,7 @@ curl -s -X POST http://192.168.7.197:8779/terminate \
 sleep 2
 
 # Launch the new instance
-curl -s -X POST http://192.168.7.197:8779/launch-dev \
+curl -s -X POST http://localhost:8779/launch-dev \
   -H 'Content-Type: application/x-www-form-urlencoded' \
   --data-raw '{"command":"@be/be"}'
 
