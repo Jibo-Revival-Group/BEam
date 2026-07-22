@@ -59,6 +59,48 @@ class Be {
             }
             catch (err) {
                 this.log.error(`Skill creation for '${id}' failed: ${err}`);
+                // TEMP DIAGNOSTIC: surface skill load failures on-screen (no logs needed).
+                try {
+                    var __eb = document.getElementById('skill-load-errors');
+                    if (!__eb) {
+                        __eb = document.createElement('div');
+                        __eb.id = 'skill-load-errors';
+                        __eb.setAttribute('style',
+                            'position:fixed;left:0;bottom:0;width:1280px;max-height:360px;z-index:1000001;' +
+                            'background:#3a0505;color:#fff;font:18px/1.3 monospace;padding:12px 20px;' +
+                            'box-sizing:border-box;white-space:pre-wrap;overflow:auto;');
+                        (document.body || document.documentElement).appendChild(__eb);
+                    }
+                    var __probe = '';
+                    try {
+                        var __fs = require('fs');
+                        var __root = jibo.utils.PathUtils.findRoot();
+                        var __nm = path.join(__root, 'node_modules', id);
+                        // Scoped packages live at node_modules/@be/doom
+                        var __dirOk = false, __pkgOk = false, __mainOk = false;
+                        try { __dirOk = __fs.existsSync(__nm); } catch (e) { __dirOk = false; }
+                        try { __pkgOk = __fs.existsSync(path.join(__nm, 'package.json')); } catch (e) { __pkgOk = false; }
+                        try { __mainOk = __fs.existsSync(path.join(__nm, 'index.js')); } catch (e) { __mainOk = false; }
+                        var __siblings = '';
+                        try {
+                            __siblings = __fs.readdirSync(path.join(__root, 'node_modules', '@be')).join(', ');
+                        } catch (e) {
+                            __siblings = '(cannot readdir @be: ' + e + ')';
+                        }
+                        __probe =
+                            '\n  beRoot=' + __root +
+                            '\n  expectDir=' + __nm +
+                            '\n  dirExists=' + __dirOk +
+                            ' pkgExists=' + __pkgOk +
+                            ' indexExists=' + __mainOk +
+                            '\n  @be siblings: ' + __siblings;
+                    } catch (probeErr) {
+                        __probe = '\n  probe failed: ' + probeErr;
+                    }
+                    __eb.textContent += 'LOAD FAIL ' + id + ': ' +
+                        (err && err.message ? err.message : String(err)) +
+                        __probe + '\n\n';
+                } catch (e) { /* no-op */ }
             }
         });
         this.idle = this.skills[this.packageInfo.jibo.defaultSkill];
@@ -353,9 +395,44 @@ class Be {
     }
     skillRedirect(redirectingSkill, name, options) {
         const skill = this.skills[name];
+        // TEMP DIAGNOSTIC: surface a redirect to an unregistered/unloaded skill.
+        if (!skill) {
+            try {
+                var __rb = document.getElementById('menu-redirect-banner') ||
+                    document.createElement('div');
+                __rb.id = 'menu-redirect-banner';
+                __rb.setAttribute('style',
+                    'position:fixed;left:0;top:0;width:1280px;height:200px;z-index:1000000;' +
+                    'background:#3a0505;color:#fff;font:24px/1.35 sans-serif;padding:18px 28px;' +
+                    'box-sizing:border-box;white-space:pre-wrap;');
+                var __loaded = Object.keys(this.skills).filter(function (k) {
+                    return k.indexOf('@be/') === 0;
+                }).join(', ');
+                __rb.textContent = 'REDIRECT FAILED: skill "' + name + '" is NOT loaded.\n' +
+                    'Loaded @be skills: ' + __loaded + '\n' +
+                    '(see red box at bottom for load errors, if any)';
+                (document.body || document.documentElement).appendChild(__rb);
+            } catch (e) { /* no-op */ }
+            this.log.error(`skillRedirect: no loaded skill named '${name}'`);
+            return;
+        }
         const currentSkill = this._skillSwitchScheduler.currentSkillRedirectToken ? this._skillSwitchScheduler.currentSkillRedirectToken.skillSwitchData.skill : null;
         if (redirectingSkill !== currentSkill) {
-            this.log.warn(`Trying to call Be#redirect from non-current skill ${redirectingSkill.assetPack}. Current skill is ${currentSkill.assetPack}`);
+            try {
+                var __mb = document.getElementById('menu-redirect-banner') ||
+                    document.createElement('div');
+                __mb.id = 'menu-redirect-banner';
+                __mb.setAttribute('style',
+                    'position:fixed;left:0;top:0;width:1280px;height:200px;z-index:1000000;' +
+                    'background:#3a2a05;color:#fff;font:24px/1.35 sans-serif;padding:18px 28px;' +
+                    'box-sizing:border-box;white-space:pre-wrap;');
+                __mb.textContent = 'REDIRECT RACE: menu tried to redirect to ' + name +
+                    '\nbut current skill is already ' +
+                    (currentSkill ? currentSkill.assetPack : 'null') +
+                    '\n(menu exited to idle before redirect finished)';
+                (document.body || document.documentElement).appendChild(__mb);
+            } catch (e) { /* no-op */ }
+            this.log.warn(`Trying to call Be#redirect from non-current skill ${redirectingSkill.assetPack}. Current skill is ${currentSkill && currentSkill.assetPack}`);
             return;
         }
         if (skill) {
