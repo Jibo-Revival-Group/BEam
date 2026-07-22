@@ -14,5 +14,6 @@ Here are a few things these skills change:
 
 - Recipe (aka Cooking): Cooking Videos inside Jibo
 - Jukebox: Loads music from local disk
-- Doom: Playable shareware DOOM on the face (Fun Stuff); swipe down to exit
+- Bad Apple: Bad Apple!! PV fullscreen on the face; swipe down to exit
+- Doom: (paused) Playable shareware DOOM — not currently on the menu
 

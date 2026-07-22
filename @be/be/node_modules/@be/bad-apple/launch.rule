@@ -1,0 +1,6 @@
+TopRule = $* (
+    (bad apple) |
+    (play bad apple) |
+    badapple |
+    (play badapple)
+) $* {skill='\@be/bad-apple'};
