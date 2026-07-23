@@ -1,0 +1,22 @@
+{
+    "rules": {
+        "curly": true,
+        "triple-equals": true,
+        "semicolon": [true, "always"],
+        "no-var-keyword": true,
+        "no-unused-variable": true,
+        "no-unused-expression": true,
+        "no-unreachable": true,
+        "no-empty": true,
+        "jsdoc-format": true,
+        "no-duplicate-variable": true,
+        "no-duplicate-key": true,
+        "no-debugger": true,
+        "member-ordering": [
+            true,
+            "public-before-private",
+            "static-before-instance",
+            "variables-before-functions"
+        ]
+    }
+}

@@ -1,0 +1,11 @@
+Bad Apple!! is a Touhou arrangement / PV by Alstroemeria Records (nomico).
+
+The file video/bad-apple.mp4 is a local personal copy for running this skill
+on your own Jibo. Do not redistribute the PV with this skill unless you have
+rights to do so. To replace it, drop another MP4 at:
+
+  video/bad-apple.mp4
+
+Prefer H.264 + AAC (old Electron on Jibo does not play AV1 well).
+
+This skill provides only the Jibo playback shell (BeSkill + face UI).
