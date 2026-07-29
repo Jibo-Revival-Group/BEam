@@ -1,4 +1,6 @@
 #!/bin/sh
+set -e
+clear
 
 CONFIG_FILE="/usr/local/etc/jibo-jetstream-service.json"
 

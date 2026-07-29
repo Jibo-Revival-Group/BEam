@@ -1,5 +1,6 @@
 #!/bin/sh
 set -e
+clear
 
 JUKEBOX_MUSIC="/opt/jibo/Jibo/Skills/@be/be/node_modules/@be/jukebox/music"
 JUKEBOX_MUSIC_STASH="/opt/tmp/jukebox-music"
