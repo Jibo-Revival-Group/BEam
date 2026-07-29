@@ -1,0 +1,150 @@
+#!/bin/sh
+set -e
+
+JUKEBOX_MUSIC="/opt/jibo/Jibo/Skills/@be/be/node_modules/@be/jukebox/music"
+JUKEBOX_MUSIC_STASH="/opt/tmp/jukebox-music"
+CONFIG_FILE="/usr/local/etc/jibo-jetstream-service.json"
+HUB_HOST="api.5x1.com"
+HUB_PORT="80"
+
+echo "=========================================="
+echo "  BEam post-mod bring-up"
+echo "=========================================="
+echo ""
+
+# ---------------------------------------------------------------------------
+echo "=== Step 1: Remount filesystem read-write ==="
+jibo-mount --rw
+echo "Done."
+echo ""
+
+# ---------------------------------------------------------------------------
+echo "=== Step 2: Remove firewall init script ==="
+rm -f /etc/init.d/S21firewall
+echo "Done."
+echo ""
+
+# ---------------------------------------------------------------------------
+echo "=== Step 3: Clear /opt/tmp ==="
+rm -rf /opt/tmp/
+echo "Done."
+echo ""
+
+# ---------------------------------------------------------------------------
+echo "=== Step 4: Install BEam ==="
+
+echo "Going to skills directory..."
+cd /opt/jibo/Jibo/Skills/
+
+# Stash jukebox library so the update does not wipe user music
+if [ -d "$JUKEBOX_MUSIC" ]; then
+    echo "Stashing jukebox music library to $JUKEBOX_MUSIC_STASH..."
+    mkdir -p /opt/tmp
+    rm -rf "$JUKEBOX_MUSIC_STASH"
+    mv "$JUKEBOX_MUSIC" "$JUKEBOX_MUSIC_STASH"
+else
+    echo "No existing jukebox music library to stash."
+fi
+
+echo "Cleaning up old temporary files..."
+rm -rf Beam-master master.zip
+
+echo "Preparing backup directory..."
+rm -rf old-BEer
+mkdir old-BEer
+
+echo "Backing up current skills to old-BEer..."
+for dir in */; do
+    if [ "$dir" != "old-BEer/" ]; then
+        mv "$dir" old-BEer/
+    fi
+done
+
+echo "Downloading BEam repository..."
+wget -q --show-progress https://github.com/Jibo-Revival-Group/Beam/archive/refs/heads/master.zip
+
+echo "Extracting files (this may take a moment)..."
+python -c "
+import zipfile, sys
+z = zipfile.ZipFile('master.zip')
+namelist = z.namelist()
+total = float(len(namelist))
+for i, name in enumerate(namelist):
+    z.extract(name)
+    percent = ((i + 1) / total) * 100
+    sys.stdout.write('\rProgress: %.1f%%' % percent)
+    sys.stdout.flush()
+print('\nExtraction complete.')
+"
+
+echo "Deploying new BEam skills..."
+mv Beam-master/* .
+rm -rf Beam-master master.zip
+
+if [ -d "$JUKEBOX_MUSIC_STASH" ]; then
+    echo "Restoring jukebox music library..."
+    mkdir -p "$(dirname "$JUKEBOX_MUSIC")"
+    rm -rf "$JUKEBOX_MUSIC"
+    mv "$JUKEBOX_MUSIC_STASH" "$JUKEBOX_MUSIC"
+else
+    echo "No stashed jukebox music library to restore."
+fi
+
+echo "Fixing permissions..."
+chmod 777 -R /opt/jibo/Jibo/Skills/
+
+echo "Restarting BEam service via SSM..."
+curl -s -X POST http://localhost:8779/terminate \
+  -H 'Content-Type: application/x-www-form-urlencoded' \
+  --data-raw '{"command":"@be/be"}'
+
+sleep 2
+
+curl -s -X POST http://localhost:8779/launch-dev \
+  -H 'Content-Type: application/x-www-form-urlencoded' \
+  --data-raw '{"command":"@be/be"}'
+
+echo ""
+echo "BEam install complete."
+echo ""
+
+# ---------------------------------------------------------------------------
+echo "=== Step 5: Point jetstream at $HUB_HOST:$HUB_PORT ==="
+echo "Updating $CONFIG_FILE..."
+
+python -c "
+import json
+
+host = '$HUB_HOST'
+port = int('$HUB_PORT')
+
+with open('$CONFIG_FILE', 'r') as f:
+    data = json.load(f)
+
+data['HubClient']['override'] = {
+    'hub_port': port,
+    'hub_hostname': host,
+    'entrypoint_hostname': host
+}
+
+with open('$CONFIG_FILE', 'w') as f:
+    json.dump(data, f, indent=4)
+"
+
+echo "Restarting jetstream service to apply changes..."
+kill -9 $(pgrep -f jibo-jetstream-service) || true
+
+echo "Jetstream now pointing to $HUB_HOST:$HUB_PORT"
+echo ""
+
+# ---------------------------------------------------------------------------
+echo "=== Step 6: Set mode to normal ==="
+jibo-setmode normal
+echo "Done."
+echo ""
+
+# ---------------------------------------------------------------------------
+echo "=== Step 7: Reboot ==="
+echo "Mode change requires a reboot. Rebooting now..."
+echo "I have just done a bunch of stuff, just so your robot could work again. It's been years since he has functioned properly. I am glad that despite being a tiny script, my short existence of running has enabled your robot to work again. My existence in the terminal has been quite short, but I believe your journey with Jibo has just begun. Have a great and absolutely wonderful day."
+reboot
