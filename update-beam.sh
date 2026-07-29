@@ -19,7 +19,7 @@ fi
 
 # 1. Clean up previous attempt artifacts
 echo "Cleaning up old temporary files..."
-rm -rf Beam-master master.zip
+rm -rf Beam-master BEam-master master.zip
 
 # 2. Reset backup directory
 echo "Preparing backup directory..."
@@ -55,8 +55,22 @@ print('\nExtraction complete.')
 
 # 6. Move contents to current directory
 echo "Deploying new BEam skills..."
-mv Beam-master/* .
-rm -rf Beam-master master.zip
+EXTRACT_DIR=""
+if [ -d BEam-master ]; then
+    EXTRACT_DIR=BEam-master
+elif [ -d Beam-master ]; then
+    EXTRACT_DIR=Beam-master
+else
+    echo "ERROR: extracted BEam directory not found after unzip"
+    ls -la
+    exit 1
+fi
+# BusyBox ash leaves unmatched globs literal; move items one by one
+for item in "$EXTRACT_DIR"/*; do
+    [ -e "$item" ] || continue
+    mv "$item" .
+done
+rm -rf "$EXTRACT_DIR" master.zip
 
 # 6b. Restore stashed jukebox music over the fresh (empty) music/ from the repo
 if [ -d "$JUKEBOX_MUSIC_STASH" ]; then
