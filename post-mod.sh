@@ -36,6 +36,11 @@ echo "=== Step 4: Install BEam ==="
 echo "Going to skills directory..."
 cd /opt/jibo/Jibo/Skills/
 
+echo "Terminate Be via SSM..."
+curl -s -X POST http://localhost:8779/terminate \
+  -H 'Content-Type: application/x-www-form-urlencoded' \
+  --data-raw '{"command":"@be/be"}'
+
 # Stash jukebox library so the update does not wipe user music
 if [ -d "$JUKEBOX_MUSIC" ]; then
     echo "Stashing jukebox music library to $JUKEBOX_MUSIC_STASH..."
@@ -92,17 +97,6 @@ fi
 
 echo "Fixing permissions..."
 chmod 777 -R /opt/jibo/Jibo/Skills/
-
-echo "Restarting BEam service via SSM..."
-curl -s -X POST http://localhost:8779/terminate \
-  -H 'Content-Type: application/x-www-form-urlencoded' \
-  --data-raw '{"command":"@be/be"}'
-
-sleep 2
-
-curl -s -X POST http://localhost:8779/launch-dev \
-  -H 'Content-Type: application/x-www-form-urlencoded' \
-  --data-raw '{"command":"@be/be"}'
 
 echo ""
 echo "BEam install complete."
