@@ -154,5 +154,8 @@ echo ""
 # ---------------------------------------------------------------------------
 echo "=== Step 7: Reboot ==="
 echo "Mode change requires a reboot. Rebooting now..."
-echo "I have just done a bunch of stuff, just so your robot could work again. It's been years since he has functioned properly. I am glad that despite being a tiny script, my short existence of running has enabled your robot to work again. My existence in the terminal has been quite short, but I believe your journey with Jibo has just begun. Have a great and absolutely wonderful day."
+echo ""
+echo ""
+echo ""
+echo "Wait like 2 minutes while the robot reboots... I'm done here."
 reboot
