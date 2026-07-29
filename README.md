@@ -17,3 +17,6 @@ Here are a few things these skills change:
 - Bad Apple: Bad Apple!! PV fullscreen on the face; swipe down to exit
 - Doom: (paused) Playable shareware DOOM — not currently on the menu
 
+## Documentation
+
+See [docs/README.md](docs/README.md) for how to create, build, and deploy Be skills.
