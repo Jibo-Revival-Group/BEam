@@ -1,7 +1,7 @@
 {
   "version": 3,
   "sources": [
-    "../../jibo-dev/node_modules/browser-pack/_prelude.js",
+    "../be/node_modules/jibo-dev/node_modules/browser-pack/_prelude.js",
     "src/index.ts",
     "src/views/DoomView.ts",
     "src/views/StatusOverlay.ts"

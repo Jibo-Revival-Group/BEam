@@ -5,7 +5,7 @@ End-to-end checklist for adding a new Be skill. Use **`@be/bad-apple`** as the t
 ## 1. Create the skill folder
 
 ```
-@be/be/node_modules/@be/<your-skill>/
+@be/<your-skill>/
   package.json
   launch.rule
   index.html
@@ -17,7 +17,7 @@ End-to-end checklist for adding a new Be skill. Use **`@be/bad-apple`** as the t
   resources/        # optional icons, etc.
 ```
 
-Paths below are relative to the skill root unless noted.
+Paths below are relative to the skill root unless noted. The skill sits next to `@be/be/` (siblings under `@be/`).
 
 ## 2. package.json
 
@@ -143,7 +143,7 @@ Build:
 
 ```bash
 node @be/be/node_modules/jibo-dev/build-bad-apple.js \
-  /path/to/@be/be/node_modules/@be/bad-apple
+  /path/to/@be/bad-apple
 ```
 
 Expect: `WROTE .../index.js`. Type-only tsify warnings are normal.
@@ -153,7 +153,8 @@ Expect: `WROTE .../index.js`. Type-only tsify warnings are normal.
 Edit `@be/be/package.json`:
 
 1. Add `"@be/your-skill"` to `jibo.skills`.
-2. Add `"@be/your-skill": "^0.1.0"` to `dependencies`.
+
+Do **not** add the skill to Be’s npm `dependencies` — Be resolves siblings via `jibo.skillsRoot` (see [architecture.md](architecture.md)).
 
 Redeploy **`@be/be/package.json`** with the skill folder.
 

@@ -28348,7 +28348,7 @@ module.exports = function (blackboard, notepad, result, emitter) {
         'meta': {
             'version': 1,
             'name': 'FollowUp',
-            'uri': '/home/zane/BEast-Skills/@be/be/node_modules/@be/recipe/src/flows/FollowUp.flow'
+            'uri': '/home/zane/BEast-Skills/@be/recipe/src/flows/FollowUp.flow'
         },
         '9d1243a6-9ca8-4608-a3e2-707809ea873c': function () {
             return {
@@ -28714,7 +28714,7 @@ module.exports = function (blackboard, notepad, result, emitter) {
         'meta': {
             'version': 1,
             'name': 'GuidedSteps',
-            'uri': '/home/zane/BEast-Skills/@be/be/node_modules/@be/recipe/src/flows/GuidedSteps.flow'
+            'uri': '/home/zane/BEast-Skills/@be/recipe/src/flows/GuidedSteps.flow'
         },
         '28dfbedc-fb1e-490e-b4ee-27c1c9bb01b4': function () {
             return {
@@ -29484,7 +29484,7 @@ module.exports = function (blackboard, notepad, result, emitter) {
         'meta': {
             'version': 1,
             'name': 'Ingredients',
-            'uri': '/home/zane/BEast-Skills/@be/be/node_modules/@be/recipe/src/flows/Ingredients.flow'
+            'uri': '/home/zane/BEast-Skills/@be/recipe/src/flows/Ingredients.flow'
         },
         'aebeedbf-a8f8-435d-ac4c-7c0e3bbd37f0': function () {
             return {
@@ -30083,7 +30083,7 @@ module.exports = function (blackboard, notepad, result, emitter) {
         'meta': {
             'version': 1,
             'name': 'LoadData',
-            'uri': '/home/zane/BEast-Skills/@be/be/node_modules/@be/recipe/src/flows/LoadData.flow'
+            'uri': '/home/zane/BEast-Skills/@be/recipe/src/flows/LoadData.flow'
         },
         'e96da2e4-e18e-4f4e-a9e4-1319f8039ce2': function () {
             return {
@@ -30235,7 +30235,7 @@ module.exports = function (blackboard, notepad, result, emitter) {
         'meta': {
             'version': 1,
             'name': 'Main',
-            'uri': '/home/zane/BEast-Skills/@be/be/node_modules/@be/recipe/src/flows/Main.flow'
+            'uri': '/home/zane/BEast-Skills/@be/recipe/src/flows/Main.flow'
         },
         '74cb91a5-2f64-4a8d-be77-8c293c359537': function () {
             return {
@@ -30755,7 +30755,7 @@ module.exports = function (blackboard, notepad, result, emitter) {
         'meta': {
             'version': 1,
             'name': 'Picture',
-            'uri': '/home/zane/BEast-Skills/@be/be/node_modules/@be/recipe/src/flows/Picture.flow'
+            'uri': '/home/zane/BEast-Skills/@be/recipe/src/flows/Picture.flow'
         },
         '6cebd95f-a2af-4962-80ad-c8063c5b69e8': function () {
             return {
@@ -31040,7 +31040,7 @@ module.exports = function (blackboard, notepad, result, emitter) {
         'meta': {
             'version': 1,
             'name': 'RecipeSelection',
-            'uri': '/home/zane/BEast-Skills/@be/be/node_modules/@be/recipe/src/flows/RecipeSelection.flow'
+            'uri': '/home/zane/BEast-Skills/@be/recipe/src/flows/RecipeSelection.flow'
         },
         '1bad6284-8754-42fe-b7d4-f9b870612f05': function () {
             return {
@@ -31924,7 +31924,7 @@ module.exports = function (blackboard, notepad, result, emitter) {
         'meta': {
             'version': 1,
             'name': 'Test',
-            'uri': '/home/zane/BEast-Skills/@be/be/node_modules/@be/recipe/src/flows/Test.flow'
+            'uri': '/home/zane/BEast-Skills/@be/recipe/src/flows/Test.flow'
         },
         '0fd9872e-f1bd-4101-8f89-6623433f4548': function () {
             return {
@@ -31985,7 +31985,7 @@ module.exports = function (blackboard, notepad, result, emitter) {
         'meta': {
             'version': 1,
             'name': 'Video',
-            'uri': '/home/zane/BEast-Skills/@be/be/node_modules/@be/recipe/src/flows/Video.flow'
+            'uri': '/home/zane/BEast-Skills/@be/recipe/src/flows/Video.flow'
         },
         'd72eb4d4-a6f8-4905-b19d-79a5c345bd67': function () {
             return {
@@ -32612,7 +32612,7 @@ module.exports = function (blackboard, notepad, result, emitter) {
         'meta': {
             'version': 1,
             'name': 'WhatDoYouWant',
-            'uri': '/home/zane/BEast-Skills/@be/be/node_modules/@be/recipe/src/flows/WhatDoYouWant.flow'
+            'uri': '/home/zane/BEast-Skills/@be/recipe/src/flows/WhatDoYouWant.flow'
         },
         'f2339143-cd0e-442c-8db1-538e18e1f05d': function () {
             return {

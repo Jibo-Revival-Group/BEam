@@ -21,7 +21,7 @@ Usage:
 
 ```bash
 node @be/be/node_modules/jibo-dev/build-bad-apple.js \
-  /absolute/path/to/@be/be/node_modules/@be/bad-apple
+  /absolute/path/to/@be/bad-apple
 ```
 
 Success looks like:
@@ -59,17 +59,17 @@ If you changed the menu:
 Typical robot path (may vary by install):
 
 ```
-/opt/jibo/Jibo/Skills/@be/be/node_modules/@be/<skill>/
+/opt/jibo/Jibo/Skills/@be/<skill>/
 ```
 
 ### Permissions
 
-Be’s loader checks that skill files are readable. A common failure mode is **`require('@be/skill')` module not found** or skill-load-errors on screen when permissions are wrong.
+Be’s loader checks that skill files are readable. A common failure mode is **`require('@be/skill')` module not found** when permissions are wrong or `skills-resolve` cannot see the sibling folder.
 
 After copying:
 
 ```bash
-chmod -R a+rX /path/to/@be/be/node_modules/@be/<skill>
+chmod -R a+rX /path/to/@be/<skill>
 ```
 
 For broad updates, `update-beam.sh` uses `chmod 777 -R` on the whole Skills tree (heavy-handed but reliable).

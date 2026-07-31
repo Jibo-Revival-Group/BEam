@@ -22,6 +22,7 @@
     <body>
         <div id="face"></div>
         <script>
+          require('./skills-resolve').install();
           const Be = require("./index");
           let be = new Be();
           be.init(()=>{

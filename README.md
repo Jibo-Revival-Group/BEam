@@ -9,6 +9,18 @@ Here are a few things these skills change:
 - Versions are now 2.x.x
 - Added a few Be Skills
 - Changed 2d eye to 3d eye
+- `@be/*` skills live as siblings of `@be/be` (not under `node_modules`); Be resolves them via `jibo.skillsRoot`
+
+## Layout
+
+```text
+@be/
+  be/              # host (skills-resolve.js + index.html)
+  idle/
+  main-menu/
+  jukebox/
+  …
+```
 
 ## New Be Skills
 

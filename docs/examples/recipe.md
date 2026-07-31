@@ -31,7 +31,7 @@ Recipe uses **`jibo.face.views.addView`** and PIXI sprites — see [patterns/fac
 
 Do **not** duplicate the full procedure here. The skill ships an authoritative guide:
 
-**[@be/recipe/ADD.md](../../@be/be/node_modules/@be/recipe/ADD.md)**
+**[@be/recipe/ADD.md](../../@be/recipe/ADD.md)**
 
 Summary of that process:
 
@@ -46,7 +46,7 @@ Summary of that process:
 
 ```bash
 node @be/be/node_modules/jibo-dev/build-recipe.js \
-  /path/to/@be/be/node_modules/@be/recipe
+  /path/to/@be/recipe
 ```
 
 Recipe’s original toolchain (`jibo-dev watch`) targets older jibo 5.x; this repo uses the **gulp-free browserify script** above with jibo 14 / be-framework 11.
@@ -75,6 +75,6 @@ See [patterns/assets-and-video.md](../patterns/assets-and-video.md).
 
 ## Related
 
-- [ADD.md](../../@be/be/node_modules/@be/recipe/ADD.md) — add recipes
+- [ADD.md](../../@be/recipe/ADD.md) — add recipes
 - [patterns/face-ui.md](../patterns/face-ui.md) — PIXI video path
 - [patterns/assets-and-video.md](../patterns/assets-and-video.md)

@@ -106,7 +106,7 @@ class JukeboxSkill extends be_framework_1.BeSkill {
                 return;
             }
             self.status.showError('Scan is taking too long (or hung).', 'Check that music lives at:\n' +
-                '/opt/jibo/Jibo/Skills/@be/be/node_modules/@be/jukebox/music/\n\n' +
+                '/opt/jibo/Jibo/Skills/@be/jukebox/music/\n\n' +
                 'Or that a previous update left it in /opt/tmp/jukebox-music/');
         }, 12000);
         setTimeout(() => {
@@ -431,7 +431,7 @@ class MusicLibrary {
         const fs = nodeRequire('fs');
         const path = nodeRequire('path');
         const candidates = [
-            '/opt/jibo/Jibo/Skills/@be/be/node_modules/@be/jukebox/music',
+            '/opt/jibo/Jibo/Skills/@be/jukebox/music',
             '/opt/tmp/jukebox-music'
         ];
         try {

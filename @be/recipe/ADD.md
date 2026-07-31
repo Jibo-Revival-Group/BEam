@@ -3,7 +3,7 @@
 This guide describes every step required to add a new recipe to the `@be/recipe`
 skill so it shows up in the categories, plays its video, and walks through guided
 steps. Paths below are relative to the skill root
-(`@be/be/node_modules/@be/recipe/`).
+(`@be/recipe/`).
 
 A recipe is made of three pieces that must all agree on the same `recipeID`:
 
@@ -132,7 +132,7 @@ must rebuild after adding a recipe**:
 
 ```bash
 cd @be/be/node_modules/jibo-dev
-node build-recipe.js /home/zane/BEast-Skills/@be/be/node_modules/@be/recipe
+node build-recipe.js /home/zane/BEast-Skills/@be/recipe
 ```
 
 Look for `WROTE .../index.js` and no `BUILD ERROR`. (Type-only warnings are

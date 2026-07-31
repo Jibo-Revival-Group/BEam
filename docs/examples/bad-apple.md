@@ -74,7 +74,7 @@ In `@be/be/package.json`:
 
 ```bash
 node @be/be/node_modules/jibo-dev/build-bad-apple.js \
-  /path/to/@be/be/node_modules/@be/bad-apple
+  /path/to/@be/bad-apple
 ```
 
 ## Deploy checklist

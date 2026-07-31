@@ -29,4 +29,4 @@ music/
 
 1. Add album folders here, commit, and redeploy with `update-beam.sh`, or
 2. Copy folders straight onto the robot at
-   `/opt/jibo/Jibo/Skills/@be/be/node_modules/@be/jukebox/music/` and relaunch Jukebox.
+   `/opt/jibo/Jibo/Skills/@be/jukebox/music/` and relaunch Jukebox.

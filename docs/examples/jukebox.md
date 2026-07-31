@@ -29,7 +29,7 @@ Touchscreen **album player** that scans a local `music/` folder. Good template w
 ## User music location on robot
 
 ```
-/opt/jibo/Jibo/Skills/@be/be/node_modules/@be/jukebox/music/
+/opt/jibo/Jibo/Skills/@be/jukebox/music/
 ```
 
 Users add album subfolders here. **`update-beam.sh`** stashes this directory to `/opt/tmp/jukebox-music` before a full BEam update and restores it afterward so libraries are not wiped.
@@ -60,7 +60,7 @@ Top-level button with `"destination": "jukebox"` in `main-menu-verbal.json`.
 
 ```bash
 node @be/be/node_modules/jibo-dev/build-jukebox.js \
-  /path/to/@be/be/node_modules/@be/jukebox
+  /path/to/@be/jukebox
 ```
 
 ## When to copy Jukebox vs Bad Apple

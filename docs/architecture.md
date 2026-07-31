@@ -4,10 +4,11 @@ How **Be** loads and runs skills in this repository.
 
 ## Overview
 
-**Be** (`@be/be`) is the host application. At startup it reads its own `package.json`, iterates `jibo.skills`, and constructs each skill. The main menu and voice launch rules then redirect into those skills.
+**Be** (`@be/be`) is the host application. At startup it installs a skills-root resolver, reads its own `package.json`, iterates `jibo.skills`, and constructs each skill. The main menu and voice launch rules then redirect into those skills.
 
 ```mermaid
 flowchart LR
+  Install["skills-resolve.install"]
   BePackage["@be/be package.json jibo.skills"]
   Require["require('@be/skill-id')"]
   Construct["new Skill({ assetPack, rootPath })"]
@@ -15,50 +16,67 @@ flowchart LR
   Menu["main-menu redirectToSkill"]
   Open["skill.open()"]
 
-  BePackage --> Require --> Construct --> Registry
+  Install --> BePackage --> Require --> Construct --> Registry
   Menu --> Open
 ```
 
 ## Skill identity
 
-- Skill IDs are **npm package names**, e.g. `@be/bad-apple`, `@be/recipe`.
+- Skill IDs look like npm package names, e.g. `@be/bad-apple`, `@be/recipe`.
 - Each skill is an **asset-pack**: a folder with `index.html`, bundled `index.js`, assets, and a `launch.rule` for voice.
-- On disk, skills live at `@be/be/node_modules/@be/<name>/`.
+- On disk, skills are **siblings of Be** under `@be/<name>/` (not under `node_modules`).
+
+```text
+@be/
+  be/           # host
+  idle/
+  main-menu/
+  jukebox/
+  …
+```
+
+## Skills-root resolution
+
+Before Be loads, [`@be/be/index.html`](../@be/be/index.html) calls `require('./skills-resolve').install()`.
+
+That hooks Node’s `Module._resolveFilename` so `require('@be/<name>')` and `PathUtils.resolve` / `resolveAssetPack` map to `<skillsRoot>/<name>/`.
+
+It also puts `@be/be/node_modules` on `NODE_PATH` so sibling skills can still `require('jibo')` and other host runtime deps (the old nested layout found those by walking up from `node_modules/@be/<skill>`).
+
+`jibo.skillsRoot` in `@be/be/package.json` defaults to `".."` (the `@be/` directory next to Be). Absolute paths are allowed for odd layouts.
+
+Third-party packages (`jibo`, pixi, …) still resolve from `@be/be/node_modules/`.
 
 ## Registration (required)
 
-A skill must appear in **both** places in `@be/be/package.json`:
-
-1. **`jibo.skills`** — Be loads these at startup via `require(id)`.
-2. **`dependencies`** — ensures the package exists under `node_modules`.
+A skill must appear in **`jibo.skills`** in `@be/be/package.json`. Be loads these at startup via `require(id)`.
 
 Example:
 
 ```json
 "jibo": {
+  "skillsRoot": "..",
   "skills": [
     "@be/bad-apple"
   ]
-},
-"dependencies": {
-  "@be/bad-apple": "^0.1.0"
 }
 ```
 
-If a skill is missing from `jibo.skills`, the menu may redirect to it but Be will not have constructed it. If it is missing from `dependencies`, `require('@be/...')` fails at load time.
+Skills are **not** listed in Be’s npm `dependencies`. Drop a folder at `@be/<name>/` with a valid `package.json`, register the id, restart Be.
+
+If a skill is missing from `jibo.skills`, the menu may redirect to it but Be will not have constructed it. If the sibling folder is missing or unreadable, `require('@be/...')` fails at load time (logged).
 
 ## Boot sequence
 
-From `@be/be/index.js`:
-
-1. Read `@be/be/package.json` via `jibo.utils.PathUtils.findRoot()`.
-2. For each entry in `jibo.skills`:
-   - `require(id)` — loads the skill’s bundled `index.js`.
+1. `skills-resolve.install()` (from `index.html`).
+2. Load Be; read `@be/be/package.json` via `jibo.utils.PathUtils.findRoot()`.
+3. For each entry in `jibo.skills`:
+   - `require(id)` — loads the skill’s bundled `index.js` from the skills root.
    - Instantiate `new Skill({ assetPack: id, rootPath: ... })`.
    - Validate it is a `BeSkill` and store in `be.skills[id]`.
-3. Wire lifecycle, redirects, and default skills (`@be/idle`, etc.).
+4. Wire lifecycle, redirects, and default skills (`@be/idle`, etc.).
 
-Load failures are logged and also surfaced in an on-screen **skill-load-errors** banner (useful when the robot has no console access). Common causes:
+Load failures are logged. Common causes:
 
 - Missing or unreadable `index.js` (forgot to build).
 - **`chmod`** — Be checks that `package.json` and `index.js` are readable; use `chmod -R a+rX` on deployed skill folders.
