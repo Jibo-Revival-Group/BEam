@@ -11,12 +11,25 @@ export interface Track {
 }
 
 export interface Album {
-  /** Folder name under music/ (e.g. "CHASER"). */
+  /** Folder name under music/ (e.g. "CHASER" or "Artist/Album"). */
   id: string;
-  /** Display title (folder name, prettified). */
+  /** Menu label (artist — album when nested, else album title). */
   title: string;
+  /** Album / EP name only. */
+  albumTitle: string;
+  /** Artist from nested music/Artist/Album/; empty for flat folders. */
+  artist: string;
   /** Cover image URL, or null if none found. */
   coverUrl: string;
+  /** Absolute on-disk cover path, or null. */
+  coverPath: string;
+  /** 300×300 menu-button icon URL (generated), or null. */
+  iconUrl?: string;
+  /**
+   * True when the folder has exactly one track whose title matches the album
+   * title (a single release).
+   */
+  isSingle: boolean;
   tracks: Track[];
 }
 
@@ -49,7 +62,7 @@ const COVER_NAMES = ['cover.png', 'cover.jpg', 'cover.jpeg', 'folder.png', 'fold
  *       track-02.mp3
  *
  * Also accepts one nesting level (Artist/Album/*.opus) — each Album folder
- * becomes its own carousel entry.
+ * becomes its own menu entry (artist + albumTitle filled in).
  *
  * Nothing here is bundled: the folder is read from disk every time the skill
  * opens, so a user can add albums simply by dropping folders into `music/`
@@ -136,7 +149,15 @@ export default class MusicLibrary {
         }
 
         try {
-          const album = MusicLibrary.scanAlbum(name, name, albumPath, assetPack, fs, path);
+          const album = MusicLibrary.scanAlbum(
+            name,
+            MusicLibrary.prettifyFolder(name),
+            '',
+            albumPath,
+            assetPack,
+            fs,
+            path
+          );
           if (addAlbum(album)) { continue; }
 
           // One nesting level: music/Artist/Album/*.opus
@@ -152,7 +173,8 @@ export default class MusicLibrary {
             const nestedId = name + '/' + kid;
             const nested = MusicLibrary.scanAlbum(
               nestedId,
-              name + ' — ' + kid,
+              MusicLibrary.prettifyFolder(kid),
+              MusicLibrary.prettifyFolder(name),
               kidPath,
               assetPack,
               fs,
@@ -215,7 +237,8 @@ export default class MusicLibrary {
 
   protected static scanAlbum (
     id: string,
-    titleSource: string,
+    albumTitle: string,
+    artist: string,
     albumPath: string,
     assetPack: string,
     fs: any,
@@ -258,12 +281,21 @@ export default class MusicLibrary {
     }
 
     const coverAbs = coverFile ? path.join(albumPath, coverFile) : null;
+    const title = artist
+      ? (artist + ' — ' + albumTitle)
+      : albumTitle;
+    const isSingle = tracks.length === 1 &&
+      MusicLibrary.titlesMatch(tracks[0].title, albumTitle);
     return {
       id,
-      title: MusicLibrary.prettifyFolder(titleSource),
+      title,
+      albumTitle,
+      artist: artist || '',
       coverUrl: coverAbs
         ? MusicLibrary.resolveAssetUrl('music/' + relDir + '/' + coverFile, coverAbs)
         : null,
+      coverPath: coverAbs || null,
+      isSingle,
       tracks
     };
   }
@@ -359,6 +391,18 @@ export default class MusicLibrary {
 
   protected static prettifyFolder (name: string): string {
     return String(name).replace(/_/g, ' ').trim();
+  }
+
+  /** Case-insensitive title compare for single detection. */
+  protected static titlesMatch (a: string, b: string): boolean {
+    const norm = (s: string) => String(s || '')
+      .toLowerCase()
+      .replace(/[_]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    const na = norm(a);
+    const nb = norm(b);
+    return !!na && na === nb;
   }
 
   protected static formatLabel (file: string): string {

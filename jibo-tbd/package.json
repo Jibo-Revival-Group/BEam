@@ -2,19 +2,19 @@
   "_args": [
     [
       {
-        "raw": "jibo-tbd@3.0.0",
+        "raw": "jibo-tbd@3.0.1.beta",
         "scope": null,
         "escapedName": "jibo-tbd",
         "name": "jibo-tbd",
-        "rawSpec": "3.0.0",
-        "spec": "3.0.0",
+        "rawSpec": "3.0.1.beta",
+        "spec": "3.0.1.beta",
         "type": "version"
       },
       "/var/lib/jenkins/workspace/OTA/ota-builder"
     ]
   ],
-  "_from": "jibo-tbd@3.0.0",
-  "_id": "jibo-tbd@3.0.0",
+  "_from": "jibo-tbd@3.0.1.beta",
+  "_id": "jibo-tbd@3.0.1.beta",
   "_inCache": true,
   "_installable": true,
   "_location": "/jibo-tbd",
@@ -26,21 +26,21 @@
   "_npmVersion": "3.10.3",
   "_phantomChildren": {},
   "_requested": {
-    "raw": "jibo-tbd@3.0.0",
+    "raw": "jibo-tbd@3.0.1.beta",
     "scope": null,
     "escapedName": "jibo-tbd",
     "name": "jibo-tbd",
-    "rawSpec": "3.0.0",
-    "spec": "3.0.0",
+    "rawSpec": "3.0.1.beta",
+    "spec": "3.0.1.beta",
     "type": "version"
   },
   "_requiredBy": [
     "#USER"
   ],
-  "_resolved": "http://10.0.0.106:8080/j/jibo-tbd/_attachments/jibo-tbd-3.0.0.tgz",
+  "_resolved": "http://10.0.0.106:8080/j/jibo-tbd/_attachments/jibo-tbd-3.0.1.beta.tgz",
   "_shasum": "abce3643774235093e6f87139d1971d25a66c06c",
   "_shrinkwrap": null,
-  "_spec": "jibo-tbd@3.0.0",
+  "_spec": "jibo-tbd@3.0.1.beta",
   "_where": "/var/lib/jenkins/workspace/OTA/ota-builder",
   "author": "",
   "dependencies": {},
@@ -49,7 +49,7 @@
   "directories": {},
   "dist": {
     "shasum": "abce3643774235093e6f87139d1971d25a66c06c",
-    "tarball": "http://10.0.0.106:8080/j/jibo-tbd/_attachments/jibo-tbd-3.0.0.tgz"
+    "tarball": "http://10.0.0.106:8080/j/jibo-tbd/_attachments/jibo-tbd-3.0.1.beta.tgz"
   },
   "gitHead": "69de263074d5223012b32da73467b31dc4760cab",
   "keywords": [
@@ -75,5 +75,5 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "version": "3.0.0"
+  "version": "3.0.1.beta"
 }
