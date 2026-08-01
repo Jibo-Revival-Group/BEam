@@ -1,4 +1,4 @@
 {
-    "spoken": "My version prefixing has changed, and I now have server support.",
+    "spoken": "I now have better support on the server side. My internal code has also been changed to make development easier.",
     "enableProactive": true
 }
