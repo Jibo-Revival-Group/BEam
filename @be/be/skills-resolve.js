@@ -1,13 +1,13 @@
 'use strict';
 
 /**
- * Resolve @be/<skill> packages from a configurable skills root (siblings of Be)
- * instead of node_modules. Install before requiring the Be bundle so both
- * require('@be/…') and PathUtils.resolve / resolveAssetPack work.
+ * Resolve @be/<skill> packages from a configurable skills root (see
+ * jibo.skillsRoot) instead of node_modules. Install before requiring the Be
+ * bundle so both require('@be/…') and PathUtils.resolve / resolveAssetPack work.
  *
- * Also puts Be's node_modules on NODE_PATH so sibling skills can still
- * require('jibo') and other host runtime deps (previously found by walking
- * up from node_modules/@be/<skill>).
+ * Skills live under @be/skills/<name>/ (not as direct children of Skills/@be/)
+ * so system-manager only discovers @be/be as a launchable host. Be's node_modules
+ * is put on NODE_PATH so those packs can still require('jibo') and other host deps.
  */
 
 const Module = require('module');

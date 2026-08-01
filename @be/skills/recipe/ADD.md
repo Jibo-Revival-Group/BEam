@@ -3,7 +3,7 @@
 This guide describes every step required to add a new recipe to the `@be/recipe`
 skill so it shows up in the categories, plays its video, and walks through guided
 steps. Paths below are relative to the skill root
-(`@be/recipe/`).
+(`@be/skills/recipe/`).
 
 A recipe is made of three pieces that must all agree on the same `recipeID`:
 

@@ -9,18 +9,20 @@ Here are a few things these skills change:
 - Versions are now 2.x.x
 - Added a few Be Skills
 - Changed 2d eye to 3d eye
-- `@be/*` skills live as siblings of `@be/be` (not under `node_modules`); Be resolves them via `jibo.skillsRoot`
+- `@be/*` skill packs live under `@be/skills/` (not under `node_modules`); Be resolves them via `jibo.skillsRoot`
 
 ## Layout
 
 ```text
 @be/
-  be/              # host (skills-resolve.js + index.html)
-  idle/
-  main-menu/
-  jukebox/
-  …
+  be/                # host only (what SSM lists / launches)
+  skills/            # idle, main-menu, jukebox, be-framework, …
+    idle/
+    main-menu/
+    …
 ```
+
+Be resolves `@be/<name>` from `jibo.skillsRoot` → `@be/skills/`. Packs are not direct children of `@be/` (only `be` and the `skills/` folder), so system-manager does not treat packs as separate launchable skills.
 
 ## New Be Skills
 

@@ -21,13 +21,13 @@ Usage:
 
 ```bash
 node @be/be/node_modules/jibo-dev/build-bad-apple.js \
-  /absolute/path/to/@be/bad-apple
+  /absolute/path/to/@be/skills/bad-apple
 ```
 
 Success looks like:
 
 ```
-WROTE /path/to/@be/bad-apple/index.js
+WROTE /path/to/@be/skills/bad-apple/index.js
 ```
 
 Type-only tsify warnings do not block the build. **`BUILD ERROR`** means fix and rebuild.
@@ -45,7 +45,7 @@ Large binaries (**video**, **music**) are **not** bundled — they stay on disk 
 
 Minimum for a skill update:
 
-- The whole skill folder, especially **`index.js`** and asset dirs (`video/`, `music/`, etc.)
+- The whole skill folder under `@be/skills/<name>/`, especially **`index.js`** and asset dirs (`video/`, `music/`, etc.)
 
 If you changed registration:
 
@@ -53,23 +53,24 @@ If you changed registration:
 
 If you changed the menu:
 
-- `@be/main-menu/resources/views/*.json`
-- `@be/main-menu/resources/icons/*.png`
+- `@be/skills/main-menu/resources/views/*.json`
+- `@be/skills/main-menu/resources/icons/*.png`
 
-Typical robot path (may vary by install):
+Typical robot paths:
 
 ```
-/opt/jibo/Jibo/Skills/@be/<skill>/
+/opt/jibo/Jibo/Skills/@be/be/          # host only under @be/
+/opt/jibo/Jibo/Skills/@be/skills/<skill>/  # asset-packs
 ```
 
 ### Permissions
 
-Be’s loader checks that skill files are readable. A common failure mode is **`require('@be/skill')` module not found** when permissions are wrong or `skills-resolve` cannot see the sibling folder.
+Be’s loader checks that skill files are readable. A common failure mode is **`require('@be/skill')` module not found** when permissions are wrong or `skills-resolve` cannot see the skills-root folder.
 
 After copying:
 
 ```bash
-chmod -R a+rX /path/to/@be/<skill>
+chmod -R a+rX /path/to/@be/skills/<skill>
 ```
 
 For broad updates, `update-beam.sh` uses `chmod 777 -R` on the whole Skills tree (heavy-handed but reliable).

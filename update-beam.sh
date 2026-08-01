@@ -2,8 +2,10 @@
 set -e
 clear
 
-JUKEBOX_MUSIC="/opt/jibo/Jibo/Skills/@be/jukebox/music"
-JUKEBOX_MUSIC_LEGACY="/opt/jibo/Jibo/Skills/@be/be/node_modules/@be/jukebox/music"
+JUKEBOX_MUSIC="/opt/jibo/Jibo/Skills/@be/skills/jukebox/music"
+JUKEBOX_MUSIC_LEGACY_NESTED="/opt/jibo/Jibo/Skills/@be/be/node_modules/@be/jukebox/music"
+JUKEBOX_MUSIC_LEGACY_SIBLING="/opt/jibo/Jibo/Skills/@be/jukebox/music"
+JUKEBOX_MUSIC_LEGACY_ROOT="/opt/jibo/Jibo/Skills/skills/jukebox/music"
 JUKEBOX_MUSIC_STASH="/opt/tmp/jukebox-music"
 
 # 0. Go to skills directory
@@ -11,17 +13,27 @@ echo "Going to skills directory..."
 cd /opt/jibo/Jibo/Skills/
 
 # 0b. Stash jukebox library so the update does not wipe user music
-# Prefer the new sibling path; fall back to the pre-monorepo nested path once.
+# Prefer the current path; fall back to pre-monorepo layouts once.
 if [ -d "$JUKEBOX_MUSIC" ]; then
     echo "Stashing jukebox music library to $JUKEBOX_MUSIC_STASH..."
     mkdir -p /opt/tmp
     rm -rf "$JUKEBOX_MUSIC_STASH"
     mv "$JUKEBOX_MUSIC" "$JUKEBOX_MUSIC_STASH"
-elif [ -d "$JUKEBOX_MUSIC_LEGACY" ]; then
-    echo "Stashing legacy jukebox music library to $JUKEBOX_MUSIC_STASH..."
+elif [ -d "$JUKEBOX_MUSIC_LEGACY_ROOT" ]; then
+    echo "Stashing legacy root skills/ jukebox music library to $JUKEBOX_MUSIC_STASH..."
     mkdir -p /opt/tmp
     rm -rf "$JUKEBOX_MUSIC_STASH"
-    mv "$JUKEBOX_MUSIC_LEGACY" "$JUKEBOX_MUSIC_STASH"
+    mv "$JUKEBOX_MUSIC_LEGACY_ROOT" "$JUKEBOX_MUSIC_STASH"
+elif [ -d "$JUKEBOX_MUSIC_LEGACY_SIBLING" ]; then
+    echo "Stashing legacy sibling jukebox music library to $JUKEBOX_MUSIC_STASH..."
+    mkdir -p /opt/tmp
+    rm -rf "$JUKEBOX_MUSIC_STASH"
+    mv "$JUKEBOX_MUSIC_LEGACY_SIBLING" "$JUKEBOX_MUSIC_STASH"
+elif [ -d "$JUKEBOX_MUSIC_LEGACY_NESTED" ]; then
+    echo "Stashing legacy nested jukebox music library to $JUKEBOX_MUSIC_STASH..."
+    mkdir -p /opt/tmp
+    rm -rf "$JUKEBOX_MUSIC_STASH"
+    mv "$JUKEBOX_MUSIC_LEGACY_NESTED" "$JUKEBOX_MUSIC_STASH"
 else
     echo "No existing jukebox music library to stash."
 fi

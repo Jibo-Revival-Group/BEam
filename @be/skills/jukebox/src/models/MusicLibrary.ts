@@ -280,7 +280,7 @@ export default class MusicLibrary {
     const path = nodeRequire('path');
 
     const candidates: string[] = [
-      '/opt/jibo/Jibo/Skills/@be/jukebox/music',
+      '/opt/jibo/Jibo/Skills/@be/skills/jukebox/music',
       '/opt/tmp/jukebox-music'
     ];
 

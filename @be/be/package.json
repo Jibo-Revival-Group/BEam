@@ -1,6 +1,6 @@
 {
   "name": "@be/be",
-  "version": "10.0.18",
+  "version": "13.0.0",
   "description": "",
   "main": "index.js",
   "jibo": {
@@ -16,7 +16,7 @@
       "skipRestore": false
     },
     "main": "index.html",
-    "skillsRoot": "..",
+    "skillsRoot": "../skills",
     "skills": [
       "@be/clock",
       "@be/circuit-saver",

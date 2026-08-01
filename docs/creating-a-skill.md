@@ -5,7 +5,7 @@ End-to-end checklist for adding a new Be skill. Use **`@be/bad-apple`** as the t
 ## 1. Create the skill folder
 
 ```
-@be/<your-skill>/
+@be/skills/<your-skill>/
   package.json
   launch.rule
   index.html
@@ -17,7 +17,7 @@ End-to-end checklist for adding a new Be skill. Use **`@be/bad-apple`** as the t
   resources/        # optional icons, etc.
 ```
 
-Paths below are relative to the skill root unless noted. The skill sits next to `@be/be/` (siblings under `@be/`).
+Paths below are relative to the skill root unless noted. Packs live under `@be/skills/` (not as direct `@be/<name>` children), so system-manager only lists `@be/be` as a launchable host.
 
 ## 2. package.json
 
@@ -143,7 +143,7 @@ Build:
 
 ```bash
 node @be/be/node_modules/jibo-dev/build-bad-apple.js \
-  /path/to/@be/bad-apple
+  /path/to/@be/skills/bad-apple
 ```
 
 Expect: `WROTE .../index.js`. Type-only tsify warnings are normal.
@@ -154,13 +154,13 @@ Edit `@be/be/package.json`:
 
 1. Add `"@be/your-skill"` to `jibo.skills`.
 
-Do **not** add the skill to Be’s npm `dependencies` — Be resolves siblings via `jibo.skillsRoot` (see [architecture.md](architecture.md)).
+Do **not** add the skill to Be’s npm `dependencies` — Be resolves packs via `jibo.skillsRoot` → `@be/skills/` (see [architecture.md](architecture.md)).
 
 Redeploy **`@be/be/package.json`** with the skill folder.
 
 ## 9. Main menu (optional)
 
-Add a button in `@be/main-menu/resources/views/main-menu-verbal.json` with `"destination": "your-skill"`. See [main-menu.md](main-menu.md).
+Add a button in `@be/skills/main-menu/resources/views/main-menu-verbal.json` with `"destination": "your-skill"`. See [main-menu.md](main-menu.md).
 
 ## 10. Deploy
 

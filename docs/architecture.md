@@ -24,16 +24,26 @@ flowchart LR
 
 - Skill IDs look like npm package names, e.g. `@be/bad-apple`, `@be/recipe`.
 - Each skill is an **asset-pack**: a folder with `index.html`, bundled `index.js`, assets, and a `launch.rule` for voice.
-- On disk, skills are **siblings of Be** under `@be/<name>/` (not under `node_modules`).
+
+## On-disk layout (important for SSM)
+
+System manager scans **`/opt/jibo/Jibo/Skills/@be`** for launchable skills. Only the Be host should live there:
 
 ```text
-@be/
-  be/           # host
-  idle/
-  main-menu/
-  jukebox/
+Skills/                         (repo root on robot)
+  @be/
+    be/                         # ONLY launchable host SSM should list
+    skills/                     # packs (not direct @be children as skills)
+      idle/
+      main-menu/
+      jukebox/
+      be-framework/             # library, not launchable
+      …
+  jibo-tbd/
   …
 ```
+
+Do **not** put skill packs as *direct* siblings of `be` under `@be/` (e.g. `@be/idle`) — SSM will list them as separate skills. Put them under `@be/skills/<name>/` instead.
 
 ## Skills-root resolution
 
@@ -41,9 +51,9 @@ Before Be loads, [`@be/be/index.html`](../@be/be/index.html) calls `require('./s
 
 That hooks Node’s `Module._resolveFilename` so `require('@be/<name>')` and `PathUtils.resolve` / `resolveAssetPack` map to `<skillsRoot>/<name>/`.
 
-It also puts `@be/be/node_modules` on `NODE_PATH` so sibling skills can still `require('jibo')` and other host runtime deps (the old nested layout found those by walking up from `node_modules/@be/<skill>`).
+`jibo.skillsRoot` in `@be/be/package.json` is `"../skills"` (repo `@be/skills/` from `@be/be`). Absolute paths are allowed for odd layouts.
 
-`jibo.skillsRoot` in `@be/be/package.json` defaults to `".."` (the `@be/` directory next to Be). Absolute paths are allowed for odd layouts.
+It also puts `@be/be/node_modules` on `NODE_PATH` so skill packs can still `require('jibo')` and other host runtime deps.
 
 Third-party packages (`jibo`, pixi, …) still resolve from `@be/be/node_modules/`.
 
@@ -55,16 +65,16 @@ Example:
 
 ```json
 "jibo": {
-  "skillsRoot": "..",
+  "skillsRoot": "../skills",
   "skills": [
     "@be/bad-apple"
   ]
 }
 ```
 
-Skills are **not** listed in Be’s npm `dependencies`. Drop a folder at `@be/<name>/` with a valid `package.json`, register the id, restart Be.
+Skills are **not** listed in Be’s npm `dependencies`. Drop a folder at `@be/skills/<name>/` with a valid `package.json`, register the id, restart Be.
 
-If a skill is missing from `jibo.skills`, the menu may redirect to it but Be will not have constructed it. If the sibling folder is missing or unreadable, `require('@be/...')` fails at load time (logged).
+If a skill is missing from `jibo.skills`, the menu may redirect to it but Be will not have constructed it. If the skills-root folder is missing or unreadable, `require('@be/...')` fails at load time (logged).
 
 ## Boot sequence
 

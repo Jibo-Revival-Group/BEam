@@ -12,7 +12,7 @@ The simplest full skill in this repo: **looping fullscreen video** with swipe-do
 ## File map
 
 ```
-@be/bad-apple/
+@be/skills/bad-apple/
   package.json
   launch.rule
   index.html
@@ -64,7 +64,6 @@ TopRule = $* (
 In `@be/be/package.json`:
 
 - `jibo.skills` includes `"@be/bad-apple"`.
-- `dependencies` includes `"@be/bad-apple": "^0.1.0"`.
 
 ## Main menu
 
@@ -74,13 +73,13 @@ In `@be/be/package.json`:
 
 ```bash
 node @be/be/node_modules/jibo-dev/build-bad-apple.js \
-  /path/to/@be/bad-apple
+  /path/to/@be/skills/bad-apple
 ```
 
 ## Deploy checklist
 
-1. `@be/bad-apple/index.js`
-2. `@be/bad-apple/video/bad-apple.mp4`
+1. `@be/skills/bad-apple/index.js`
+2. `@be/skills/bad-apple/video/bad-apple.mp4`
 3. `@be/be/package.json` (if first install)
 4. Main-menu JSON + icon (if not already on robot)
 5. `chmod -R a+rX` and restart Be

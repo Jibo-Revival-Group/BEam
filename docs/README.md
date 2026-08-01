@@ -2,15 +2,14 @@
 
 This folder documents how to create, build, register, and deploy **Be skills** on Jibo using this repository.
 
-BEast-Skills is a collection of system skills for **Be** (`@be/be`), the host app that loads and runs `@be/*` asset-pack skills. Skill packages are **siblings of Be**:
+BEast-Skills is a collection of system skills for **Be** (`@be/be`), the host app that loads and runs `@be/*` asset-pack skills.
 
 ```
-@be/
-  be/                 # host (+ skills-resolve.js)
-  <skill-name>/
+@be/be/                      # host only (SSM launchable)
+@be/skills/<skill-name>/     # asset-packs + be-framework
 ```
 
-Be resolves `@be/<skill-name>` from `jibo.skillsRoot` (default `..`). See [architecture.md](architecture.md).
+Be resolves `@be/<skill-name>` from `jibo.skillsRoot` (`../skills`). Packs live under `@be/skills/` so system-manager does not list them as separate skills. See [architecture.md](architecture.md).
 
 The robot face is **1280×720** pixels.
 
@@ -43,7 +42,7 @@ The robot face is **1280×720** pixels.
 
 ## Quick start
 
-1. Copy the structure of `@be/bad-apple` for a simple skill under `@be/<name>/`.
+1. Copy the structure of `@be/skills/bad-apple` for a simple skill under `@be/skills/<name>/`.
 2. Build with `node @be/be/node_modules/jibo-dev/build-bad-apple.js <skill-dir>`.
 3. Register in `@be/be/package.json` (`jibo.skills` only).
 4. Optionally add a main-menu button (see [main-menu.md](main-menu.md)).
