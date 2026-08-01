@@ -17,11 +17,14 @@ music/
 
 ## Rules
 
-- Folder name = album / EP name shown in the cover carousel (underscores become spaces).
+- Folder name = album / EP name shown in the album menu (underscores become spaces).
 - Cover image (optional but recommended): `cover.png`, `cover.jpg`, `cover.jpeg`,
   `folder.png`, or `folder.jpg` (case-insensitive).
 - Audio files inside the folder: `.mp3`, `.opus`, `.ogg` / `.oga`.
-- Nested `music/Artist/Album/*.opus` also works (each Album is listed).
+- Nested `music/Artist/Album/*.opus` also works (each Album is listed; artist
+  appears on the now-playing screen).
+- A folder with **one** track whose filename matches the folder name is treated
+  as a **single** (plays immediately from the album menu; player shows "Single").
 - Folders with no playable audio files are ignored.
 - The skill rescans this directory every time it opens — **no rebuild** to add albums.
 
