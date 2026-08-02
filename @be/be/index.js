@@ -142,12 +142,23 @@ class Be {
                     }
                     this._skillSwitchScheduler.run();
                     this.log.info("Indexing...");
-                    jibo.expression.indexRobot().then(() => {
-                        this.log.info('initialize the BeSkill.plugins');
-                        be_framework_1.BeSkill.init(this.initPlugins.bind(this));
-                    }).catch(() => {
-                        be_framework_1.BeSkill.errorCode('F4-Index_timeout', 'Initial indexing error in Be: ' + err);
+                    // Make indexing non-blocking with a 10-second timeout
+                    const indexPromise = jibo.expression.indexRobot();
+                    const timeoutPromise = new Promise((_, reject) => {
+                        setTimeout(() => reject(new Error('Indexing timeout after 10 seconds')), 10000);
                     });
+                    Promise.race([indexPromise, timeoutPromise])
+                        .then(() => {
+                            this.log.info('Indexing completed successfully');
+                        })
+                        .catch((err) => {
+                            this.log.warn('Indexing failed or timed out, continuing anyway:', err.message);
+                            be_framework_1.BeSkill.errorCode('F4-Index_timeout', 'Initial indexing error in Be: ' + err.message);
+                        })
+                        .then(() => {
+                            this.log.info('initialize the BeSkill.plugins');
+                            be_framework_1.BeSkill.init(this.initPlugins.bind(this));
+                        });
                 });
             });
         });
