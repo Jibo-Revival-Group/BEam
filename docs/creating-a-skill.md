@@ -152,11 +152,17 @@ Expect: `WROTE .../index.js`. Type-only tsify warnings are normal.
 
 Edit `@be/be/package.json`:
 
-1. Add `"@be/your-skill"` to `jibo.skills`.
+1. Add `"@be/your-skill"` to **`jibo.lazySkills`** (normal feature skills).
+2. Only put it in **`jibo.skills`** if it must run `postInit` at Be boot
+   (e.g. clock alarms) or is a role skill (idle / first-contact / restore /
+   surprises / settings).
 
-Do **not** add the skill to Be’s npm `dependencies` — Be resolves packs via `jibo.skillsRoot` → `@be/skills/` (see [architecture.md](architecture.md)).
+Do **not** add the skill to Be’s npm `dependencies` — Be resolves packs via
+`jibo.skillsRoot` → `@be/skills/` (see [architecture.md](architecture.md)).
 
-Redeploy **`@be/be/package.json`** with the skill folder.
+Redeploy **`@be/be/package.json`** with the skill folder, then restart Be once
+so the new id is known. After that, rebuild + leave + reopen the skill picks up
+code changes without another Be restart.
 
 ## 9. Main menu (optional)
 

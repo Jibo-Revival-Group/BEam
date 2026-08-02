@@ -25,7 +25,9 @@
           require('./skills-resolve').install();
           require('./beacon').start();
           const Be = require("./index");
+          const registry = require('./skill-registry');
           let be = new Be();
+          registry.install(be);
           be.init(()=>{
              // @if DEBUG
              be.log.info("Finished running Be init");

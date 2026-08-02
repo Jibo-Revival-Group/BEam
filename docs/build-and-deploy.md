@@ -77,7 +77,12 @@ For broad updates, `update-beam.sh` uses `chmod 777 -R` on the whole Skills tree
 
 ### Restart Be
 
-Be must reload to pick up new `package.json` skills list and fresh bundles.
+**Lazy feature skills** (`jibo.lazySkills`): after rebuilding `index.js`, leave
+the skill and open it again. Be re-`require`s the pack — no process restart.
+
+**Eager / role skills** (`jibo.skills`) or **new skill ids** added to
+`package.json`: Be must restart so the host re-reads config and constructs
+core packs.
 
 From `@be/be` on the robot (via SSM / local shell), `update-beam.sh` does:
 
@@ -93,7 +98,8 @@ curl -s -X POST http://localhost:8779/launch-dev \
   --data-raw '{"command":"@be/be"}'
 ```
 
-Relaunching only the skill without restarting Be is not enough when you add a **new** skill id to `jibo.skills`.
+Relaunching only the skill without restarting Be is not enough when you add a
+**new** skill id to `jibo.skills` / `jibo.lazySkills`.
 
 ## Full repo update (update-beam.sh)
 

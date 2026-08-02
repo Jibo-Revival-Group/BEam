@@ -572,7 +572,9 @@
     function loadSkills () {
         return api('GET', '/api/skills').then(function (data) {
             $('#skills-summary').textContent = data.counts.registered + ' registered with ' +
-                data.host.name + ', ' + data.counts.onDisk + ' on disk under ' + data.skillsRoot;
+                data.host.name +
+                ' (' + (data.counts.eager || 0) + ' eager, ' + (data.counts.lazy || 0) + ' lazy), ' +
+                data.counts.onDisk + ' on disk under ' + data.skillsRoot;
 
             var list = $('#skills-list');
             list.innerHTML = '';
@@ -585,7 +587,11 @@
 
                 var chips = el('div', 'chips');
                 chips.appendChild(el('span', 'chip' + (skill.registered ? ' is-on' : ''),
-                    skill.registered ? 'loaded by Be' : 'not registered'));
+                    skill.registered ? 'registered' : 'not registered'));
+                if (skill.load) {
+                    chips.appendChild(el('span', 'chip' + (skill.load === 'eager' ? ' is-role' : ' is-on'),
+                        skill.load));
+                }
                 if (!skill.installed) { chips.appendChild(el('span', 'chip', 'missing on disk')); }
                 if (skill.hasLaunchRule) { chips.appendChild(el('span', 'chip', 'voice')); }
                 (skill.roles || []).forEach(function (role) {

@@ -4,20 +4,22 @@ How **Be** loads and runs skills in this repository.
 
 ## Overview
 
-**Be** (`@be/be`) is the host application. At startup it installs a skills-root resolver, reads its own `package.json`, iterates `jibo.skills`, and constructs each skill. The main menu and voice launch rules then redirect into those skills.
+**Be** (`@be/be`) is the host application. At startup it installs a skills-root
+resolver, constructs only **eager** skills from `jibo.skills`, then
+[`skill-registry`](../@be/be/skill-registry.js) wraps redirect/voice paths so
+**lazy** skills from `jibo.lazySkills` load on demand (and re-load on each open).
 
 ```mermaid
 flowchart LR
   Install["skills-resolve.install"]
-  BePackage["@be/be package.json jibo.skills"]
-  Require["require('@be/skill-id')"]
-  Construct["new Skill({ assetPack, rootPath })"]
-  Registry["be.skills['@be/skill-id']"]
-  Menu["main-menu redirectToSkill"]
+  Eager["jibo.skills eager require"]
+  Registry["skill-registry.install"]
+  Menu["main-menu / voice redirect"]
+  Prep["prepareForOpen lazy reload"]
   Open["skill.open()"]
 
-  Install --> BePackage --> Require --> Construct --> Registry
-  Menu --> Open
+  Install --> Eager --> Registry
+  Menu --> Prep --> Open
 ```
 
 ## Skill identity
@@ -59,7 +61,15 @@ Third-party packages (`jibo`, pixi, …) still resolve from `@be/be/node_modules
 
 ## Registration (required)
 
-A skill must appear in **`jibo.skills`** in `@be/be/package.json`. Be loads these at startup via `require(id)`.
+Skills are registered in **`@be/be/package.json`** under two lists:
+
+| List | When loaded | Reload |
+|------|-------------|--------|
+| `jibo.skills` | At Be boot (eager) | Be restart |
+| `jibo.lazySkills` | On first open | Every leave → reopen (fresh `require`) |
+
+Eager set is reserved for boot/background correctness: idle, first-contact,
+restore, surprises, settings, and clock (alarm `postInit`).
 
 Example:
 
@@ -67,29 +77,52 @@ Example:
 "jibo": {
   "skillsRoot": "../skills",
   "skills": [
+    "@be/idle",
+    "@be/first-contact",
+    "@be/restore",
+    "@be/surprises",
+    "@be/settings",
+    "@be/clock"
+  ],
+  "lazySkills": [
+    "@be/jukebox",
     "@be/bad-apple"
   ]
 }
 ```
 
-Skills are **not** listed in Be’s npm `dependencies`. Drop a folder at `@be/skills/<name>/` with a valid `package.json`, register the id, restart Be.
+Skills are **not** listed in Be’s npm `dependencies`. Drop a folder at
+`@be/skills/<name>/` with a valid `package.json`, add the id to `lazySkills`
+(or `skills` if it must run `postInit` at boot), and restart Be once so the
+registry sees the new id.
 
-If a skill is missing from `jibo.skills`, the menu may redirect to it but Be will not have constructed it. If the skills-root folder is missing or unreadable, `require('@be/...')` fails at load time (logged).
+If a skill is missing from both lists, the menu may redirect to it but
+`prepareForOpen` will warn and the open will fail. If the skills-root folder is
+missing or unreadable, `require('@be/...')` fails at load time (logged).
 
 ## Boot sequence
 
 1. `skills-resolve.install()` (from `index.html`).
-2. Load Be; read `@be/be/package.json` via `jibo.utils.PathUtils.findRoot()`.
-3. For each entry in `jibo.skills`:
-   - `require(id)` — loads the skill’s bundled `index.js` from the skills root.
-   - Instantiate `new Skill({ assetPack: id, rootPath: ... })`.
-   - Validate it is a `BeSkill` and store in `be.skills[id]`.
-4. Wire lifecycle, redirects, and default skills (`@be/idle`, etc.).
+2. `beacon.start()`.
+3. `new Be()` — constructs only `jibo.skills` (eager).
+4. `skill-registry.install(be)` — wraps `skillRedirect` / voice switch; bootstraps
+   Element-of-Surprise packs for `eosSkill.supplyCategories`.
+5. `be.init()` — jibo init, postInit for eager skills, launch first skill.
 
 Load failures are logged. Common causes:
 
 - Missing or unreadable `index.js` (forgot to build).
 - **`chmod`** — Be checks that `package.json` and `index.js` are readable; use `chmod -R a+rX` on deployed skill folders.
+
+## Lazy reload workflow
+
+1. Edit and rebuild a lazy skill’s `index.js`.
+2. Leave the skill (back to idle / menu).
+3. Open it again — Be destroys the old instance, purges that skill’s
+   `require.cache` entries under `@be/skills/<name>/`, and constructs a new one.
+
+Same-skill **refresh** (without leaving) does **not** re-require. Core/eager
+skill code changes still need a full Be restart.
 
 ## Entry point
 
@@ -140,7 +173,8 @@ Skills can be opened in two ways:
 1. **Main menu** — button `destination` → `@be/<name>` via `redirectToSkill()` (see [main-menu.md](main-menu.md)).
 2. **Voice** — `launch.rule` maps utterances to `{skill='\@be/<name>'}`.
 
-Both paths end in the same `open()` on the registered skill instance.
+Both paths go through `prepareForOpen` then `open()` on a (possibly freshly
+constructed) skill instance.
 
 ## Face resolution
 
