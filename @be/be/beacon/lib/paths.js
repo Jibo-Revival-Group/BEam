@@ -64,14 +64,17 @@ function skillsRoot () {
 }
 
 /**
- * Same candidate order as the jukebox skill's MusicLibrary.resolveMusicDir so
- * BEacon always writes to the folder the skill will read back. The canonical
- * @be/skills path used by update-beam.sh is checked too, and the repo-relative
- * path keeps development off-robot working.
+ * Canonical user library — same path the jukebox skill always uses on robot.
+ * Do not return the skill pack's music/ stub or legacy node_modules paths;
+ * those exist after every deploy and would steal writes/reads.
  */
+function musicDirCanonical () {
+    return ROBOT_SKILLS + '/@be/Skills/Jukebox/Music';
+}
+
 function musicDirCandidates () {
     return [
-        ROBOT_SKILLS + '/@be/Skills/Jukebox/Music',
+        musicDirCanonical(),
         ROBOT_SKILLS + '/@be/skills/jukebox/music',
         ROBOT_SKILLS + '/@be/be/node_modules/@be/jukebox/music',
         '/opt/tmp/jukebox-music',
@@ -80,8 +83,11 @@ function musicDirCandidates () {
 }
 
 function musicDir () {
-    const candidates = musicDirCandidates();
-    return firstDir(candidates) || candidates[candidates.length - 1];
+    if (onRobot()) {
+        return ensureDir(musicDirCanonical());
+    }
+    const local = path.join(skillsRoot(), 'jukebox', 'music');
+    return firstDir([local]) || local;
 }
 
 function texturesDir () {

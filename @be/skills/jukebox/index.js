@@ -114,7 +114,7 @@ class JukeboxSkill extends be_framework_1.BeSkill {
             }
             self.status.showError('Scan is taking too long (or hung).', 'Check that music lives at:\n' +
                 '/opt/jibo/Jibo/Skills/@be/Skills/Jukebox/Music/\n\n' +
-                'Or that a previous update left it in /opt/tmp/jukebox-music/');
+                'Album folders go there (not under the skill pack music/ stub).');
         }, 12000);
         setTimeout(() => {
             try {
@@ -613,7 +613,7 @@ class MusicLibrary {
                     dir: null,
                     error: 'Could not resolve the music/ folder path.',
                     detail: 'assetPack=' + String(assetPack) +
-                        '\nTried PathUtils, package root, and /opt/jibo/... fallbacks.'
+                        '\nExpected: /opt/jibo/Jibo/Skills/@be/Skills/Jukebox/Music'
                 };
             }
             if (!fs.existsSync(dir)) {
@@ -806,17 +806,21 @@ class MusicLibrary {
         }
         const fs = nodeRequire('fs');
         const path = nodeRequire('path');
-        const candidates = [
-            '/opt/jibo/Jibo/Skills/@be/Skills/Jukebox/Music',
-            '/opt/jibo/Jibo/Skills/@be/skills/jukebox/music',
-            '/opt/jibo/Jibo/Skills/@be/be/node_modules/@be/jukebox/music',
-            '/opt/tmp/jukebox-music'
-        ];
+        const CANONICAL = '/opt/jibo/Jibo/Skills/@be/Skills/Jukebox/Music';
+        const ROBOT_SKILLS = '/opt/jibo/Jibo/Skills';
+        try {
+            if (fs.existsSync(ROBOT_SKILLS) && fs.statSync(ROBOT_SKILLS).isDirectory()) {
+                MusicLibrary.ensureDir(fs, path, CANONICAL);
+                console.log('[jukebox] music dir:', CANONICAL);
+                return CANONICAL;
+            }
+        }
+        catch (e) { }
+        const candidates = [];
         try {
             const cwd = typeof process !== 'undefined' && process.cwd ? process.cwd() : null;
             if (cwd) {
-                candidates.push(path.join(cwd, '@be', 'be', 'node_modules', '@be', 'jukebox', 'music'));
-                candidates.push(path.join(cwd, 'node_modules', '@be', 'jukebox', 'music'));
+                candidates.push(path.join(cwd, '@be', 'skills', 'jukebox', 'music'));
                 candidates.push(path.join(cwd, 'music'));
             }
         }
@@ -828,13 +832,36 @@ class MusicLibrary {
             }
             try {
                 if (fs.existsSync(c) && fs.statSync(c).isDirectory()) {
-                    console.log('[jukebox] music dir:', c);
+                    console.log('[jukebox] music dir (dev):', c);
                     return c;
                 }
             }
             catch (e) { }
         }
-        return candidates[0] || null;
+        return CANONICAL;
+    }
+    static ensureDir(fs, path, dir) {
+        if (!dir) {
+            return;
+        }
+        try {
+            if (fs.existsSync(dir) && fs.statSync(dir).isDirectory()) {
+                return;
+            }
+        }
+        catch (e) { }
+        const parent = path.dirname(dir);
+        if (parent && parent !== dir) {
+            MusicLibrary.ensureDir(fs, path, parent);
+        }
+        try {
+            fs.mkdirSync(dir);
+        }
+        catch (err) {
+            if (!err || err.code !== 'EEXIST') {
+                throw err;
+            }
+        }
     }
     static resolveAssetUrl(relPath, absPath) {
         if (absPath) {
