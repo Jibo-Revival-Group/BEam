@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0d1117">
+<title>BEacon</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+
+<header class="topbar">
+    <div class="brand">
+        <span class="dot" id="live-dot" title="Connection"></span>
+        <h1>BEacon</h1>
+        <span class="tag" id="brand-version">BEam</span>
+    </div>
+    <nav class="tabs" id="tabs">
+        <button class="tab is-active" data-panel="status">Status</button>
+        <button class="tab" data-panel="jukebox">Jukebox</button>
+        <button class="tab" data-panel="eye">Jibo eye</button>
+        <button class="tab" data-panel="skills">Skills</button>
+        <button class="tab" data-panel="server">Server</button>
+        <button class="tab" data-panel="update">Update</button>
+    </nav>
+</header>
+
+<main>
+
+<section class="panel is-active" id="panel-status">
+    <div class="panel-head">
+        <h2>Status</h2>
+        <button class="btn" data-action="refresh-status">Refresh</button>
+    </div>
+    <div class="cards" id="status-cards"></div>
+    <div class="card">
+        <h3>Paths</h3>
+        <dl class="kv" id="status-paths"></dl>
+    </div>
+</section>
+
+<section class="panel" id="panel-jukebox">
+    <div class="panel-head">
+        <h2>Jukebox library</h2>
+        <div class="panel-actions">
+            <button class="btn" data-action="new-album">New album</button>
+            <button class="btn" data-action="refresh-jukebox">Refresh</button>
+        </div>
+    </div>
+    <p class="hint" id="jukebox-dir"></p>
+    <div id="jukebox-albums" class="albums"></div>
+    <div id="jukebox-skipped"></div>
+</section>
+
+<section class="panel" id="panel-eye">
+    <div class="panel-head">
+        <h2>Jibo eye</h2>
+        <button class="btn" data-action="refresh-eye">Refresh</button>
+    </div>
+    <p class="hint">
+        Drop in any image and BEacon converts it to the 720&times;720 PNG the face
+        renderer expects. The stock eye is kept safe, so you can revert whenever
+        you like.
+    </p>
+    <div class="eye-grid">
+        <figure class="eye-card">
+            <figcaption>Current</figcaption>
+            <img id="eye-current" alt="Current eye texture">
+        </figure>
+        <figure class="eye-card">
+            <figcaption>Original</figcaption>
+            <img id="eye-original" alt="Original eye texture">
+        </figure>
+        <div class="eye-card eye-drop" id="eye-drop">
+            <p><strong>Drop an image here</strong></p>
+            <p class="hint">or</p>
+            <button class="btn btn-primary" data-action="pick-eye">Choose a file</button>
+            <p class="hint">PNG, JPG, GIF or WebP</p>
+            <input type="file" id="eye-file" accept="image/*" hidden>
+        </div>
+    </div>
+    <div class="eye-controls">
+        <button class="btn btn-danger" data-action="revert-eye">Revert to original eye</button>
+        <button class="btn" data-action="restart-be">Restart Be to apply</button>
+    </div>
+    <div class="card">
+        <h3>Textures</h3>
+        <p class="hint">All three stock eye PNGs are written together — they are the same image.</p>
+        <ul class="list" id="eye-textures"></ul>
+    </div>
+</section>
+
+<section class="panel" id="panel-skills">
+    <div class="panel-head">
+        <h2>Skills</h2>
+        <div class="panel-actions">
+            <button class="btn btn-primary" data-action="install-skill">Install new skill</button>
+            <button class="btn" data-action="refresh-skills">Refresh</button>
+        </div>
+    </div>
+    <p class="hint" id="skills-summary"></p>
+    <div id="skills-list" class="skill-grid"></div>
+</section>
+
+<section class="panel" id="panel-server">
+    <div class="panel-head">
+        <h2>Server</h2>
+        <button class="btn" data-action="refresh-server">Refresh</button>
+    </div>
+    <div class="card">
+        <h3>Current hub</h3>
+        <dl class="kv" id="server-current"></dl>
+    </div>
+    <div class="card">
+        <h3>Available servers</h3>
+        <p class="hint" id="server-note"></p>
+        <div id="server-options" class="options"></div>
+        <button class="btn btn-primary" disabled>Switch server (coming soon)</button>
+    </div>
+</section>
+
+<section class="panel" id="panel-update">
+    <div class="panel-head">
+        <h2>Update BEam</h2>
+    </div>
+    <p class="hint">
+        Runs <code>update-beam.sh</code> on the robot: it stashes your jukebox music,
+        downloads the latest BEam, and restarts Be. BEacon goes down with Be near the
+        end and comes back on its own.
+    </p>
+    <div class="panel-actions">
+        <button class="btn btn-primary" data-action="run-update">Update BEam now</button>
+        <button class="btn" data-action="restart-be">Restart Be only</button>
+    </div>
+    <pre class="log" id="update-log">Nothing has run yet.</pre>
+</section>
+
+</main>
+
+<div class="toasts" id="toasts"></div>
+
+<div class="modal" id="modal" hidden>
+    <div class="modal-box">
+        <h3 id="modal-title">Title</h3>
+        <p class="hint" id="modal-hint"></p>
+        <input type="text" id="modal-input" autocomplete="off">
+        <input type="text" id="modal-input-2" autocomplete="off" hidden>
+        <div class="modal-actions">
+            <button class="btn" id="modal-cancel">Cancel</button>
+            <button class="btn btn-primary" id="modal-ok">OK</button>
+        </div>
+    </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

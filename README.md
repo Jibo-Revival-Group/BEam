@@ -31,6 +31,14 @@ Be resolves `@be/<name>` from `jibo.skillsRoot` → `@be/skills/`. Packs are not
 - Bad Apple: Bad Apple!! PV fullscreen on the face; swipe down to exit
 - Doom: (paused) Playable shareware DOOM — not currently on the menu
 
+## BEacon
+
+Be starts a web control panel on **port 8123**. Open `http://<jibo-ip>:8123` from
+any device on your network to manage the jukebox library, swap Jibo's eye for your
+own image (and put the original back), see what skills are loaded, and update BEam.
+
+See [docs/beacon.md](docs/beacon.md).
+
 ## Documentation
 
 See [docs/README.md](docs/README.md) for how to create, build, and deploy Be skills.

@@ -21,6 +21,7 @@ The robot face is **1280×720** pixels.
 | [creating-a-skill.md](creating-a-skill.md) | End-to-end checklist for a new skill |
 | [main-menu.md](main-menu.md) | Menu buttons and redirect to skills |
 | [build-and-deploy.md](build-and-deploy.md) | Browserify builds, permissions, restart |
+| [beacon.md](beacon.md) | BEacon, the web control panel on port 8123 |
 
 ## Patterns
 

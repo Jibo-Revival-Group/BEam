@@ -23,6 +23,7 @@
         <div id="face"></div>
         <script>
           require('./skills-resolve').install();
+          require('./beacon').start();
           const Be = require("./index");
           let be = new Be();
           be.init(()=>{

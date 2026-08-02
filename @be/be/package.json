@@ -184,6 +184,7 @@
     "index.*",
     "index.html",
     "skills-resolve.js",
+    "beacon",
     "resources",
     "launchRules.fst",
     "config",
