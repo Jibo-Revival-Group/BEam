@@ -1,0 +1,1 @@
+// Local ambient typings placeholder.
