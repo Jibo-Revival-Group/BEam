@@ -119,10 +119,11 @@ Load failures are logged. Common causes:
 
 ## Lazy reload workflow
 
-1. Edit and rebuild a lazy skill’s `index.js`.
-2. Leave the skill (back to idle / menu).
-3. Open it again — Be destroys the old instance, purges that skill’s
-   `require.cache` entries under `@be/skills/<name>/`, and constructs a new one.
+1. Edit and rebuild a lazy skill’s `index.js` (TypeScript skills must be rebuilt).
+2. Leave the skill (back to idle / menu) — on close, Be unloads the instance and
+   purges `require.cache`, Module path caches, and browserify UMD globals.
+3. Open it again — `prepareForOpen` re-`require`s from disk and builds a new
+   `SkillSwitchData` with that instance (voice / menu / `skillRedirect` alike).
 
 Same-skill **refresh** (without leaving) does **not** re-require. Core/eager
 skill code changes still need a full Be restart.
