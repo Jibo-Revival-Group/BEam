@@ -122,12 +122,16 @@ const routes = {
 
     'PUT /api/eye': guard((req, res, query) => {
         return u.readBody(req, MAX_IMAGE).then((buf) => {
-            u.sendJson(res, 200, eye.apply(buf, query.name));
+            return eye.apply(buf, query.name).then((result) => u.sendJson(res, 200, result));
         });
     }),
 
     'POST /api/eye/revert': guard((req, res) => {
-        u.sendJson(res, 200, eye.revert());
+        return eye.revert().then((result) => u.sendJson(res, 200, result));
+    }),
+
+    'POST /api/eye/refresh': guard((req, res) => {
+        return eye.refresh().then((result) => u.sendJson(res, 200, result));
     }),
 
     'GET /api/server': guard((req, res) => {

@@ -101,8 +101,12 @@ The eye survives updates and is always revertible:
 - **Revert** copies the pristine PNG from `@be/be/beacon/assets/eye-original/`
   back over all three paths.
 
-PIXI caches textures, so a change lands on the next Be restart — use the
-**Restart Be to apply** button.
+PIXI caches the default eye at boot, and animations keep stock White_Eye
+textures on KeysData. **Apply to face** (and upload / revert) rewrites the PNGs,
+reloads `Default_Eye.png`, hooks `EyeContainer.getTexture` so stock eye paths
+always use the live custom texture (so petting/idles cannot snap back), and
+updates matching PIXI `BaseTexture`s. Use **Restart Be** only if live reload
+fails.
 
 ## Update and restart
 
@@ -144,8 +148,9 @@ rather than failing.
 | GET | `/api/jukebox/audio?path=` | Stream a track, supports Range |
 | GET | `/api/eye` | Custom-eye state and texture hashes |
 | GET | `/api/eye/current.png`, `/api/eye/original.png` | Previews |
-| PUT | `/api/eye?name=` | Raw PNG body, applies the eye |
-| POST | `/api/eye/revert` | Restore the stock eye |
+| PUT | `/api/eye?name=` | Raw PNG body, applies the eye + live reload |
+| POST | `/api/eye/refresh` | Re-write saved eye + reload face textures |
+| POST | `/api/eye/revert` | Restore the stock eye + live reload |
 | GET | `/api/server` | Jetstream hub, read-only |
 | POST | `/api/beam/update` | Run `update-beam.sh`, streamed |
 | POST | `/api/beam/restart` | Restart Be through SSM |

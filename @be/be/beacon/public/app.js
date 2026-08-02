@@ -148,7 +148,7 @@
             cards.appendChild(stat('Host', data.host.name + ' ' + (data.host.version || '')));
             cards.appendChild(stat('Running on', data.robot ? 'Jibo (' + data.hostname + ')' : 'Development (' + data.hostname + ')'));
             cards.appendChild(stat('BEacon uptime', duration(data.uptimeSeconds)));
-            cards.appendChild(stat('Custom eye', data.eye && data.eye.custom ? (data.eye.applied ? 'Yes' : 'Saved, pending restart') : 'No'));
+            cards.appendChild(stat('Custom eye', data.eye && data.eye.custom ? (data.eye.applied ? 'Yes' : 'Saved — Apply to face') : 'No'));
 
             var links = el('div');
             (data.addresses || []).forEach(function (addr) {
@@ -534,10 +534,31 @@
             });
         }).then(function (data) {
             var n = (data.written && data.written.length) || 0;
-            toast('New eye saved to ' + n + ' texture' + (n === 1 ? '' : 's') +
-                '. Restart Be to see it on the face.', 'ok');
+            if (data.live) {
+                toast('New eye on the face (' + n + ' textures).', 'ok');
+            } else {
+                toast('Eye saved to ' + n + ' texture' + (n === 1 ? '' : 's') +
+                    '. Tap Apply to face, or Restart Be if it still looks old.', 'ok');
+            }
             return loadEye();
         }).catch(reportError);
+    }
+
+    function refreshEye () {
+        toast('Applying eye to the face…');
+        return api('POST', '/api/eye/refresh')
+            .then(function (data) {
+                var n = (data.written && data.written.length) || 0;
+                if (data.live) {
+                    toast('Eye refreshed on the face (' + n + ' textures).', 'ok');
+                } else {
+                    toast('Textures rewritten (' + n + '). Live reload failed' +
+                        (data.liveReason ? ': ' + data.liveReason : '') +
+                        ' — use Restart Be.', 'error');
+                }
+                return loadEye();
+            })
+            .catch(reportError);
     }
 
     function loadEye () {
@@ -561,7 +582,7 @@
                 var matched = data.textures.filter(function (t) { return t.matchesCustom; }).length;
                 list.appendChild(el('li', null,
                     'Custom eye on ' + matched + '/' + data.textures.length +
-                    ' textures — re-upload or restart Be so self-heal can finish.'));
+                    ' textures — tap Apply to face to finish.'));
             }
             return data;
         });
@@ -735,7 +756,7 @@
     var actions = {
         'refresh-status': loadStatus,
         'refresh-jukebox': loadJukebox,
-        'refresh-eye': loadEye,
+        'refresh-eye': refreshEye,
         'refresh-skills': loadSkills,
         'refresh-server': loadServer,
         'new-album': newAlbum,
@@ -744,8 +765,12 @@
         'revert-eye': function () {
             if (!confirm('Put the original Jibo eye back?')) { return; }
             api('POST', '/api/eye/revert')
-                .then(function () {
-                    toast('Original eye restored. Restart Be to see it.', 'ok');
+                .then(function (data) {
+                    if (data.live) {
+                        toast('Original eye restored on the face.', 'ok');
+                    } else {
+                        toast('Original eye restored on disk. Tap Apply to face or Restart Be.', 'ok');
+                    }
                     return loadEye();
                 })
                 .catch(reportError);

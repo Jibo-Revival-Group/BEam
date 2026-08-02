@@ -56,12 +56,12 @@
 <section class="panel" id="panel-eye">
     <div class="panel-head">
         <h2>Jibo eye</h2>
-        <button class="btn" data-action="refresh-eye">Refresh</button>
+        <button class="btn" data-action="refresh-eye">Apply to face</button>
     </div>
     <p class="hint">
         Drop in any image and BEacon converts it to the 720&times;720 PNG the face
-        renderer expects. The stock eye is kept safe, so you can revert whenever
-        you like.
+        renderer expects. <strong>Apply to face</strong> rewrites the textures and
+        reloads them live — no Be restart needed in most cases.
     </p>
     <div class="eye-grid">
         <figure class="eye-card">
@@ -82,7 +82,7 @@
     </div>
     <div class="eye-controls">
         <button class="btn btn-danger" data-action="revert-eye">Revert to original eye</button>
-        <button class="btn" data-action="restart-be">Restart Be to apply</button>
+        <button class="btn" data-action="restart-be">Restart Be</button>
     </div>
     <div class="card">
         <h3>Textures</h3>
