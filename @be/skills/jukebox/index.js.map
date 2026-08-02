@@ -1,7 +1,7 @@
 {
   "version": 3,
   "sources": [
-    "../../be/node_modules/jibo-dev/node_modules/browser-pack/_prelude.js",
+    "../../jibo-dev/node_modules/browser-pack/_prelude.js",
     "src/audio/AudioSupport.ts",
     "src/index.ts",
     "src/lyrics/LyricsService.ts",
