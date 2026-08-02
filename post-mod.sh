@@ -31,6 +31,9 @@ echo ""
 # ---------------------------------------------------------------------------
 echo "=== Step 3: Clear /opt/tmp ==="
 rm -rf /opt/tmp/
+# Recreate so BEacon can persist custom eyes across Skills updates.
+mkdir -p /opt/tmp/beacon
+chmod 777 /opt/tmp /opt/tmp/beacon
 echo "Done."
 echo ""
 
@@ -131,6 +134,12 @@ fi
 
 echo "Fixing permissions..."
 chmod 777 -R /opt/jibo/Jibo/Skills/
+# Jetstream needs to be public
+chmod 777 /usr/local/etc/jibo-jetstream-service.json
+
+# BEacon stores custom eyes here so they survive Skills replacement; Be must be able to write.
+mkdir -p /opt/tmp/beacon
+chmod 777 /opt/tmp /opt/tmp/beacon
 
 echo ""
 echo "BEam install complete."

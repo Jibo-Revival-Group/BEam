@@ -107,6 +107,12 @@ fi
 echo "Fixing permissions..."
 chmod 777 -R /opt/jibo/Jibo/Skills/
 
+# Jetstream needs to be public
+chmod 777 /usr/local/etc/jibo-jetstream-service.json
+# BEacon stores custom eyes here so they survive Skills replacement; Be must be able to write.
+mkdir -p /opt/tmp/beacon
+chmod 777 /opt/tmp /opt/tmp/beacon
+
 echo "Update complete!"
 
 # 8. Restart the BEam service via SSM

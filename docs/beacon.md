@@ -77,9 +77,18 @@ and redraws whatever you drop at 720×720 first, so any PNG, JPG, GIF or WebP wo
 The eye survives updates and is always revertible:
 
 - Your image is saved to `/opt/tmp/beacon/eye/custom.png`, outside the Skills tree
-  that `update-beam.sh` replaces.
-- `beacon.start()` re-applies it on boot when the textures no longer match, which
-  heals the face after an update restores the stock PNGs.
+  that `update-beam.sh` replaces. That directory must be writable by Be;
+  `update-beam.sh` and `post-mod.sh` create it with mode `777`. If eye uploads
+  fail with `EACCES`, fix it once on the robot:
+
+  ```sh
+  mkdir -p /opt/tmp/beacon
+  chmod 777 /opt/tmp /opt/tmp/beacon
+  ```
+
+- `beacon.start()` ensures the data dir exists, then re-applies a saved custom
+  eye on boot when the textures no longer match, which heals the face after an
+  update restores the stock PNGs.
 - **Revert** copies the pristine PNG from `@be/be/beacon/assets/eye-original/`
   back over all three paths.
 

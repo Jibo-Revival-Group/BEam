@@ -43,6 +43,8 @@ with open('$CONFIG_FILE', 'w') as f:
     json.dump(data, f, indent=4)
 "
 
+# Jetstream needs to be public
+chmod 777 /usr/local/etc/jibo-jetstream-service.json
 # 4. Finalize
 echo "Configuration complete."
 echo "Restarting jetstream service to apply changes..."

@@ -15,6 +15,7 @@ const os = require('os');
 
 const server = require('./server');
 const eye = require('./lib/eye');
+const paths = require('./lib/paths');
 
 const DEFAULT_PORT = 8123;
 const RETRY_DELAY_MS = 2000;
@@ -81,6 +82,17 @@ function start (options, callback) {
         return null;
     }
     starting = true;
+
+    // Custom eyes live under dataDir() so they outlive Skills updates.
+    try {
+        paths.ensureDir(paths.dataDir());
+    } catch (err) {
+        warn(
+            'cannot create data dir ' + paths.dataDir() + ':',
+            err && err.message,
+            '(eye uploads need this writable; run: mkdir -p /opt/tmp/beacon && chmod 777 /opt/tmp /opt/tmp/beacon)'
+        );
+    }
 
     // Re-apply a saved custom eye: a BEam update restores the pristine
     // textures, so this heals the face on the first boot afterwards.
