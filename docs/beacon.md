@@ -45,8 +45,9 @@ BEacon writes into the same `music/` folder the jukebox skill scans, resolved wi
 the candidate list from `@be/skills/jukebox/src/models/MusicLibrary.ts`:
 
 ```
+/opt/jibo/Jibo/Skills/@be/Skills/Jukebox/Music               (canonical on robot)
+/opt/jibo/Jibo/Skills/@be/skills/jukebox/music                (lowercase pack)
 /opt/jibo/Jibo/Skills/@be/be/node_modules/@be/jukebox/music   (legacy)
-/opt/jibo/Jibo/Skills/@be/skills/jukebox/music                (canonical)
 /opt/tmp/jukebox-music
 <repo>/@be/skills/jukebox/music                               (development)
 ```

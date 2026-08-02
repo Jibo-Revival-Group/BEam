@@ -71,8 +71,9 @@ function skillsRoot () {
  */
 function musicDirCandidates () {
     return [
-        ROBOT_SKILLS + '/@be/be/node_modules/@be/jukebox/music',
+        ROBOT_SKILLS + '/@be/Skills/Jukebox/Music',
         ROBOT_SKILLS + '/@be/skills/jukebox/music',
+        ROBOT_SKILLS + '/@be/be/node_modules/@be/jukebox/music',
         '/opt/tmp/jukebox-music',
         path.join(skillsRoot(), 'jukebox', 'music')
     ];

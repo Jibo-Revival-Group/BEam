@@ -2,7 +2,8 @@
 set -e
 clear
 
-JUKEBOX_MUSIC="/opt/jibo/Jibo/Skills/@be/skills/jukebox/music"
+JUKEBOX_MUSIC="/opt/jibo/Jibo/Skills/@be/Skills/Jukebox/Music"
+JUKEBOX_MUSIC_LOWER="/opt/jibo/Jibo/Skills/@be/skills/jukebox/music"
 JUKEBOX_MUSIC_LEGACY_NESTED="/opt/jibo/Jibo/Skills/@be/be/node_modules/@be/jukebox/music"
 JUKEBOX_MUSIC_LEGACY_SIBLING="/opt/jibo/Jibo/Skills/@be/jukebox/music"
 JUKEBOX_MUSIC_LEGACY_ROOT="/opt/jibo/Jibo/Skills/skills/jukebox/music"
@@ -19,6 +20,11 @@ if [ -d "$JUKEBOX_MUSIC" ]; then
     mkdir -p /opt/tmp
     rm -rf "$JUKEBOX_MUSIC_STASH"
     mv "$JUKEBOX_MUSIC" "$JUKEBOX_MUSIC_STASH"
+elif [ -d "$JUKEBOX_MUSIC_LOWER" ]; then
+    echo "Stashing lowercase skills/jukebox music library to $JUKEBOX_MUSIC_STASH..."
+    mkdir -p /opt/tmp
+    rm -rf "$JUKEBOX_MUSIC_STASH"
+    mv "$JUKEBOX_MUSIC_LOWER" "$JUKEBOX_MUSIC_STASH"
 elif [ -d "$JUKEBOX_MUSIC_LEGACY_ROOT" ]; then
     echo "Stashing legacy root skills/ jukebox music library to $JUKEBOX_MUSIC_STASH..."
     mkdir -p /opt/tmp

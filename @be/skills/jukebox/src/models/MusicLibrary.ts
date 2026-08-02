@@ -312,7 +312,13 @@ export default class MusicLibrary {
     const path = nodeRequire('path');
 
     const candidates: string[] = [
+      // Canonical robot library (capitalized Skills/Jukebox/Music layout)
+      '/opt/jibo/Jibo/Skills/@be/Skills/Jukebox/Music',
+      // Monorepo / lowercase pack path
+      '/opt/jibo/Jibo/Skills/@be/skills/jukebox/music',
+      // Pre-monorepo nested under Be node_modules
       '/opt/jibo/Jibo/Skills/@be/be/node_modules/@be/jukebox/music',
+      // update-beam.sh stash while Skills tree is replaced
       '/opt/tmp/jukebox-music'
     ];
 

@@ -32,7 +32,7 @@ and should still feel like built-in Jibo UI.
 ## User music location on robot
 
 ```
-/opt/jibo/Jibo/Skills/@be/skills/jukebox/music/
+/opt/jibo/Jibo/Skills/@be/Skills/Jukebox/Music/
 ```
 
 Users add album subfolders here. **`update-beam.sh`** stashes this directory to `/opt/tmp/jukebox-music` before a full BEam update and restores it afterward so libraries are not wiped.
