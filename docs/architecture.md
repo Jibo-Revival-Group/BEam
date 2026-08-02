@@ -104,7 +104,10 @@ missing or unreadable, `require('@be/...')` fails at load time (logged).
 
 1. `skills-resolve.install()` (from `index.html`).
 2. `beacon.start()`.
-3. `new Be()` — constructs only `jibo.skills` (eager).
+3. `new Be()` — constructs only `jibo.skills` (eager). Be’s implementation lives
+   under [`@be/be/lib/`](../@be/be/lib/) (`Be.js`, `SkillSwitchScheduler.js`, …);
+   [`index.js`](../@be/be/index.js) is a thin re-export so parallel edits do not
+   collide in one file.
 4. `skill-registry.install(be)` — wraps `skillRedirect` / voice switch; bootstraps
    Element-of-Surprise packs for `eosSkill.supplyCategories`.
 5. `be.init()` — jibo init, postInit for eager skills, launch first skill.
