@@ -532,8 +532,10 @@
                     return data;
                 });
             });
-        }).then(function () {
-            toast('New eye saved. Restart Be to see it on the face.', 'ok');
+        }).then(function (data) {
+            var n = (data.written && data.written.length) || 0;
+            toast('New eye saved to ' + n + ' texture' + (n === 1 ? '' : 's') +
+                '. Restart Be to see it on the face.', 'ok');
             return loadEye();
         }).catch(reportError);
     }
@@ -556,8 +558,10 @@
             });
 
             if (data.pending) {
+                var matched = data.textures.filter(function (t) { return t.matchesCustom; }).length;
                 list.appendChild(el('li', null,
-                    'A custom eye is saved but not on the textures yet — restart Be.'));
+                    'Custom eye on ' + matched + '/' + data.textures.length +
+                    ' textures — re-upload or restart Be so self-heal can finish.'));
             }
             return data;
         });

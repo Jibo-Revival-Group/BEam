@@ -91,18 +91,44 @@ function texturesDir () {
 }
 
 /**
- * The three byte-identical 720x720 PNGs that make up Jibo's default eye.
- * jibo.js hardcodes Default_Eye.png as DEFAULT_TEXTURES.EYE while animations
- * address the same image through the customizer indices, so a custom eye has
- * to be written to all three.
+ * Every on-disk copy of the stock default eye that a custom eye must replace.
+ *
+ * jibo.js loads Default_Eye.png as DEFAULT_TEXTURES.EYE; geometry-config also
+ * ships two byte-identical customizer indices. Animations (headtouch/petting,
+ * idles, etc.) almost always keyframe eyeTextureInfixBn_r to White_Eye.png in
+ * jibo-anim-db-animations — same 720×720 pixels as Default_Eye — so leaving
+ * that file alone makes the face snap back to the stock eye after an anim.
+ * A few skills ship their own White_Eye / white-eye copies of the same image.
+ *
+ * Recipe's White_Eye.png is a different asset and is intentionally omitted.
  */
+function eyeAliasCandidates () {
+    const skills = skillsRoot();
+    return [
+        path.join(BE_ROOT, 'node_modules', 'jibo-anim-db-animations',
+            'animations', 'textures', 'White_Eye.png'),
+        path.join(BE_ROOT, 'node_modules', 'jibo-embodied-dialog',
+            'resources', 'animations', 'textures', 'white-eye.png'),
+        path.join(skills, 'circuit-saver', 'animations', 'textures', 'White_Eye.png'),
+        path.join(skills, 'ifttt', 'animations', 'textures', 'White_Eye.png'),
+        path.join(skills, 'introductions', 'animations', 'textures', 'White_Eye.png'),
+        path.join(skills, 'introductions', 'animations', 'textures', 'white-eye.png'),
+        path.join(skills, 'settings', 'animations', 'textures', 'White_Eye.png'),
+        path.join(skills, 'settings', 'animations', 'textures', 'white-eye.png')
+    ];
+}
+
 function eyeTextures () {
     const dir = texturesDir();
-    return [
+    const list = [
         path.join(dir, 'Default_Eye.png'),
         path.join(dir, 'JiBO_eye_customizer_00.png'),
         path.join(dir, 'JiBO_eye_customizer_38.png')
     ];
+    eyeAliasCandidates().forEach((p) => {
+        if (isFile(p)) { list.push(p); }
+    });
+    return list;
 }
 
 function pristineEye () {

@@ -62,17 +62,25 @@ to escape, so a malformed request cannot touch the rest of the filesystem.
 
 ## Jibo eye
 
-Three PNGs in `animation-utilities` make up the stock eye, and they are
-byte-identical 720×720 images:
+The stock default eye is several byte-identical 720×720 PNGs. jibo.js loads the
+first as `DEFAULT_TEXTURES.EYE`; animations address the same look through the
+customizer indices and, most often, `White_Eye.png`:
 
 ```
 res/geometry-config/P1.0/textures/Default_Eye.png            (DEFAULT_TEXTURES.EYE in jibo.js)
 res/geometry-config/P1.0/textures/JiBO_eye_customizer_00.png (animation texture DOFs)
 res/geometry-config/P1.0/textures/JiBO_eye_customizer_38.png
+jibo-anim-db-animations/animations/textures/White_Eye.png   (headtouch / idles / most anims)
+(+ a few skill-local White_Eye / white-eye copies of the same image)
 ```
 
-Applying a custom eye writes your image to all three. The browser centre-crops
-and redraws whatever you drop at 720×720 first, so any PNG, JPG, GIF or WebP works.
+Applying a custom eye writes your image to **all of those** (upload fails if any
+write misses). That is why petting used to snap back to the original eye —
+those anims keyframe `White_Eye.png`, which BEacon previously left alone. The
+browser centre-crops and redraws whatever you drop at 720×720 first, so any
+PNG, JPG, GIF or WebP works. `JiBO_eye_customizer_44.png` is the eye overlay,
+not the eye itself, and is left alone. Recipe's distinct `White_Eye.png` is
+also left alone.
 
 The eye survives updates and is always revertible:
 

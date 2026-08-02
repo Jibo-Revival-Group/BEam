@@ -3,10 +3,12 @@
 /**
  * Jibo eye customization.
  *
- * Default_Eye.png, JiBO_eye_customizer_00.png and JiBO_eye_customizer_38.png
- * ship as byte-identical 720x720 PNGs: jibo.js hardcodes the first as
- * DEFAULT_TEXTURES.EYE while animation DOFs address the same image through the
- * customizer indices. A custom eye therefore has to be written to all three.
+ * The stock default eye exists as several byte-identical 720x720 PNGs:
+ * Default_Eye.png + JiBO_eye_customizer_{00,38}.png under animation-utilities,
+ * plus White_Eye.png / white-eye.png aliases that animations (e.g. headtouch /
+ * petting) keyframe through eyeTextureInfixBn_r. A custom eye has to be
+ * written to every one of those, or the face snaps back to the original after
+ * an animation finishes.
  *
  * The uploaded image is also kept in BEacon's data directory, which sits
  * outside the Skills tree that update-beam.sh replaces, so selfHeal() can put
@@ -104,20 +106,31 @@ function ensureBackup () {
 }
 
 function writeTextures (buf) {
+    const targets = paths.eyeTextures();
     const written = [];
     const failed = [];
-    paths.eyeTextures().forEach((target) => {
+    targets.forEach((target) => {
         try {
             paths.ensureDir(path.dirname(target));
+            // Stock textures often land as root-owned 644; open them up when we can.
+            try { fs.chmodSync(target, 0o666); } catch (chmodErr) { /* may not exist yet */ }
             fs.writeFileSync(target, buf);
             written.push(target);
         } catch (err) {
             failed.push({ path: target, error: err.message });
         }
     });
-    if (!written.length) {
-        throw fail('Could not write any eye texture. ' +
-            (failed.length ? failed[0].error : 'No texture path found.'), 500);
+    // All stock eye copies (Default_Eye, customizer indices, White_Eye aliases)
+    // must match or animations like petting flip back to the original.
+    if (failed.length || written.length !== targets.length) {
+        const detail = failed.length
+            ? failed.map((f) => path.basename(f.path) + ': ' + f.error).join('; ')
+            : 'unexpected write count';
+        throw fail(
+            'Could not write all eye textures (' + written.length + '/' + targets.length + '). ' +
+            detail,
+            500
+        );
     }
     return { written: written, failed: failed };
 }
@@ -148,7 +161,8 @@ function state () {
         };
     });
 
-    const applied = custom && textures.some((t) => t.matchesCustom);
+    // Applied only when every stock texture carries the custom image.
+    const applied = custom && textures.length > 0 && textures.every((t) => t.matchesCustom);
     return {
         custom: !!custom,
         applied: applied,
