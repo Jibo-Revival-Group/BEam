@@ -59,14 +59,13 @@ function bePackage () {
 
 function skillsRoot () {
     const pkg = bePackage();
-    const rel = (pkg.jibo && pkg.jibo.skillsRoot) || '..';
+    const rel = (pkg.jibo && pkg.jibo.skillsRoot) || './skills';
     return path.isAbsolute(rel) ? rel : path.resolve(BE_ROOT, rel);
 }
 
 /**
- * Canonical user library — same path the jukebox skill always uses on robot.
- * Do not return the skill pack's music/ stub or legacy node_modules paths;
- * those exist after every deploy and would steal writes/reads.
+ * Canonical user library path on the robot. Prefer this when it has albums;
+ * otherwise fall back to legacy locations that still hold music.
  */
 function musicDirCanonical () {
     return ROBOT_SKILLS + '/@be/Skills/Jukebox/Music';
@@ -75,14 +74,79 @@ function musicDirCanonical () {
 function musicDirCandidates () {
     return [
         musicDirCanonical(),
+        // Pack-local library (skills now ship inside @be/be)
+        ROBOT_SKILLS + '/@be/be/skills/jukebox/music',
+        // Pre-move sibling layout
         ROBOT_SKILLS + '/@be/skills/jukebox/music',
+        ROBOT_SKILLS + '/@be/jukebox/music',
         ROBOT_SKILLS + '/@be/be/node_modules/@be/jukebox/music',
+        ROBOT_SKILLS + '/skills/jukebox/music',
         '/opt/tmp/jukebox-music',
         path.join(skillsRoot(), 'jukebox', 'music')
     ];
 }
 
+const AUDIO_FILE_RE = /\.(mp3|opus|ogg|oga)$/i;
+
+/** True when dir has at least one playable track (album or Artist/Album layout). */
+function musicDirHasAlbums (dir) {
+    if (!isDir(dir)) { return false; }
+    let entries;
+    try {
+        entries = fs.readdirSync(dir);
+    } catch (err) {
+        return false;
+    }
+    for (let i = 0; i < entries.length; i++) {
+        const name = entries[i];
+        if (!name || name.charAt(0) === '.' || name === 'README.md') { continue; }
+        const full = path.join(dir, name);
+        let st;
+        try {
+            st = fs.statSync(full);
+        } catch (err) {
+            continue;
+        }
+        if (st.isFile()) {
+            if (AUDIO_FILE_RE.test(name)) { return true; }
+            continue;
+        }
+        if (!st.isDirectory()) { continue; }
+        let kids;
+        try {
+            kids = fs.readdirSync(full);
+        } catch (err) {
+            continue;
+        }
+        for (let k = 0; k < kids.length; k++) {
+            const kid = kids[k];
+            if (!kid || kid.charAt(0) === '.') { continue; }
+            if (AUDIO_FILE_RE.test(kid)) { return true; }
+            const nested = path.join(full, kid);
+            try {
+                if (!fs.statSync(nested).isDirectory()) { continue; }
+                const grand = fs.readdirSync(nested);
+                for (let g = 0; g < grand.length; g++) {
+                    if (AUDIO_FILE_RE.test(grand[g])) { return true; }
+                }
+            } catch (err) { /* try next */ }
+        }
+    }
+    return false;
+}
+
+/**
+ * Resolve the live music library. Prefer a directory that actually contains
+ * albums — never an empty Skills/Jukebox/Music we mkdir'd over a populated
+ * legacy path.
+ */
 function musicDir () {
+    const candidates = musicDirCandidates();
+    for (let i = 0; i < candidates.length; i++) {
+        if (musicDirHasAlbums(candidates[i])) {
+            return candidates[i];
+        }
+    }
     if (onRobot()) {
         return ensureDir(musicDirCanonical());
     }
@@ -188,7 +252,9 @@ module.exports = {
     bePackage: bePackage,
     skillsRoot: skillsRoot,
     musicDir: musicDir,
+    musicDirCanonical: musicDirCanonical,
     musicDirCandidates: musicDirCandidates,
+    musicDirHasAlbums: musicDirHasAlbums,
     texturesDir: texturesDir,
     eyeTextures: eyeTextures,
     pristineEye: pristineEye,

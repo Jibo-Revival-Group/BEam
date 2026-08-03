@@ -40,7 +40,7 @@ Doom is still listed in `@be/be/package.json` `jibo.skills` for voice launch (`l
 
 ```bash
 node @be/be/node_modules/jibo-dev/build-doom.js \
-  /path/to/@be/skills/doom
+  /path/to/@be/be/skills/doom
 ```
 
 Deploy requires both `index.js` and `resources/engine/websockets-doom.wasm2js.js` if experimenting locally.

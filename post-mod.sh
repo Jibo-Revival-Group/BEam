@@ -3,6 +3,7 @@ set -e
 clear
 
 JUKEBOX_MUSIC="/opt/jibo/Jibo/Skills/@be/Skills/Jukebox/Music"
+JUKEBOX_MUSIC_IN_BE="/opt/jibo/Jibo/Skills/@be/be/skills/jukebox/music"
 JUKEBOX_MUSIC_LOWER="/opt/jibo/Jibo/Skills/@be/skills/jukebox/music"
 JUKEBOX_MUSIC_LEGACY_NESTED="/opt/jibo/Jibo/Skills/@be/be/node_modules/@be/jukebox/music"
 JUKEBOX_MUSIC_LEGACY_SIBLING="/opt/jibo/Jibo/Skills/@be/jukebox/music"
@@ -49,33 +50,37 @@ curl -s -X POST http://localhost:8779/terminate \
   -H 'Content-Type: application/x-www-form-urlencoded' \
   --data-raw '{"command":"@be/be"}'
 
-# Stash jukebox library so the update does not wipe user music
-# Prefer the current path; fall back to pre-monorepo layouts once.
-if [ -d "$JUKEBOX_MUSIC" ]; then
-    echo "Stashing jukebox music library to $JUKEBOX_MUSIC_STASH..."
+# Stash jukebox library so the update does not wipe user music.
+# Prefer a directory that actually has audio — an empty Skills/Jukebox/Music
+# must not win over a populated legacy library.
+jukebox_has_audio() {
+    dir="$1"
+    [ -d "$dir" ] || return 1
+    find "$dir" -maxdepth 3 -type f \( \
+        -iname '*.mp3' -o -iname '*.opus' -o -iname '*.ogg' -o -iname '*.oga' \
+    \) 2>/dev/null | head -n 1 | grep -q .
+}
+
+JUKEBOX_STASH_FROM=""
+for candidate in \
+    "$JUKEBOX_MUSIC" \
+    "$JUKEBOX_MUSIC_IN_BE" \
+    "$JUKEBOX_MUSIC_LOWER" \
+    "$JUKEBOX_MUSIC_LEGACY_ROOT" \
+    "$JUKEBOX_MUSIC_LEGACY_SIBLING" \
+    "$JUKEBOX_MUSIC_LEGACY_NESTED"
+do
+    if jukebox_has_audio "$candidate"; then
+        JUKEBOX_STASH_FROM="$candidate"
+        break
+    fi
+done
+
+if [ -n "$JUKEBOX_STASH_FROM" ]; then
+    echo "Stashing jukebox music library from $JUKEBOX_STASH_FROM to $JUKEBOX_MUSIC_STASH..."
     mkdir -p /opt/tmp
     rm -rf "$JUKEBOX_MUSIC_STASH"
-    mv "$JUKEBOX_MUSIC" "$JUKEBOX_MUSIC_STASH"
-elif [ -d "$JUKEBOX_MUSIC_LOWER" ]; then
-    echo "Stashing lowercase skills/jukebox music library to $JUKEBOX_MUSIC_STASH..."
-    mkdir -p /opt/tmp
-    rm -rf "$JUKEBOX_MUSIC_STASH"
-    mv "$JUKEBOX_MUSIC_LOWER" "$JUKEBOX_MUSIC_STASH"
-elif [ -d "$JUKEBOX_MUSIC_LEGACY_ROOT" ]; then
-    echo "Stashing legacy root skills/ jukebox music library to $JUKEBOX_MUSIC_STASH..."
-    mkdir -p /opt/tmp
-    rm -rf "$JUKEBOX_MUSIC_STASH"
-    mv "$JUKEBOX_MUSIC_LEGACY_ROOT" "$JUKEBOX_MUSIC_STASH"
-elif [ -d "$JUKEBOX_MUSIC_LEGACY_SIBLING" ]; then
-    echo "Stashing legacy sibling jukebox music library to $JUKEBOX_MUSIC_STASH..."
-    mkdir -p /opt/tmp
-    rm -rf "$JUKEBOX_MUSIC_STASH"
-    mv "$JUKEBOX_MUSIC_LEGACY_SIBLING" "$JUKEBOX_MUSIC_STASH"
-elif [ -d "$JUKEBOX_MUSIC_LEGACY_NESTED" ]; then
-    echo "Stashing legacy nested jukebox music library to $JUKEBOX_MUSIC_STASH..."
-    mkdir -p /opt/tmp
-    rm -rf "$JUKEBOX_MUSIC_STASH"
-    mv "$JUKEBOX_MUSIC_LEGACY_NESTED" "$JUKEBOX_MUSIC_STASH"
+    mv "$JUKEBOX_STASH_FROM" "$JUKEBOX_MUSIC_STASH"
 else
     echo "No existing jukebox music library to stash."
 fi

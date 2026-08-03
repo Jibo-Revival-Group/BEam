@@ -14,7 +14,7 @@ and should still feel like built-in Jibo UI.
 ## File map
 
 ```
-@be/skills/jukebox/
+@be/be/skills/jukebox/
   package.json
   launch.rule
   index.html
@@ -31,11 +31,16 @@ and should still feel like built-in Jibo UI.
 
 ## User music location on robot
 
+Preferred path (when it has albums):
+
 ```
 /opt/jibo/Jibo/Skills/@be/Skills/Jukebox/Music/
 ```
 
-Users add album subfolders here. **`update-beam.sh`** stashes this directory to `/opt/tmp/jukebox-music` before a full BEam update and restores it afterward so libraries are not wiped.
+If that folder is empty, BEacon and Jukebox automatically use a populated
+legacy location (e.g. `@be/be/skills/jukebox/music`, older `node_modules` paths,
+or `/opt/tmp/jukebox-music`). **`update-beam.sh`** stashes whichever library
+actually contains audio and restores it to the preferred path.
 
 ## UI flow
 
@@ -65,7 +70,7 @@ Top-level button with `"destination": "jukebox"` in `main-menu-verbal.json`.
 
 ```bash
 node @be/be/node_modules/jibo-dev/build-jukebox.js \
-  /path/to/@be/skills/jukebox
+  /path/to/@be/be/skills/jukebox
 ```
 
 ## When to copy Jukebox vs Bad Apple

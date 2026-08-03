@@ -16,7 +16,7 @@
       "skipRestore": false
     },
     "main": "index.html",
-    "skillsRoot": "../skills",
+    "skillsRoot": "./skills",
     "skills": [
       "@be/idle",
       "@be/first-contact",

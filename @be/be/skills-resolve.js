@@ -5,9 +5,10 @@
  * jibo.skillsRoot) instead of node_modules. Install before requiring the Be
  * bundle so both require('@be/…') and PathUtils.resolve / resolveAssetPack work.
  *
- * Skills live under @be/skills/<name>/ (not as direct children of Skills/@be/)
- * so system-manager only discovers @be/be as a launchable host. Be's node_modules
- * is put on NODE_PATH so those packs can still require('jibo') and other host deps.
+ * Skills live under @be/be/skills/<name>/ (inside the Be pack that OTA ships),
+ * not as direct children of Skills/@be/, so system-manager only discovers
+ * @be/be as a launchable host. Be's node_modules is put on NODE_PATH so those
+ * packs can still require('jibo') and other host deps.
  */
 
 const Module = require('module');
@@ -69,7 +70,7 @@ function install() {
 
     beRoot = __dirname;
     const bePackage = require(path.join(beRoot, 'package.json'));
-    const skillsRootRel = (bePackage.jibo && bePackage.jibo.skillsRoot) || '..';
+    const skillsRootRel = (bePackage.jibo && bePackage.jibo.skillsRoot) || './skills';
     skillsRoot = path.isAbsolute(skillsRootRel)
         ? skillsRootRel
         : path.resolve(beRoot, skillsRootRel);

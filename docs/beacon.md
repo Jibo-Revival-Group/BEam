@@ -42,14 +42,15 @@ Be itself is never blocked by it. Set `BEACON_PORT` to use a different port.
 ## Jukebox
 
 BEacon writes into the same `music/` folder the jukebox skill scans, resolved with
-the candidate list from `@be/skills/jukebox/src/models/MusicLibrary.ts`:
+the candidate list from `@be/be/skills/jukebox/src/models/MusicLibrary.ts`:
 
 ```
 /opt/jibo/Jibo/Skills/@be/Skills/Jukebox/Music               (canonical on robot)
-/opt/jibo/Jibo/Skills/@be/skills/jukebox/music                (lowercase pack)
-/opt/jibo/Jibo/Skills/@be/be/node_modules/@be/jukebox/music   (legacy)
+/opt/jibo/Jibo/Skills/@be/be/skills/jukebox/music            (pack-local)
+/opt/jibo/Jibo/Skills/@be/skills/jukebox/music               (pre-move legacy)
+/opt/jibo/Jibo/Skills/@be/be/node_modules/@be/jukebox/music  (legacy)
 /opt/tmp/jukebox-music
-<repo>/@be/skills/jukebox/music                               (development)
+<repo>/@be/be/skills/jukebox/music                           (development)
 ```
 
 Album layout, cover names and accepted audio formats are unchanged: folders are
@@ -127,7 +128,7 @@ node @be/be/beacon/server.js 8123
 ```
 
 It detects the repo root instead of `/opt/jibo/...`, so the jukebox panel operates
-on `@be/skills/jukebox/music/` and the eye panel on the textures inside
+on `@be/be/skills/jukebox/music/` and the eye panel on the textures inside
 `@be/be/node_modules/`. Robot-only actions report that they are unavailable
 rather than failing.
 

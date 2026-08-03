@@ -35,17 +35,19 @@ System manager scans **`/opt/jibo/Jibo/Skills/@be`** for launchable skills. Only
 Skills/                         (repo root on robot)
   @be/
     be/                         # ONLY launchable host SSM should list
-    skills/                     # packs (not direct @be children as skills)
-      idle/
-      main-menu/
-      jukebox/
-      be-framework/             # library, not launchable
+      skills/                   # packs ship inside Be (OTA of @be/be)
+        idle/
+        main-menu/
+        jukebox/
+        be-framework/           # library, not launchable
+        …
+      package.json              # jibo.skillsRoot: "./skills"
       …
   jibo-tbd/
   …
 ```
 
-Do **not** put skill packs as *direct* siblings of `be` under `@be/` (e.g. `@be/idle`) — SSM will list them as separate skills. Put them under `@be/skills/<name>/` instead.
+Do **not** put skill packs as *direct* siblings of `be` under `@be/` (e.g. `@be/idle`) — SSM will list them as separate skills. Put them under `@be/be/skills/<name>/` instead.
 
 ## Skills-root resolution
 
@@ -53,7 +55,7 @@ Before Be loads, [`@be/be/index.html`](../@be/be/index.html) calls `require('./s
 
 That hooks Node’s `Module._resolveFilename` so `require('@be/<name>')` and `PathUtils.resolve` / `resolveAssetPack` map to `<skillsRoot>/<name>/`.
 
-`jibo.skillsRoot` in `@be/be/package.json` is `"../skills"` (repo `@be/skills/` from `@be/be`). Absolute paths are allowed for odd layouts.
+`jibo.skillsRoot` in `@be/be/package.json` is `"./skills"` (repo `@be/be/skills/` from `@be/be`). Absolute paths are allowed for odd layouts.
 
 It also puts `@be/be/node_modules` on `NODE_PATH` so skill packs can still `require('jibo')` and other host runtime deps.
 
@@ -75,7 +77,7 @@ Example:
 
 ```json
 "jibo": {
-  "skillsRoot": "../skills",
+  "skillsRoot": "./skills",
   "skills": [
     "@be/idle",
     "@be/first-contact",
@@ -92,7 +94,7 @@ Example:
 ```
 
 Skills are **not** listed in Be’s npm `dependencies`. Drop a folder at
-`@be/skills/<name>/` with a valid `package.json`, add the id to `lazySkills`
+`@be/be/skills/<name>/` with a valid `package.json`, add the id to `lazySkills`
 (or `skills` if it must run `postInit` at boot), and restart Be once so the
 registry sees the new id.
 

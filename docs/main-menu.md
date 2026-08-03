@@ -22,7 +22,7 @@ sequenceDiagram
 
 ## Menu button definition
 
-Buttons live in JSON view configs under `@be/skills/main-menu/resources/views/`.
+Buttons live in JSON view configs under `@be/be/skills/main-menu/resources/views/`.
 
 **Top-level menu:** `main-menu-verbal.json`
 
@@ -30,7 +30,7 @@ Each list item includes:
 
 - **`id`** — component id (for NLU matching).
 - **`label`** — displayed name.
-- **`iconSrc`** — e.g. `resources/icons/bad-apple.png` (under `@be/skills/main-menu`).
+- **`iconSrc`** — e.g. `resources/icons/bad-apple.png` (under `@be/be/skills/main-menu`).
 - **`action`** — utterance fired on tap.
 
 Example (Bad Apple):
@@ -59,7 +59,7 @@ The **`destination`** string is the skill’s short name — **not** the full `@
 
 ## redirectToSkill()
 
-Implemented in `@be/skills/main-menu/index.js`:
+Implemented in `@be/be/skills/main-menu/index.js`:
 
 1. Receives `destination` (e.g. `"bad-apple"`, `"recipe"`, `"jukebox"`).
 2. Maps special cases (cloud skills, photobooth → create, etc.).
@@ -85,12 +85,12 @@ Submenu buttons use the same `loadMenu` + `destination` pattern with their own d
 Place PNGs in:
 
 ```
-@be/skills/main-menu/resources/icons/<name>.png
+@be/be/skills/main-menu/resources/icons/<name>.png
 ```
 
 Reference as `"iconSrc": "resources/icons/<name>.png"` in the verbal JSON.
 
-After changing main-menu resources, rebuild/sync `@be/skills/main-menu` if your workflow bundles it (the verbal JSON is typically loaded at runtime).
+After changing main-menu resources, rebuild/sync `@be/be/skills/main-menu` if your workflow bundles it (the verbal JSON is typically loaded at runtime).
 
 ## Voice launch (parallel path)
 
@@ -100,7 +100,7 @@ Menu taps are separate from **`launch.rule`** in each skill’s folder. Voice ru
 
 1. Skill registered in `@be/be/package.json`.
 2. Button added to appropriate verbal JSON with matching `destination`.
-3. Icon added under `@be/skills/main-menu/resources/icons/`.
+3. Icon added under `@be/be/skills/main-menu/resources/icons/`.
 4. Deploy main-menu + Be package.json if needed.
 5. Restart Be and tap the button.
 

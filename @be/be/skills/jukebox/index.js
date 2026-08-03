@@ -808,19 +808,27 @@ class MusicLibrary {
         const path = nodeRequire('path');
         const CANONICAL = '/opt/jibo/Jibo/Skills/@be/Skills/Jukebox/Music';
         const ROBOT_SKILLS = '/opt/jibo/Jibo/Skills';
+        let onRobot = false;
         try {
-            if (fs.existsSync(ROBOT_SKILLS) && fs.statSync(ROBOT_SKILLS).isDirectory()) {
-                MusicLibrary.ensureDir(fs, path, CANONICAL);
-                console.log('[jukebox] music dir:', CANONICAL);
-                return CANONICAL;
-            }
+            onRobot = fs.existsSync(ROBOT_SKILLS) && fs.statSync(ROBOT_SKILLS).isDirectory();
         }
-        catch (e) { }
-        const candidates = [];
+        catch (e) {
+            onRobot = false;
+        }
+        const candidates = [
+            CANONICAL,
+            '/opt/jibo/Jibo/Skills/@be/be/skills/jukebox/music',
+            '/opt/jibo/Jibo/Skills/@be/skills/jukebox/music',
+            '/opt/jibo/Jibo/Skills/@be/jukebox/music',
+            '/opt/jibo/Jibo/Skills/@be/be/node_modules/@be/jukebox/music',
+            '/opt/jibo/Jibo/Skills/skills/jukebox/music',
+            '/opt/tmp/jukebox-music'
+        ];
         try {
             const cwd = typeof process !== 'undefined' && process.cwd ? process.cwd() : null;
             if (cwd) {
-                candidates.push(path.join(cwd, '@be', 'skills', 'jukebox', 'music'));
+                candidates.push(path.join(cwd, '@be', 'be', 'skills', 'jukebox', 'music'));
+                candidates.push(path.join(cwd, 'skills', 'jukebox', 'music'));
                 candidates.push(path.join(cwd, 'music'));
             }
         }
@@ -831,14 +839,106 @@ class MusicLibrary {
                 continue;
             }
             try {
+                if (MusicLibrary.dirHasAlbums(fs, path, c)) {
+                    console.log('[jukebox] music dir:', c);
+                    return c;
+                }
+            }
+            catch (e) { }
+        }
+        if (onRobot) {
+            MusicLibrary.ensureDir(fs, path, CANONICAL);
+            console.log('[jukebox] music dir (empty canonical):', CANONICAL);
+            return CANONICAL;
+        }
+        for (let i = 0; i < candidates.length; i++) {
+            const c = candidates[i];
+            if (!c) {
+                continue;
+            }
+            try {
                 if (fs.existsSync(c) && fs.statSync(c).isDirectory()) {
-                    console.log('[jukebox] music dir (dev):', c);
+                    console.log('[jukebox] music dir (dev empty):', c);
                     return c;
                 }
             }
             catch (e) { }
         }
         return CANONICAL;
+    }
+    static dirHasAlbums(fs, path, dir) {
+        if (!dir) {
+            return false;
+        }
+        try {
+            if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) {
+                return false;
+            }
+        }
+        catch (e) {
+            return false;
+        }
+        let entries;
+        try {
+            entries = fs.readdirSync(dir);
+        }
+        catch (e) {
+            return false;
+        }
+        const audioRe = /\.(mp3|opus|ogg|oga)$/i;
+        for (let i = 0; i < entries.length; i++) {
+            const name = entries[i];
+            if (!name || name.charAt(0) === '.' || name === 'README.md') {
+                continue;
+            }
+            const full = path.join(dir, name);
+            let st;
+            try {
+                st = fs.statSync(full);
+            }
+            catch (e) {
+                continue;
+            }
+            if (st.isFile()) {
+                if (audioRe.test(name)) {
+                    return true;
+                }
+                continue;
+            }
+            if (!st.isDirectory()) {
+                continue;
+            }
+            let kids;
+            try {
+                kids = fs.readdirSync(full);
+            }
+            catch (e) {
+                continue;
+            }
+            for (let k = 0; k < kids.length; k++) {
+                const kid = kids[k];
+                if (!kid || kid.charAt(0) === '.') {
+                    continue;
+                }
+                if (audioRe.test(kid)) {
+                    return true;
+                }
+                const nested = path.join(full, kid);
+                try {
+                    if (!fs.statSync(nested).isDirectory()) {
+                        continue;
+                    }
+                    const grand = fs.readdirSync(nested);
+                    for (let g = 0; g < grand.length; g++) {
+                        if (audioRe.test(grand[g])) {
+                            return true;
+                        }
+                    }
+                }
+                catch (e) { }
+            }
+        }
+        return false;
     }
     static ensureDir(fs, path, dir) {
         if (!dir) {

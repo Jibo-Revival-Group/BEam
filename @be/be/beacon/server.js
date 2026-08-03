@@ -63,7 +63,7 @@ const routes = {
     'POST /api/skills/install': guard((req, res) => {
         u.sendJson(res, 501, {
             error: 'Installing skills from BEacon is not implemented yet.',
-            detail: 'For now, add the pack under @be/skills/ and register it in ' +
+            detail: 'For now, add the pack under @be/be/skills/ and register it in ' +
                 '@be/be/package.json (jibo.lazySkills for feature skills, or jibo.skills ' +
                 'for boot/role skills), then update BEam.'
         });

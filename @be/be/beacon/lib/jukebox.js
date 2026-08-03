@@ -6,7 +6,7 @@
  * The library is plain folders on disk — the jukebox skill rescans them every
  * time it opens — so every operation here is a filesystem operation inside
  * music/. Naming and layout rules mirror
- * @be/skills/jukebox/src/models/MusicLibrary.ts so BEacon and the skill always
+ * @be/be/skills/jukebox/src/models/MusicLibrary.ts so BEacon and the skill always
  * agree about what an album is.
  */
 

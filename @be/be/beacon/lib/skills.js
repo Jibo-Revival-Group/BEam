@@ -2,7 +2,7 @@
 
 /**
  * Skill inventory: what Be is configured to load (jibo.skills + jibo.lazySkills
- * in @be/be/package.json) versus what is actually on disk under @be/skills/.
+ * in @be/be/package.json) versus what is actually on disk under @be/be/skills/.
  */
 
 const fs = require('fs');
