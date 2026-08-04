@@ -141,16 +141,33 @@ function serverConfig () {
 }
 
 function restartJetstream () {
+    // Match the working robot shell form — process.kill from Be often fails
+    // silently (EPERM) even when pgrep finds PIDs.
     try {
-        const listed = spawnSync('pgrep', ['-f', 'jibo-jetstream-service'], { encoding: 'utf8' });
+        const listed = spawnSync('sh', ['-c', 'pgrep -f jibo-jetstream-service || true'], {
+            encoding: 'utf8'
+        });
         const pids = String(listed.stdout || '')
             .split(/\s+/)
             .map((s) => s.trim())
             .filter(Boolean);
-        pids.forEach((pid) => {
-            try { process.kill(Number(pid), 'SIGKILL'); } catch (err) { /* already gone */ }
+
+        if (!pids.length) {
+            return { killed: 0, command: 'kill -9 $(pgrep -f jibo-jetstream-service)' };
+        }
+
+        const result = spawnSync('sh', ['-c', 'kill -9 $(pgrep -f jibo-jetstream-service)'], {
+            encoding: 'utf8'
         });
-        return { killed: pids.length };
+        const ok = result.status === 0 || result.status === null;
+        return {
+            killed: pids.length,
+            pids: pids,
+            status: result.status,
+            stderr: String(result.stderr || '').trim() || null,
+            ok: ok,
+            command: 'kill -9 $(pgrep -f jibo-jetstream-service)'
+        };
     } catch (err) {
         return { killed: 0, error: err.message };
     }
@@ -204,6 +221,7 @@ function setServer (body) {
     }
 
     const restart = restartJetstream();
+    const restarted = !!(restart && restart.killed);
     return {
         ok: true,
         current: {
@@ -213,7 +231,9 @@ function setServer (body) {
         },
         jetstreamRestart: restart,
         note: 'Jetstream hub set to ' + hostname + ':' + port +
-            (restart.killed ? ' (service restarted).' : ' (could not find jetstream process to kill).')
+            (restarted
+                ? ' (killed jetstream via kill -9; it should respawn).'
+                : ' (no jibo-jetstream-service process found to kill).')
     };
 }
 

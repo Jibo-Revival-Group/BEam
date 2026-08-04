@@ -7,6 +7,8 @@ KNOWLEDGE_BEACON="/opt/jibo/Knowledge/beacon"
 CONFIG_FILE="/usr/local/etc/jibo-jetstream-service.json"
 HUB_HOST="api.5x1.com"
 HUB_PORT="80"
+CREDS_FILE="/var/jibo/credentials.json"
+OTA_ENDPOINT="http://joap.5x1.com:80"
 
 echo "=========================================="
 echo "  BEam post-mod bring-up"
@@ -216,13 +218,47 @@ echo "Jetstream now pointing to $HUB_HOST:$HUB_PORT"
 echo ""
 
 # ---------------------------------------------------------------------------
-echo "=== Step 6: Set mode to normal ==="
+echo "=== Step 6: Point OTA credentials at $OTA_ENDPOINT ==="
+if [ ! -f "$CREDS_FILE" ]; then
+    echo "WARNING: $CREDS_FILE missing — skipping OTA endpoint (create credentials first)."
+else
+    echo "Updating endpoint in $CREDS_FILE (keys preserved)..."
+    python -c "
+import json, sys
+
+path = '$CREDS_FILE'
+endpoint = '$OTA_ENDPOINT'
+
+with open(path, 'r') as f:
+    data = json.load(f)
+
+if not data.get('accessKeyId') or not data.get('secretAccessKey'):
+    sys.stderr.write('WARNING: credentials missing keys; refusing to rewrite\n')
+    sys.exit(0)
+
+next = {
+    'secretAccessKey': data['secretAccessKey'],
+    'region': 'api',
+    'endpoint': endpoint,
+    'accessKeyId': data['accessKeyId']
+}
+
+with open(path, 'w') as f:
+    json.dump(next, f)
+    f.write('\n')
+print('endpoint -> ' + endpoint)
+"
+fi
+echo ""
+
+# ---------------------------------------------------------------------------
+echo "=== Step 7: Set mode to normal ==="
 jibo-setmode normal
 echo "Done."
 echo ""
 
 # ---------------------------------------------------------------------------
-echo "=== Step 7: Reboot ==="
+echo "=== Step 8: Reboot ==="
 echo "Mode change requires a reboot. Rebooting now..."
 echo ""
 echo ""
