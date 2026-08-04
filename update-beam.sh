@@ -2,145 +2,282 @@
 set -e
 clear
 
-JUKEBOX_MUSIC="/opt/jibo/Jibo/Skills/@be/Skills/Jukebox/Music"
-JUKEBOX_MUSIC_IN_BE="/opt/jibo/Jibo/Skills/@be/be/skills/jukebox/music"
-JUKEBOX_MUSIC_LOWER="/opt/jibo/Jibo/Skills/@be/skills/jukebox/music"
-JUKEBOX_MUSIC_LEGACY_NESTED="/opt/jibo/Jibo/Skills/@be/be/node_modules/@be/jukebox/music"
-JUKEBOX_MUSIC_LEGACY_SIBLING="/opt/jibo/Jibo/Skills/@be/jukebox/music"
-JUKEBOX_MUSIC_LEGACY_ROOT="/opt/jibo/Jibo/Skills/skills/jukebox/music"
-JUKEBOX_MUSIC_STASH="/opt/tmp/jukebox-music"
+# OTA update for Skills-root packs via jibo-*-update tools.
+# Catalog = credentials.endpoint (public: http://oat.5x1.com:80).
+# Usage:
+#   ./update-beam.sh                  # check+apply every Skills-root pack with an offer
+#   ./update-beam.sh @be/be           # one subsystem
+#   ./update-beam.sh --check          # check only (no download/apply)
+#   ./update-beam.sh --check jibo-tbd
+#
+# UPDATE_NOT_FOUND means that pack is already up to date (not an error).
+# Music + custom eyes live under /opt/jibo/Knowledge and are not replaced.
 
-# 0. Go to skills directory
-echo "Going to skills directory..."
-cd /opt/jibo/Jibo/Skills/
+FILTER="fcs"
+CREDS="/var/jibo/credentials.json"
+SKILLS="/opt/jibo/Jibo/Skills"
+OTA_DIR="/opt/ota"
+KNOWLEDGE_MUSIC="/opt/jibo/Knowledge/jukebox/music"
+KNOWLEDGE_BEACON="/opt/jibo/Knowledge/beacon"
 
-# 0b. Stash jukebox library so the update does not wipe user music.
-# Prefer a directory that actually has audio — an empty Skills/Jukebox/Music
-# (created by an earlier path fix) must not win over a populated legacy library.
-jukebox_has_audio() {
-    dir="$1"
-    [ -d "$dir" ] || return 1
-    find "$dir" -maxdepth 3 -type f \( \
-        -iname '*.mp3' -o -iname '*.opus' -o -iname '*.ogg' -o -iname '*.oga' \
-    \) 2>/dev/null | head -n 1 | grep -q .
-}
+CHECK_ONLY=0
+SUBSYSTEMS=""
 
-JUKEBOX_STASH_FROM=""
-for candidate in \
-    "$JUKEBOX_MUSIC" \
-    "$JUKEBOX_MUSIC_IN_BE" \
-    "$JUKEBOX_MUSIC_LOWER" \
-    "$JUKEBOX_MUSIC_LEGACY_ROOT" \
-    "$JUKEBOX_MUSIC_LEGACY_SIBLING" \
-    "$JUKEBOX_MUSIC_LEGACY_NESTED"
-do
-    if jukebox_has_audio "$candidate"; then
-        JUKEBOX_STASH_FROM="$candidate"
-        break
+for arg in "$@"; do
+    if [ "$arg" = "--check" ] || [ "$arg" = "-n" ]; then
+        CHECK_ONLY=1
+    else
+        SUBSYSTEMS="$SUBSYSTEMS $arg"
     fi
 done
 
-if [ -n "$JUKEBOX_STASH_FROM" ]; then
-    echo "Stashing jukebox music library from $JUKEBOX_STASH_FROM to $JUKEBOX_MUSIC_STASH..."
-    mkdir -p /opt/tmp
-    rm -rf "$JUKEBOX_MUSIC_STASH"
-    mv "$JUKEBOX_STASH_FROM" "$JUKEBOX_MUSIC_STASH"
-else
-    echo "No existing jukebox music library to stash."
-fi
+echo "=========================================="
+echo "  BEam OTA"
+echo "=========================================="
+echo ""
 
-# 1. Clean up previous attempt artifacts
-echo "Cleaning up old temporary files..."
-rm -rf Beam-master BEam-master master.zip
-
-# 2. Reset backup directory
-echo "Preparing backup directory..."
-rm -rf old-BEer
-mkdir old-BEer
-
-# 3. Move existing folders to backup (Excludes the script itself and the backup dir)
-echo "Backing up current skills to old-BEer..."
-for dir in */; do
-    if [ "$dir" != "old-BEer/" ]; then
-        mv "$dir" old-BEer/
-    fi
-done
-
-# 4. Download new repository
-echo "Downloading BEam repository..."
-wget -q --show-progress https://github.com/Jibo-Revival-Group/Beam/archive/refs/heads/master.zip
-
-# 5. Iterative extraction (Compatible with Python 2.7+)
-echo "Extracting files (this may take a moment)..."
-python -c "
-import zipfile, sys
-z = zipfile.ZipFile('master.zip')
-namelist = z.namelist()
-total = float(len(namelist))
-for i, name in enumerate(namelist):
-    z.extract(name)
-    percent = ((i + 1) / total) * 100
-    sys.stdout.write('\rProgress: %.1f%%' % percent)
-    sys.stdout.flush()
-print('\nExtraction complete.')
-"
-
-# 6. Move contents to current directory
-echo "Deploying new BEam skills..."
-EXTRACT_DIR=""
-if [ -d BEam-master ]; then
-    EXTRACT_DIR=BEam-master
-elif [ -d Beam-master ]; then
-    EXTRACT_DIR=Beam-master
-else
-    echo "ERROR: extracted BEam directory not found after unzip"
-    ls -la
+if [ ! -f "$CREDS" ]; then
+    echo "ERROR: credentials missing at $CREDS"
     exit 1
 fi
-# BusyBox ash leaves unmatched globs literal; move items one by one
-for item in "$EXTRACT_DIR"/*; do
-    [ -e "$item" ] || continue
-    mv "$item" .
-done
-rm -rf "$EXTRACT_DIR" master.zip
 
-# 6b. Restore stashed jukebox music over the fresh (empty) music/ from the repo
-if [ -d "$JUKEBOX_MUSIC_STASH" ]; then
-    echo "Restoring jukebox music library..."
-    mkdir -p "$(dirname "$JUKEBOX_MUSIC")"
-    rm -rf "$JUKEBOX_MUSIC"
-    mv "$JUKEBOX_MUSIC_STASH" "$JUKEBOX_MUSIC"
-else
-    echo "No stashed jukebox music library to restore."
+if [ ! -d "$SKILLS" ]; then
+    echo "ERROR: $SKILLS not found"
+    exit 1
 fi
 
-# 7. Fix permissions (it's ALWAYS THE PERMS!!!!!)
-echo "Fixing permissions..."
-chmod 777 -R /opt/jibo/Jibo/Skills/
+for cmd in jibo-mount jibo-get-update jibo-download-update jibo-apply-update; do
+    if ! command -v "$cmd" >/dev/null 2>&1; then
+        echo "ERROR: $cmd not found on PATH"
+        exit 1
+    fi
+done
 
-# Jetstream needs to be public
-chmod 777 /usr/local/etc/jibo-jetstream-service.json
-# BEacon stores custom eyes here so they survive Skills replacement; Be must be able to write.
-mkdir -p /opt/tmp/beacon
-chmod 777 /opt/tmp /opt/tmp/beacon
+echo "=== Remount filesystem read-write ==="
+jibo-mount --rw
+echo "Done."
+echo ""
 
-echo "Update complete!"
+mkdir -p "$OTA_DIR" "$KNOWLEDGE_MUSIC" "$KNOWLEDGE_BEACON"
+chmod 777 /opt/jibo/Knowledge /opt/jibo/Knowledge/jukebox \
+  "$KNOWLEDGE_MUSIC" "$KNOWLEDGE_BEACON" 2>/dev/null || true
 
-# 8. Restart the BEam service via SSM
-echo "Restarting BEam service via SSM..."
+LIST_FILE="$OTA_DIR/beam-ota-packages.json"
+python -c "
+import json, os, sys
 
-# Terminate the current instance
-curl -s -X POST http://localhost:8779/terminate \
-  -H 'Content-Type: application/x-www-form-urlencoded' \
-  --data-raw '{"command":"@be/be"}'
+skills = '$SKILLS'
+skip = set(['old-BEer', 'Beam-master', 'BEam-master', 'node_modules'])
+wanted ='''$SUBSYSTEMS'''.split()
+found = []
 
-# Wait a brief moment to ensure process cleanup
-sleep 2
+def add(dest, fallback_name):
+    pkg_path = os.path.join(dest, 'package.json')
+    if not os.path.isfile(pkg_path):
+        return
+    try:
+        pkg = json.load(open(pkg_path))
+    except Exception:
+        return
+    subsystem = pkg.get('name') or fallback_name
+    found.append({
+        'subsystem': subsystem,
+        'version': pkg.get('version') or '0.0.0',
+        'destination': dest
+    })
 
-# Launch the new instance
-curl -s -X POST http://localhost:8779/launch-dev \
-  -H 'Content-Type: application/x-www-form-urlencoded' \
-  --data-raw '{"command":"@be/be"}'
+for name in sorted(os.listdir(skills)):
+    if not name or name[0] == '.' or name in skip:
+        continue
+    full = os.path.join(skills, name)
+    if not os.path.isdir(full):
+        continue
+    if name.startswith('@'):
+        try:
+            children = os.listdir(full)
+        except Exception:
+            continue
+        for child in sorted(children):
+            if not child or child[0] == '.' or child in skip:
+                continue
+            add(os.path.join(full, child), name + '/' + child)
+    else:
+        add(full, name)
+
+if wanted:
+    found = [p for p in found if p['subsystem'] in wanted]
+    missing = [s for s in wanted if s not in [p['subsystem'] for p in found]]
+    if missing:
+        sys.stderr.write('ERROR: not found under Skills: %s\n' % ', '.join(missing))
+        sys.exit(1)
+
+found.sort(key=lambda p: (0 if p['subsystem'] == '@be/be' else 1, p['subsystem']))
+json.dump(found, open('$LIST_FILE', 'w'))
+print('Discovered %d pack(s)' % len(found))
+for p in found:
+    print('  %s  v%s' % (p['subsystem'], p['version']))
+"
 
 echo ""
-echo "Restart command sent. BEam should be starting now."
+echo "Credentials: $CREDS"
+echo "Filter:      $FILTER"
+if [ "$CHECK_ONLY" = "1" ]; then
+    echo "Mode:        check only"
+fi
+echo ""
+
+python -c "
+import json, os, subprocess, sys, re
+
+FILTER = '$FILTER'
+CREDS = '$CREDS'
+OTA_DIR = '$OTA_DIR'
+CHECK_ONLY = '$CHECK_ONLY' == '1'
+packages = json.load(open('$LIST_FILE'))
+
+def parse_json(text):
+    text = (text or '').strip()
+    if not text:
+        return None
+    try:
+        return json.loads(text)
+    except Exception:
+        for line in reversed(text.splitlines()):
+            line = line.strip()
+            if line.startswith('{'):
+                try:
+                    return json.loads(line)
+                except Exception:
+                    pass
+    return None
+
+def is_not_found(blob, combined):
+    if blob and isinstance(blob.get('error'), dict):
+        err = blob['error']
+        if err.get('code') == 'UPDATE_NOT_FOUND' or err.get('statusCode') == 404:
+            return True
+        if re.search(r'update not found', str(err.get('message') or ''), re.I):
+            return True
+    if 'UPDATE_NOT_FOUND' in combined:
+        return True
+    if 'Update not found' in combined and '404' in combined:
+        return True
+    return False
+
+def safe_tar(subsystem):
+    name = subsystem.lstrip('@').replace('/', '-')
+    name = re.sub(r'[^A-Za-z0-9._-]+', '-', name)
+    return os.path.join(OTA_DIR, name + '.tar')
+
+applied = 0
+current = 0
+failed = 0
+
+for pkg in packages:
+    subsystem = pkg['subsystem']
+    version = pkg['version']
+    dest = pkg['destination']
+    print('=== Check %s (v%s) ===' % (subsystem, version))
+    proc = subprocess.Popen(
+        ['jibo-get-update',
+         '--credentials', CREDS,
+         '--subsystem', subsystem,
+         '--version', version,
+         '--filter', FILTER],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE
+    )
+    out, err = proc.communicate()
+    def as_text(data):
+        if data is None:
+            return ''
+        if isinstance(data, bytes):
+            return data.decode('utf-8', 'replace')
+        return data
+    out = as_text(out)
+    err = as_text(err)
+    combined = out + '\n' + err
+    blob = parse_json(out) or parse_json(err)
+
+    if is_not_found(blob, combined):
+        print('Up to date (UPDATE_NOT_FOUND).')
+        print('')
+        current += 1
+        continue
+
+    if proc.returncode != 0 or not blob or not blob.get('url'):
+        print('ERROR: get-update failed for %s' % subsystem)
+        sys.stderr.write(combined.strip() + '\n')
+        failed += 1
+        print('')
+        continue
+
+    offer_id = blob.get('_id') or blob.get('id')
+    url = blob['url']
+    sha = blob['shaHash']
+    frm = blob['fromVersion']
+    to = blob['toVersion']
+    print('Update: %s -> %s' % (frm, to))
+    print('Id:     %s' % offer_id)
+    print('URL:    %s' % url)
+
+    if CHECK_ONLY:
+        print('(check only — not downloading)')
+        print('')
+        applied += 1  # count as available
+        continue
+
+    tar = safe_tar(subsystem)
+    print('=== Download %s ===' % tar)
+    rc = subprocess.call([
+        'jibo-download-update',
+        '--id', str(offer_id),
+        '--url', url,
+        '--destination', tar,
+        '--shasum', sha
+    ])
+    if rc != 0:
+        print('ERROR: download failed for %s' % subsystem)
+        failed += 1
+        print('')
+        continue
+
+    print('=== Apply %s -> %s ===' % (subsystem, dest))
+    rc = subprocess.call([
+        'jibo-apply-update',
+        '--source', tar,
+        '--subsystem', subsystem,
+        '--from', str(frm),
+        '--to', str(to),
+        '--destination', dest,
+        '--filter', FILTER
+    ])
+    if rc != 0:
+        print('ERROR: apply failed for %s' % subsystem)
+        failed += 1
+        print('')
+        continue
+
+    print('Applied %s %s -> %s' % (subsystem, frm, to))
+    print('')
+    applied += 1
+
+print('------------------------------------------')
+if CHECK_ONLY:
+    print('Available: %d  Up to date: %d  Failed: %d' % (applied, current, failed))
+else:
+    print('Applied: %d  Up to date: %d  Failed: %d' % (applied, current, failed))
+
+if failed:
+    sys.exit(1)
+"
+
+mkdir -p "$KNOWLEDGE_MUSIC" "$KNOWLEDGE_BEACON"
+chmod 777 /opt/jibo/Knowledge /opt/jibo/Knowledge/jukebox \
+  "$KNOWLEDGE_MUSIC" "$KNOWLEDGE_BEACON" 2>/dev/null || true
+
+echo ""
+echo "Done. Knowledge music/eyes were left alone."
+if [ "$CHECK_ONLY" != "1" ]; then
+    echo "If @be/be was updated, Be should restart to finish."
+fi

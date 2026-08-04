@@ -31,16 +31,16 @@ and should still feel like built-in Jibo UI.
 
 ## User music location on robot
 
-Preferred path (when it has albums):
+Canonical path (survives Skills / `@be/be` OTA):
 
 ```
-/opt/jibo/Jibo/Skills/@be/Skills/Jukebox/Music/
+/opt/jibo/Knowledge/jukebox/music/
 ```
 
-If that folder is empty, BEacon and Jukebox automatically use a populated
-legacy location (e.g. `@be/be/skills/jukebox/music`, older `node_modules` paths,
-or `/opt/tmp/jukebox-music`). **`update-beam.sh`** stashes whichever library
-actually contains audio and restores it to the preferred path.
+If that folder is empty, BEacon and Jukebox migrate a populated legacy location
+(e.g. Skills-tree paths or `/opt/tmp/jukebox-music`) into Knowledge once.
+Official `@be/be` OTA (`update-beam.sh` / BEacon Update) only replaces
+`/opt/jibo/Jibo/Skills/@be/be`, so Knowledge music is left alone.
 
 ## UI flow
 

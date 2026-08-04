@@ -95,7 +95,7 @@ export default class MusicLibrary {
           dir: null,
           error: 'Could not resolve the music/ folder path.',
           detail: 'assetPack=' + String(assetPack) +
-            '\nExpected: /opt/jibo/Jibo/Skills/@be/Skills/Jukebox/Music'
+            '\nExpected: /opt/jibo/Knowledge/jukebox/music'
         };
       }
 
@@ -303,8 +303,9 @@ export default class MusicLibrary {
   /**
    * Absolute on-disk path to the user music library.
    *
-   * Prefer a directory that actually contains albums. Creating an empty
-   * Skills/Jukebox/Music and always using it hid populated legacy libraries.
+   * Canonical store is /opt/jibo/Knowledge/jukebox/music so Skills / @be/be
+   * OTA cannot wipe albums. Prefer a directory that actually contains albums;
+   * migrate legacy Skills/tmp libraries into Knowledge once when empty.
    */
   protected static resolveMusicDir (assetPack?: string, req?: any): string {
     const nodeRequire = req || getNodeRequire();
@@ -312,7 +313,7 @@ export default class MusicLibrary {
     const fs = nodeRequire('fs');
     const path = nodeRequire('path');
 
-    const CANONICAL = '/opt/jibo/Jibo/Skills/@be/Skills/Jukebox/Music';
+    const CANONICAL = '/opt/jibo/Knowledge/jukebox/music';
     const ROBOT_SKILLS = '/opt/jibo/Jibo/Skills';
     const onRobot = (() => {
       try {
@@ -324,6 +325,7 @@ export default class MusicLibrary {
 
     const candidates: string[] = [
       CANONICAL,
+      '/opt/jibo/Jibo/Skills/@be/Skills/Jukebox/Music',
       '/opt/jibo/Jibo/Skills/@be/be/skills/jukebox/music',
       '/opt/jibo/Jibo/Skills/@be/skills/jukebox/music',
       '/opt/jibo/Jibo/Skills/@be/jukebox/music',
@@ -340,6 +342,10 @@ export default class MusicLibrary {
         candidates.push(path.join(cwd, 'music'));
       }
     } catch (e) { /* no-op */ }
+
+    if (onRobot) {
+      MusicLibrary.migrateMusicToKnowledge(fs, path, CANONICAL, candidates);
+    }
 
     for (let i = 0; i < candidates.length; i++) {
       const c = candidates[i];
@@ -370,6 +376,60 @@ export default class MusicLibrary {
     }
 
     return CANONICAL;
+  }
+
+  /** Move/copy a legacy library into Knowledge when Knowledge is empty. */
+  protected static migrateMusicToKnowledge (
+    fs: any,
+    path: any,
+    dest: string,
+    candidates: string[]
+  ): void {
+    if (MusicLibrary.dirHasAlbums(fs, path, dest)) { return; }
+    for (let i = 0; i < candidates.length; i++) {
+      const src = candidates[i];
+      if (!src || src === dest || !MusicLibrary.dirHasAlbums(fs, path, src)) {
+        continue;
+      }
+      try {
+        MusicLibrary.ensureDir(fs, path, path.dirname(dest));
+        try {
+          if (fs.existsSync(dest) && fs.statSync(dest).isDirectory()) {
+            try { fs.rmdirSync(dest); } catch (e) { /* non-empty stub */ }
+          }
+        } catch (e) { /* create below */ }
+        try {
+          fs.renameSync(src, dest);
+        } catch (e) {
+          MusicLibrary.copyDirRecursive(fs, path, src, dest);
+        }
+        console.log('[jukebox] migrated music from', src, 'to', dest);
+        return;
+      } catch (err) {
+        console.warn(
+          '[jukebox] music migrate failed from',
+          src,
+          ':',
+          err && err.message
+        );
+      }
+    }
+  }
+
+  protected static copyDirRecursive (fs: any, path: any, src: string, dest: string): void {
+    MusicLibrary.ensureDir(fs, path, dest);
+    const entries: string[] = fs.readdirSync(src);
+    for (let i = 0; i < entries.length; i++) {
+      const name = entries[i];
+      const from = path.join(src, name);
+      const to = path.join(dest, name);
+      const st = fs.statSync(from);
+      if (st.isDirectory()) {
+        MusicLibrary.copyDirRecursive(fs, path, from, to);
+      } else {
+        fs.writeFileSync(to, fs.readFileSync(from));
+      }
+    }
   }
 
   /** True when dir has at least one playable track under album or Artist/Album. */

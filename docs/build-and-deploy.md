@@ -103,15 +103,27 @@ Relaunching only the skill without restarting Be is not enough when you add a
 
 ## Full repo update (update-beam.sh)
 
-Root script [`update-beam.sh`](../update-beam.sh):
+Root script [`update-beam.sh`](../update-beam.sh) runs the official OTA tools
+for Skills-root packs (same sequence as BEacon → Update):
 
-1. Backs up existing skill dirs to `old-BEer/`.
-2. Downloads Beam from GitHub and extracts into `/opt/jibo/Jibo/Skills/`.
-3. **Jukebox special case:** stashes `music/` to `/opt/tmp/jukebox-music` before update and restores it after, so user libraries are not wiped.
-4. Runs `chmod 777 -R` on Skills.
-5. Terminates and relaunches `@be/be`.
+```sh
+./update-beam.sh                 # check+apply every pack with an offer
+./update-beam.sh @be/be          # one subsystem
+./update-beam.sh --check         # check only
+./update-beam.sh --check jibo-tbd
+```
 
-Use this for full BEam upgrades; use selective copy + chmod for single-skill dev iterations.
+1. Discovers top-level / scoped packs under `/opt/jibo/Jibo/Skills/`
+2. `jibo-get-update` per pack (`filter fcs`)
+3. On offer: download to `/opt/ota/` and `jibo-apply-update`
+4. `UPDATE_NOT_FOUND` → pack reported up to date (exit 0 for that pack)
+
+The catalog host comes from `/var/jibo/credentials.json` → `endpoint`
+(public: `http://oat.5x1.com:80`). User music and custom eyes under
+`/opt/jibo/Knowledge/` are outside apply destinations and are left alone.
+
+For a **fresh** Skills tree install (not an in-place update), use
+`post-mod.sh` instead.
 
 ## Verify on robot
 

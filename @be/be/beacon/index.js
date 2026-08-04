@@ -83,15 +83,23 @@ function start (options, callback) {
     }
     starting = true;
 
-    // Custom eyes live under dataDir() so they outlive Skills updates.
+    // Custom eyes + music live under Knowledge so Skills/@be/be OTA cannot wipe them.
     try {
         paths.ensureDir(paths.dataDir());
+        paths.ensureDir(paths.musicDirCanonical());
     } catch (err) {
         warn(
-            'cannot create data dir ' + paths.dataDir() + ':',
+            'cannot create Knowledge data dirs:',
             err && err.message,
-            '(eye uploads need this writable; run: mkdir -p /opt/tmp/beacon && chmod 777 /opt/tmp /opt/tmp/beacon)'
+            '(need writable /opt/jibo/Knowledge; run: mkdir -p /opt/jibo/Knowledge/beacon /opt/jibo/Knowledge/jukebox/music && chmod -R 777 /opt/jibo/Knowledge)'
         );
+    }
+
+    // Migrate legacy libraries (Skills music, /opt/tmp/beacon eye) once.
+    try {
+        paths.migrateMusicToKnowledge();
+    } catch (err) {
+        warn('music migrate:', err && err.message);
     }
 
     // Re-apply a saved custom eye: a BEam update restores the pristine

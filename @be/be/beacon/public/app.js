@@ -10,7 +10,11 @@
         panel: 'status',
         jukebox: null,
         audio: null,
-        playing: null
+        playing: null,
+        otaOffers: {},
+        otaChecked: {},
+        otaPackages: null,
+        otaBusy: false
     };
 
     /* ------------------------------------------------------------ helpers */
@@ -738,6 +742,252 @@
             .catch(reportError);
     }
 
+    /* --------------------------------------------------------------- update */
+
+    function setOtaProgress (percent, message) {
+        var card = $('#ota-progress-card');
+        card.hidden = false;
+        if (percent != null && !isNaN(percent)) {
+            $('#ota-progress-bar').style.width = Math.max(0, Math.min(100, percent)) + '%';
+        }
+        if (message) {
+            $('#ota-progress-message').textContent = message;
+        }
+    }
+
+    function appendOtaLog (line) {
+        var log = $('#ota-log');
+        if (!line) { return; }
+        log.textContent += (log.textContent ? '\n' : '') + line;
+        log.scrollTop = log.scrollHeight;
+    }
+
+    function renderOtaPackages (packages) {
+        var list = $('#ota-packages');
+        list.innerHTML = '';
+        (packages || []).forEach(function (pkg) {
+            var offer = state.otaOffers[pkg.subsystem];
+            var status = pkg.checkStatus || 'not checked';
+            var card = el('div', 'skill');
+            var name = el('div', 'skill-name', pkg.subsystem);
+            name.appendChild(el('span', 'chip', 'v' + (pkg.version || '?')));
+            card.appendChild(name);
+            if (pkg.description) {
+                card.appendChild(el('div', 'skill-desc', pkg.description));
+            }
+
+            var chips = el('div', 'chips');
+            var statusChip = el('span', 'chip', status);
+            if (status === 'up to date') { statusChip.className = 'chip is-on'; }
+            if (status.indexOf('→') !== -1) { statusChip.className = 'chip is-role'; }
+            if (status === 'error') { statusChip.className = 'chip'; }
+            chips.appendChild(statusChip);
+            card.appendChild(chips);
+
+            if (offer) {
+                card.appendChild(el('div', 'skill-desc',
+                    (offer.changes || 'Update available') +
+                    (offer.length != null ? ' · ' + bytes(offer.length) : '')));
+            }
+
+            var actions = el('div', 'eye-controls');
+            var checkBtn = el('button', 'btn', 'Check');
+            checkBtn.disabled = state.otaBusy;
+            checkBtn.addEventListener('click', function () {
+                checkOta(pkg.subsystem);
+            });
+            actions.appendChild(checkBtn);
+
+            if (offer) {
+                var applyBtn = el('button', 'btn btn-primary', 'Download & apply');
+                applyBtn.disabled = state.otaBusy;
+                applyBtn.addEventListener('click', function () {
+                    applyOta(pkg.subsystem);
+                });
+                actions.appendChild(applyBtn);
+            }
+            card.appendChild(actions);
+            list.appendChild(card);
+        });
+    }
+
+    function loadOta () {
+        return api('GET', '/api/ota').then(function (data) {
+            var rows = [
+                ['Filter', data.filter],
+                ['Credentials', data.credentialsPath],
+                ['Packages', String((data.packages || []).length)],
+                ['Ready', data.ready ? 'yes' : 'no']
+            ];
+            if (data.note) { rows.push(['Note', data.note]); }
+            var tools = data.tools || {};
+            Object.keys(tools).forEach(function (name) {
+                rows.push([name, tools[name] ? 'found' : 'missing']);
+            });
+            fillKv($('#ota-status'), rows);
+
+            var packages = (data.packages || []).map(function (pkg) {
+                var offer = state.otaOffers[pkg.subsystem];
+                if (offer) {
+                    pkg.checkStatus = pkg.version + ' → ' + (offer.toVersion || '?');
+                } else if (pkg.checkStatus) {
+                    /* keep */
+                } else if (state.otaChecked && state.otaChecked[pkg.subsystem]) {
+                    pkg.checkStatus = state.otaChecked[pkg.subsystem];
+                } else {
+                    pkg.checkStatus = 'not checked';
+                }
+                return pkg;
+            });
+            state.otaPackages = packages;
+            renderOtaPackages(packages);
+
+            var checkBtn = $('#ota-check-btn');
+            if (checkBtn) { checkBtn.disabled = !data.ready || state.otaBusy; }
+            return data;
+        });
+    }
+
+    function checkOta (subsystem) {
+        if (state.otaBusy) { return; }
+        state.otaBusy = true;
+        $('#ota-check-btn').disabled = true;
+        if (!state.otaChecked) { state.otaChecked = {}; }
+
+        var label = subsystem || 'all packs';
+        setOtaProgress(0, 'Checking ' + label + '…');
+        appendOtaLog('check: ' + label);
+
+        var body = subsystem ? { subsystem: subsystem } : {};
+        return api('POST', '/api/ota/check', body)
+            .then(function (data) {
+                (data.results || []).forEach(function (result) {
+                    if (result.offer) {
+                        state.otaOffers[result.subsystem] = result.offer;
+                        state.otaChecked[result.subsystem] =
+                            result.currentVersion + ' → ' + result.offer.toVersion;
+                        appendOtaLog(result.subsystem + ': update ' +
+                            result.currentVersion + ' → ' + result.offer.toVersion);
+                    } else if (result.upToDate) {
+                        delete state.otaOffers[result.subsystem];
+                        state.otaChecked[result.subsystem] = 'up to date';
+                        appendOtaLog(result.subsystem + ': up to date');
+                    } else {
+                        delete state.otaOffers[result.subsystem];
+                        state.otaChecked[result.subsystem] = 'error';
+                        appendOtaLog(result.subsystem + ': ' +
+                            (result.error || 'check failed'));
+                    }
+                });
+
+                var msg = data.available
+                    ? (data.available + ' update(s) available')
+                    : (data.upToDate === data.checked
+                        ? 'Everything checked is up to date'
+                        : 'Check finished');
+                setOtaProgress(100, msg);
+                toast(msg, data.available ? 'ok' : undefined);
+            })
+            .catch(function (err) {
+                reportError(err);
+                setOtaProgress(0, err.message || 'Check failed');
+            })
+            .then(function () {
+                state.otaBusy = false;
+                return loadOta();
+            });
+    }
+
+    function applyOta (subsystem) {
+        var offer = state.otaOffers[subsystem];
+        if (state.otaBusy || !offer) { return; }
+        if (!confirm(
+            'Download and apply ' + subsystem +
+            (offer.toVersion ? (' ' + offer.toVersion) : '') +
+            '?' +
+            (subsystem === '@be/be' ? ' Be will restart when apply finishes.' : '')
+        )) {
+            return;
+        }
+
+        state.otaBusy = true;
+        $('#ota-check-btn').disabled = true;
+        $('#ota-log').textContent = '';
+        setOtaProgress(0, 'Starting download for ' + subsystem + '…');
+        renderOtaPackages(state.otaPackages || []);
+
+        return fetch('/api/ota/apply', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ offer: offer })
+        }).then(function (res) {
+            if (!res.ok || !res.body || !res.body.getReader) {
+                return res.text().then(function (text) {
+                    var data = null;
+                    try { data = text ? JSON.parse(text) : null; } catch (e) { data = { error: text }; }
+                    throw new Error((data && data.error) || ('Apply failed (' + res.status + ')'));
+                });
+            }
+
+            var reader = res.body.getReader();
+            var decoder = new TextDecoder('utf-8');
+            var buffer = '';
+
+            function handleLine (line) {
+                if (!line) { return; }
+                var event;
+                try { event = JSON.parse(line); } catch (e) {
+                    appendOtaLog(line);
+                    return;
+                }
+                if (event.phase === 'download') {
+                    setOtaProgress(
+                        event.percent != null ? event.percent : undefined,
+                        event.message || 'Downloading…'
+                    );
+                    if (event.message) { appendOtaLog(event.message); }
+                } else if (event.phase === 'apply') {
+                    setOtaProgress(100, event.message || 'Applying…');
+                    if (event.message) { appendOtaLog(event.message); }
+                } else if (event.phase === 'done') {
+                    setOtaProgress(100, (event.result && event.result.note) || event.message || 'Done');
+                    toast((event.result && event.result.note) || 'Update applied', 'ok');
+                    appendOtaLog('done');
+                    delete state.otaOffers[subsystem];
+                    if (!state.otaChecked) { state.otaChecked = {}; }
+                    state.otaChecked[subsystem] = 'applied — re-check';
+                } else if (event.phase === 'error') {
+                    var msg = event.error || 'Update failed';
+                    if (event.detail) { msg += ' — ' + event.detail; }
+                    setOtaProgress(undefined, msg);
+                    appendOtaLog('error: ' + msg);
+                    toast(msg, 'error');
+                } else if (event.message) {
+                    appendOtaLog(event.message);
+                }
+            }
+
+            function pump () {
+                return reader.read().then(function (chunk) {
+                    if (chunk.done) {
+                        if (buffer.trim()) { handleLine(buffer.trim()); }
+                        return;
+                    }
+                    buffer += decoder.decode(chunk.value, { stream: true });
+                    var parts = buffer.split('\n');
+                    buffer = parts.pop();
+                    parts.forEach(function (part) { handleLine(part.replace(/\r$/, '')); });
+                    return pump();
+                });
+            }
+
+            return pump();
+        }).catch(reportError).then(function () {
+            state.otaBusy = false;
+            return loadOta();
+        });
+    }
+
     /* --------------------------------------------------------------- wire */
 
     var loaders = {
@@ -745,6 +995,7 @@
         jukebox: loadJukebox,
         eye: loadEye,
         skills: loadSkills,
+        update: loadOta,
         server: loadServer
     };
 
@@ -775,6 +1026,8 @@
         'refresh-eye': refreshEye,
         'refresh-skills': loadSkills,
         'refresh-server': loadServer,
+        'refresh-ota': loadOta,
+        'check-ota': checkOta,
         'new-album': newAlbum,
         'install-skill': installSkill,
         'pick-eye': function () { $('#eye-file').click(); },

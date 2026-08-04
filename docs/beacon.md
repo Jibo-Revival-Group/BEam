@@ -19,6 +19,7 @@ way the Skills Service Manager on port 8779 is already open.
 | Jibo eye | Replace the eye texture with your own image, revert to the original |
 | Skills | Lists what Be loads and what is on disk; installing is a placeholder |
 | Server | Edit jetstream hub and OTA credentials endpoint |
+| Update | Check / download / apply `@be/be` via jibo OTA tools |
 
 ## How it starts
 
@@ -40,17 +41,22 @@ Be itself is never blocked by it. Set `BEACON_PORT` to use a different port.
 
 ## Jukebox
 
-BEacon writes into the same `music/` folder the jukebox skill scans, resolved with
-the candidate list from `@be/be/skills/jukebox/src/models/MusicLibrary.ts`:
+BEacon writes into the same `music/` folder the jukebox skill scans. Canonical
+store on the robot is under **Knowledge** so Skills / `@be/be` OTA cannot wipe
+albums:
 
 ```
-/opt/jibo/Jibo/Skills/@be/Skills/Jukebox/Music               (canonical on robot)
+/opt/jibo/Knowledge/jukebox/music                            (canonical on robot)
+/opt/jibo/Jibo/Skills/@be/Skills/Jukebox/Music               (legacy — migrated once)
 /opt/jibo/Jibo/Skills/@be/be/skills/jukebox/music            (pack-local)
 /opt/jibo/Jibo/Skills/@be/skills/jukebox/music               (pre-move legacy)
 /opt/jibo/Jibo/Skills/@be/be/node_modules/@be/jukebox/music  (legacy)
 /opt/tmp/jukebox-music
 <repo>/@be/be/skills/jukebox/music                           (development)
 ```
+
+If Knowledge is empty but a legacy path has albums, BEacon and Jukebox migrate
+that library into Knowledge once (rename, else copy).
 
 Album layout, cover names and accepted audio formats are unchanged: folders are
 albums, `Artist/Album/` nests one level, covers are `cover.png` / `cover.jpg` /
@@ -85,19 +91,20 @@ also left alone.
 
 The eye survives updates and is always revertible:
 
-- Your image is saved to `/opt/tmp/beacon/eye/custom.png`, outside the Skills tree
-  that `update-beam.sh` replaces. That directory must be writable by Be;
-  `update-beam.sh` and `post-mod.sh` create it with mode `777`. If eye uploads
-  fail with `EACCES`, fix it once on the robot:
+- Your image is saved to `/opt/jibo/Knowledge/beacon/eye/custom.png`, outside the
+  Skills tree that `update-beam.sh` replaces (same Knowledge root jibo-kb uses).
+  That directory must be writable by Be; `update-beam.sh` and `post-mod.sh`
+  create it with mode `777`. Older installs under `/opt/tmp/beacon` are migrated
+  once on boot. If eye uploads fail with `EACCES`, fix it once on the robot:
 
   ```sh
-  mkdir -p /opt/tmp/beacon
-  chmod 777 /opt/tmp /opt/tmp/beacon
+  mkdir -p /opt/jibo/Knowledge/beacon /opt/jibo/Knowledge/jukebox/music
+  chmod -R 777 /opt/jibo/Knowledge
   ```
 
-- `beacon.start()` ensures the data dir exists, then re-applies a saved custom
-  eye on boot when the textures no longer match, which heals the face after an
-  update restores the stock PNGs.
+- `beacon.start()` ensures the Knowledge data dirs exist, migrates legacy music
+  / eye if needed, then re-applies a saved custom eye on boot when the textures
+  no longer match, which heals the face after an update restores the stock PNGs.
 - **Revert** copies the pristine PNG from `@be/be/beacon/assets/eye-original/`
   back over all three paths.
 
@@ -118,7 +125,24 @@ then kills `jibo-jetstream-service` so it reloads. Presets: `api.openjibo.com:44
 **OTA credentials** edits only `endpoint` in `/var/jibo/credentials.json`.
 `accessKeyId` and `secretAccessKey` are never read into the UI and never
 accepted in the request body. If `region` is missing or not `"api"`, it is
-forced to `"api"`. Preset: `http://joap.5x1.com:80`.
+forced to `"api"`. Public preset: `http://oat.5x1.com:80`.
+
+## Update (OTA)
+
+The **Update** panel (and root [`update-beam.sh`](../update-beam.sh)) drives the
+same robot tools as a manual OTA for every Skills-root pack it finds
+(`@be/be`, `fin-goods-test`, `jibo-diagnostics`, `jibo-tbd`, …):
+
+1. `jibo-mount --rw`
+2. `jibo-get-update --credentials /var/jibo/credentials.json --subsystem <name> --version <installed> --filter fcs`
+3. On offer: `jibo-download-update` → `/opt/ota/<name>.tar` (verifies `shaHash`)
+4. `jibo-apply-update` → that pack’s Skills path
+
+If the service returns `UPDATE_NOT_FOUND` / “Update not found”, that pack is
+already current — shown as up to date, not as an error.
+
+Music and custom eyes under `/opt/jibo/Knowledge/` are not part of `@be/be`
+apply destinations, so they survive. After applying `@be/be`, Be restarts to finish.
 
 Robot-only actions refuse to run off-robot.
 
@@ -157,6 +181,9 @@ rather than failing.
 | POST | `/api/server` | `{hostname, port}` — write hub override + restart jetstream |
 | GET | `/api/credentials` | Credentials endpoint/region (keys never returned) |
 | POST | `/api/credentials` | `{endpoint}` only — preserve keys; force region `api` if needed |
+| GET | `/api/ota` | Discovered Skills-root packs, tool availability |
+| POST | `/api/ota/check` | `{subsystem?}` or all — offers / up-to-date / errors |
+| POST | `/api/ota/apply` | `{offer}` — NDJSON progress of download + apply |
 
 ## Layout
 
@@ -169,7 +196,8 @@ rather than failing.
   lib/jukebox.js          library operations
   lib/eye.js              apply, revert, self-heal
   lib/skills.js           skill inventory
-  lib/system.js           status, hub config, SSM, update runner
+  lib/system.js           status, hub config, credentials
+  lib/ota.js              jibo-get/download/apply-update
   assets/eye-original/    pristine copy of the stock eye
   public/                 the UI (no build step)
 ```

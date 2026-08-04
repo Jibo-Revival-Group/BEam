@@ -61,7 +61,7 @@ class JukeboxSkill extends BeSkill {
       self.status.showError(
         'Scan is taking too long (or hung).',
         'Check that music lives at:\n' +
-          '/opt/jibo/Jibo/Skills/@be/Skills/Jukebox/Music/\n\n' +
+          '/opt/jibo/Knowledge/jukebox/music/\n\n' +
           'Album folders go there (not under the skill pack music/ stub).'
       );
     }, 12000);

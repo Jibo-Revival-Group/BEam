@@ -21,6 +21,7 @@
         <button class="tab" data-panel="jukebox">Jukebox</button>
         <button class="tab" data-panel="eye">Jibo eye</button>
         <button class="tab" data-panel="skills">Skills</button>
+        <button class="tab" data-panel="update">Update</button>
         <button class="tab" data-panel="server">Server</button>
     </nav>
 </header>
@@ -101,6 +102,35 @@
     <div id="skills-list" class="skill-grid"></div>
 </section>
 
+<section class="panel" id="panel-update">
+    <div class="panel-head">
+        <h2>Update</h2>
+        <div class="panel-actions">
+            <button class="btn" data-action="refresh-ota">Refresh</button>
+            <button class="btn btn-primary" data-action="check-ota" id="ota-check-btn">Check all</button>
+        </div>
+    </div>
+    <p class="hint">
+        Auto-discovers Skills-root packs (<code>@be/be</code>, <code>fin-goods-test</code>,
+        <code>jibo-diagnostics</code>, <code>jibo-tbd</code>, …) and checks each against
+        the credentials endpoint (public: <code>http://oat.5x1.com:80</code>).
+        <code>UPDATE_NOT_FOUND</code> means that pack is already up to date.
+        Jukebox music and custom eyes under Knowledge stay put when applying
+        <code>@be/be</code>.
+    </p>
+    <div class="card">
+        <h3>Tools</h3>
+        <dl class="kv" id="ota-status"></dl>
+    </div>
+    <div id="ota-packages" class="skill-grid"></div>
+    <div class="card" id="ota-progress-card" hidden>
+        <h3>Progress</h3>
+        <p class="hint" id="ota-progress-message">Idle</p>
+        <div class="progress"><span id="ota-progress-bar" style="width:0%"></span></div>
+        <pre class="log" id="ota-log"></pre>
+    </div>
+</section>
+
 <section class="panel" id="panel-server">
     <div class="panel-head">
         <h2>Server</h2>
@@ -140,7 +170,7 @@
             <label class="form-grow">
                 Endpoint
                 <input type="text" id="credentials-endpoint" autocomplete="off" spellcheck="false"
-                    placeholder="http://joap.5x1.com:80">
+                    placeholder="http://oat.5x1.com:80">
             </label>
             <button class="btn btn-primary" data-action="save-credentials">Save endpoint</button>
         </div>

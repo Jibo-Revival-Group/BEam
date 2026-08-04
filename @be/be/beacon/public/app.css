@@ -331,11 +331,11 @@ dl.kv dd { margin: 0; word-break: break-all; font-family: ui-monospace, SFMono-R
 }
 
 .progress {
-    height: 3px;
+    height: 8px;
     background: var(--line-solid);
     border-radius: 999px;
     overflow: hidden;
-    margin: 0 14px 10px;
+    margin: 0 0 12px;
 }
 
 .progress > span {
@@ -344,6 +344,19 @@ dl.kv dd { margin: 0; word-break: break-all; font-family: ui-monospace, SFMono-R
     width: 0;
     background: var(--accent);
     transition: width 0.15s linear;
+}
+
+.log {
+    max-height: 220px;
+    overflow: auto;
+    margin: 0;
+    padding: 10px 12px;
+    border-radius: var(--radius);
+    background: rgba(0, 0, 0, 0.25);
+    color: var(--muted);
+    font-size: 12px;
+    white-space: pre-wrap;
+    word-break: break-word;
 }
 
 .empty {

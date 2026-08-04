@@ -14,6 +14,7 @@ const REPO_ROOT = path.resolve(BE_ROOT, '..', '..');
 const BEACON_ROOT = path.resolve(__dirname, '..');
 
 const ROBOT_SKILLS = '/opt/jibo/Jibo/Skills';
+const ROBOT_KNOWLEDGE = '/opt/jibo/Knowledge';
 
 function isDir (p) {
     try {
@@ -64,19 +65,19 @@ function skillsRoot () {
 }
 
 /**
- * Canonical user library path on the robot. Prefer this when it has albums;
- * otherwise fall back to legacy locations that still hold music.
+ * Canonical user library — under Knowledge so OTA of @be/be (and Skills
+ * tree swaps) cannot wipe albums. Legacy Skills paths stay as read fallbacks
+ * and are migrated once into Knowledge when found.
  */
 function musicDirCanonical () {
-    return ROBOT_SKILLS + '/@be/Skills/Jukebox/Music';
+    return path.join(ROBOT_KNOWLEDGE, 'jukebox', 'music');
 }
 
 function musicDirCandidates () {
     return [
         musicDirCanonical(),
-        // Pack-local library (skills now ship inside @be/be)
+        ROBOT_SKILLS + '/@be/Skills/Jukebox/Music',
         ROBOT_SKILLS + '/@be/be/skills/jukebox/music',
-        // Pre-move sibling layout
         ROBOT_SKILLS + '/@be/skills/jukebox/music',
         ROBOT_SKILLS + '/@be/jukebox/music',
         ROBOT_SKILLS + '/@be/be/node_modules/@be/jukebox/music',
@@ -135,12 +136,60 @@ function musicDirHasAlbums (dir) {
     return false;
 }
 
+function copyDirRecursive (src, dest) {
+    ensureDir(dest);
+    const entries = fs.readdirSync(src);
+    for (let i = 0; i < entries.length; i++) {
+        const name = entries[i];
+        const from = path.join(src, name);
+        const to = path.join(dest, name);
+        const st = fs.statSync(from);
+        if (st.isDirectory()) {
+            copyDirRecursive(from, to);
+        } else {
+            fs.writeFileSync(to, fs.readFileSync(from));
+        }
+    }
+}
+
+/**
+ * If Knowledge has no albums yet but a legacy Skills/tmp library does, move
+ * (or copy) it into Knowledge once so the next OTA cannot wipe it.
+ */
+function migrateMusicToKnowledge () {
+    if (!onRobot()) { return null; }
+    const dest = musicDirCanonical();
+    if (musicDirHasAlbums(dest)) { return null; }
+
+    const candidates = musicDirCandidates();
+    for (let i = 0; i < candidates.length; i++) {
+        const src = candidates[i];
+        if (!src || src === dest || !musicDirHasAlbums(src)) { continue; }
+        try {
+            ensureDir(path.dirname(dest));
+            if (isDir(dest)) {
+                try { fs.rmdirSync(dest); } catch (err) { /* may be non-empty stub */ }
+            }
+            try {
+                fs.renameSync(src, dest);
+            } catch (err) {
+                copyDirRecursive(src, dest);
+            }
+            console.log('[beacon] migrated jukebox music from', src, 'to', dest);
+            return dest;
+        } catch (err) {
+            console.warn('[beacon] music migrate failed from', src, ':', err && err.message);
+        }
+    }
+    return null;
+}
+
 /**
  * Resolve the live music library. Prefer a directory that actually contains
- * albums — never an empty Skills/Jukebox/Music we mkdir'd over a populated
- * legacy path.
+ * albums; empty libraries write to Knowledge.
  */
 function musicDir () {
+    migrateMusicToKnowledge();
     const candidates = musicDirCandidates();
     for (let i = 0; i < candidates.length; i++) {
         if (musicDirHasAlbums(candidates[i])) {
@@ -207,13 +256,18 @@ function pristineEye () {
 }
 
 /**
- * Writable state that must outlive an update: update-beam.sh moves the whole
- * Skills tree into old-BEer/, so nothing under BE_ROOT survives.
+ * Writable state that must outlive Skills / @be/be OTA updates. Lives under
+ * Knowledge (same root jibo-kb uses) instead of /opt/tmp or the Skills tree.
  */
 function dataDir () {
     return onRobot()
-        ? '/opt/tmp/beacon'
+        ? path.join(ROBOT_KNOWLEDGE, 'beacon')
         : path.join(os.tmpdir(), 'beam-beacon');
+}
+
+/** Pre-Knowledge BEacon data location — still checked for eye migration. */
+function dataDirLegacy () {
+    return '/opt/tmp/beacon';
 }
 
 function ensureDir (dir) {
@@ -249,6 +303,7 @@ module.exports = {
     REPO_ROOT: REPO_ROOT,
     BEACON_ROOT: BEACON_ROOT,
     ROBOT_SKILLS: ROBOT_SKILLS,
+    ROBOT_KNOWLEDGE: ROBOT_KNOWLEDGE,
     publicDir: path.join(BEACON_ROOT, 'public'),
     onRobot: onRobot,
     isDir: isDir,
@@ -260,10 +315,12 @@ module.exports = {
     musicDirCanonical: musicDirCanonical,
     musicDirCandidates: musicDirCandidates,
     musicDirHasAlbums: musicDirHasAlbums,
+    migrateMusicToKnowledge: migrateMusicToKnowledge,
     texturesDir: texturesDir,
     eyeTextures: eyeTextures,
     pristineEye: pristineEye,
     dataDir: dataDir,
+    dataDirLegacy: dataDirLegacy,
     updateScript: updateScript,
     jetstreamConfig: jetstreamConfig,
     credentialsPath: credentialsPath

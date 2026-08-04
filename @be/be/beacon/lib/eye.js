@@ -36,6 +36,10 @@ function eyeDir () {
     return path.join(paths.dataDir(), 'eye');
 }
 
+function eyeDirLegacy () {
+    return path.join(paths.dataDirLegacy(), 'eye');
+}
+
 function customPath () {
     return path.join(eyeDir(), 'custom.png');
 }
@@ -47,6 +51,32 @@ function statePath () {
 /** Copy of the stock texture taken before the first change, as a last resort. */
 function backupPath () {
     return path.join(eyeDir(), 'original-backup.png');
+}
+
+/**
+ * Move a prior /opt/tmp/beacon/eye library into Knowledge once so OTA cannot
+ * drop the custom eye with a Skills replacement.
+ */
+function migrateEyeFromLegacy () {
+    if (!paths.onRobot()) { return; }
+    const destCustom = customPath();
+    if (paths.isFile(destCustom)) { return; }
+    const legacyDir = eyeDirLegacy();
+    const legacyCustom = path.join(legacyDir, 'custom.png');
+    if (!paths.isFile(legacyCustom)) { return; }
+    try {
+        paths.ensureDir(eyeDir());
+        ['custom.png', 'state.json', 'original-backup.png'].forEach((name) => {
+            const from = path.join(legacyDir, name);
+            const to = path.join(eyeDir(), name);
+            if (paths.isFile(from) && !paths.isFile(to)) {
+                fs.writeFileSync(to, fs.readFileSync(from));
+            }
+        });
+        console.log('[beacon] migrated custom eye from', legacyDir, 'to', eyeDir());
+    } catch (err) {
+        console.warn('[beacon] eye migrate failed:', err && err.message);
+    }
 }
 
 function readState () {
@@ -351,6 +381,7 @@ function attachLive (current, disk, live) {
 }
 
 function state () {
+    migrateEyeFromLegacy();
     const saved = readState();
     const custom = paths.isFile(customPath());
     const customHash = custom ? sha1File(customPath()) : null;
@@ -403,6 +434,7 @@ function currentPath () {
 }
 
 function apply (buf, name) {
+    migrateEyeFromLegacy();
     const size = pngSize(buf);
     if (!size) {
         throw fail('That file is not a PNG. Upload a PNG or JPG through BEacon and ' +
@@ -455,6 +487,7 @@ function revert () {
  * live face so the user sees it without restarting Be.
  */
 function refresh () {
+    migrateEyeFromLegacy();
     let disk = null;
     if (paths.isFile(customPath())) {
         disk = writeTextures(fs.readFileSync(customPath()));
@@ -482,6 +515,7 @@ function refresh () {
  * Returns the source path when it re-applied, otherwise null.
  */
 function selfHeal () {
+    migrateEyeFromLegacy();
     const saved = readState();
     if (!saved || !saved.custom) { return null; }
     const custom = customPath();

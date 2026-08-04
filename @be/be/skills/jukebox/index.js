@@ -113,7 +113,7 @@ class JukeboxSkill extends be_framework_1.BeSkill {
                 return;
             }
             self.status.showError('Scan is taking too long (or hung).', 'Check that music lives at:\n' +
-                '/opt/jibo/Jibo/Skills/@be/Skills/Jukebox/Music/\n\n' +
+                '/opt/jibo/Knowledge/jukebox/music/\n\n' +
                 'Album folders go there (not under the skill pack music/ stub).');
         }, 12000);
         setTimeout(() => {
@@ -613,7 +613,7 @@ class MusicLibrary {
                     dir: null,
                     error: 'Could not resolve the music/ folder path.',
                     detail: 'assetPack=' + String(assetPack) +
-                        '\nExpected: /opt/jibo/Jibo/Skills/@be/Skills/Jukebox/Music'
+                        '\nExpected: /opt/jibo/Knowledge/jukebox/music'
                 };
             }
             if (!fs.existsSync(dir)) {
@@ -806,7 +806,7 @@ class MusicLibrary {
         }
         const fs = nodeRequire('fs');
         const path = nodeRequire('path');
-        const CANONICAL = '/opt/jibo/Jibo/Skills/@be/Skills/Jukebox/Music';
+        const CANONICAL = '/opt/jibo/Knowledge/jukebox/music';
         const ROBOT_SKILLS = '/opt/jibo/Jibo/Skills';
         let onRobot = false;
         try {
@@ -817,6 +817,7 @@ class MusicLibrary {
         }
         const candidates = [
             CANONICAL,
+            '/opt/jibo/Jibo/Skills/@be/Skills/Jukebox/Music',
             '/opt/jibo/Jibo/Skills/@be/be/skills/jukebox/music',
             '/opt/jibo/Jibo/Skills/@be/skills/jukebox/music',
             '/opt/jibo/Jibo/Skills/@be/jukebox/music',
@@ -833,6 +834,9 @@ class MusicLibrary {
             }
         }
         catch (e) { }
+        if (onRobot) {
+            MusicLibrary.migrateMusicToKnowledge(fs, path, CANONICAL, candidates);
+        }
         for (let i = 0; i < candidates.length; i++) {
             const c = candidates[i];
             if (!c) {
@@ -865,6 +869,56 @@ class MusicLibrary {
             catch (e) { }
         }
         return CANONICAL;
+    }
+    static migrateMusicToKnowledge(fs, path, dest, candidates) {
+        if (MusicLibrary.dirHasAlbums(fs, path, dest)) {
+            return;
+        }
+        for (let i = 0; i < candidates.length; i++) {
+            const src = candidates[i];
+            if (!src || src === dest || !MusicLibrary.dirHasAlbums(fs, path, src)) {
+                continue;
+            }
+            try {
+                MusicLibrary.ensureDir(fs, path, path.dirname(dest));
+                try {
+                    if (fs.existsSync(dest) && fs.statSync(dest).isDirectory()) {
+                        try {
+                            fs.rmdirSync(dest);
+                        }
+                        catch (e) { }
+                    }
+                }
+                catch (e) { }
+                try {
+                    fs.renameSync(src, dest);
+                }
+                catch (e) {
+                    MusicLibrary.copyDirRecursive(fs, path, src, dest);
+                }
+                console.log('[jukebox] migrated music from', src, 'to', dest);
+                return;
+            }
+            catch (err) {
+                console.warn('[jukebox] music migrate failed from', src, ':', err && err.message);
+            }
+        }
+    }
+    static copyDirRecursive(fs, path, src, dest) {
+        MusicLibrary.ensureDir(fs, path, dest);
+        const entries = fs.readdirSync(src);
+        for (let i = 0; i < entries.length; i++) {
+            const name = entries[i];
+            const from = path.join(src, name);
+            const to = path.join(dest, name);
+            const st = fs.statSync(from);
+            if (st.isDirectory()) {
+                MusicLibrary.copyDirRecursive(fs, path, from, to);
+            }
+            else {
+                fs.writeFileSync(to, fs.readFileSync(from));
+            }
+        }
     }
     static dirHasAlbums(fs, path, dir) {
         if (!dir) {

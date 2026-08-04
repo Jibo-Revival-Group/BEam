@@ -18,6 +18,7 @@ const jukebox = require('./lib/jukebox');
 const eye = require('./lib/eye');
 const skills = require('./lib/skills');
 const system = require('./lib/system');
+const ota = require('./lib/ota');
 
 const MAX_UPLOAD = 256 * 1024 * 1024;
 const MAX_IMAGE = 16 * 1024 * 1024;
@@ -151,6 +152,43 @@ const routes = {
     'POST /api/credentials': guard((req, res) => {
         return u.readJson(req).then((body) => {
             u.sendJson(res, 200, system.setCredentialsEndpoint(body));
+        });
+    }),
+
+    'GET /api/ota': guard((req, res) => {
+        u.sendJson(res, 200, ota.state());
+    }),
+
+    'POST /api/ota/check': guard((req, res) => {
+        return u.readJson(req).then((body) => {
+            u.sendJson(res, 200, ota.check(body || {}));
+        });
+    }),
+
+    'POST /api/ota/apply': guard((req, res) => {
+        return u.readJson(req).then((body) => {
+            const offer = (body && body.offer) || body;
+            res.writeHead(200, {
+                'Content-Type': 'application/x-ndjson',
+                'Cache-Control': 'no-cache',
+                'Access-Control-Allow-Origin': '*'
+            });
+            ota.apply(offer, (event) => {
+                try { res.write(JSON.stringify(event) + '\n'); } catch (err) { /* client gone */ }
+            }, (err, result) => {
+                try {
+                    if (err) {
+                        res.write(JSON.stringify({
+                            phase: 'error',
+                            error: u.errorMessage(err),
+                            detail: err.detail || null
+                        }) + '\n');
+                    } else {
+                        res.write(JSON.stringify({ phase: 'done', result: result }) + '\n');
+                    }
+                } catch (writeErr) { /* client gone */ }
+                try { res.end(); } catch (endErr) { /* already closed */ }
+            });
         });
     })
 };

@@ -28,8 +28,12 @@ const KNOWN_HUBS = [
 /** Preset OTA credential endpoints (host:port → http URL). */
 const KNOWN_UPDATE_ENDPOINTS = [
     {
+        endpoint: 'http://oat.5x1.com:80',
+        label: 'oat.5x1.com:80 (public BEam OTA)'
+    },
+    {
         endpoint: 'http://joap.5x1.com:80',
-        label: 'joap.5x1.com:80 (update server)'
+        label: 'joap.5x1.com:80'
     }
 ];
 

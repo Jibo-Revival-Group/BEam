@@ -2,13 +2,8 @@
 set -e
 clear
 
-JUKEBOX_MUSIC="/opt/jibo/Jibo/Skills/@be/Skills/Jukebox/Music"
-JUKEBOX_MUSIC_IN_BE="/opt/jibo/Jibo/Skills/@be/be/skills/jukebox/music"
-JUKEBOX_MUSIC_LOWER="/opt/jibo/Jibo/Skills/@be/skills/jukebox/music"
-JUKEBOX_MUSIC_LEGACY_NESTED="/opt/jibo/Jibo/Skills/@be/be/node_modules/@be/jukebox/music"
-JUKEBOX_MUSIC_LEGACY_SIBLING="/opt/jibo/Jibo/Skills/@be/jukebox/music"
-JUKEBOX_MUSIC_LEGACY_ROOT="/opt/jibo/Jibo/Skills/skills/jukebox/music"
-JUKEBOX_MUSIC_STASH="/opt/tmp/jukebox-music"
+JUKEBOX_MUSIC="/opt/jibo/Knowledge/jukebox/music"
+KNOWLEDGE_BEACON="/opt/jibo/Knowledge/beacon"
 CONFIG_FILE="/usr/local/etc/jibo-jetstream-service.json"
 HUB_HOST="api.5x1.com"
 HUB_PORT="80"
@@ -31,9 +26,27 @@ echo "Done."
 echo ""
 
 # ---------------------------------------------------------------------------
-echo "=== Step 3: Clear /opt/tmp ==="
+echo "=== Step 3: Persist user data, then clear /opt/tmp ==="
+# Custom eyes + music live under Knowledge (survives Skills OTA and tmp wipes).
+# Copy legacy /opt/tmp data into Knowledge before clearing tmp.
+mkdir -p /opt/jibo/Knowledge/jukebox/music /opt/jibo/Knowledge/beacon
+chmod 777 /opt/jibo/Knowledge /opt/jibo/Knowledge/jukebox \
+  /opt/jibo/Knowledge/jukebox/music /opt/jibo/Knowledge/beacon 2>/dev/null || true
+if [ -d /opt/tmp/beacon ] && [ ! -f /opt/jibo/Knowledge/beacon/eye/custom.png ]; then
+    echo "Migrating custom eye from /opt/tmp/beacon to Knowledge..."
+    mkdir -p /opt/jibo/Knowledge/beacon
+    cp -a /opt/tmp/beacon/. /opt/jibo/Knowledge/beacon/ 2>/dev/null || true
+fi
+if [ -d /opt/tmp/jukebox-music ] && \
+   ! find /opt/jibo/Knowledge/jukebox/music -maxdepth 3 -type f \( \
+       -iname '*.mp3' -o -iname '*.opus' -o -iname '*.ogg' -o -iname '*.oga' \
+     \) 2>/dev/null | head -n 1 | grep -q .
+then
+    echo "Migrating jukebox music from /opt/tmp/jukebox-music to Knowledge..."
+    rm -rf /opt/jibo/Knowledge/jukebox/music
+    mv /opt/tmp/jukebox-music /opt/jibo/Knowledge/jukebox/music
+fi
 rm -rf /opt/tmp/
-# Recreate so BEacon can persist custom eyes across Skills updates.
 mkdir -p /opt/tmp/beacon
 chmod 777 /opt/tmp /opt/tmp/beacon
 echo "Done."
@@ -50,9 +63,17 @@ curl -s -X POST http://localhost:8779/terminate \
   -H 'Content-Type: application/x-www-form-urlencoded' \
   --data-raw '{"command":"@be/be"}'
 
-# Stash jukebox library so the update does not wipe user music.
-# Prefer a directory that actually has audio — an empty Skills/Jukebox/Music
-# must not win over a populated legacy library.
+# Durable library under Knowledge — only stash Skills-tree leftovers.
+JUKEBOX_MUSIC="/opt/jibo/Knowledge/jukebox/music"
+KNOWLEDGE_BEACON="/opt/jibo/Knowledge/beacon"
+JUKEBOX_MUSIC_SKILLS="/opt/jibo/Jibo/Skills/@be/Skills/Jukebox/Music"
+JUKEBOX_MUSIC_IN_BE="/opt/jibo/Jibo/Skills/@be/be/skills/jukebox/music"
+JUKEBOX_MUSIC_LOWER="/opt/jibo/Jibo/Skills/@be/skills/jukebox/music"
+JUKEBOX_MUSIC_LEGACY_NESTED="/opt/jibo/Jibo/Skills/@be/be/node_modules/@be/jukebox/music"
+JUKEBOX_MUSIC_LEGACY_SIBLING="/opt/jibo/Jibo/Skills/@be/jukebox/music"
+JUKEBOX_MUSIC_LEGACY_ROOT="/opt/jibo/Jibo/Skills/skills/jukebox/music"
+JUKEBOX_MUSIC_STASH="/opt/tmp/jukebox-music"
+
 jukebox_has_audio() {
     dir="$1"
     [ -d "$dir" ] || return 1
@@ -62,27 +83,31 @@ jukebox_has_audio() {
 }
 
 JUKEBOX_STASH_FROM=""
-for candidate in \
-    "$JUKEBOX_MUSIC" \
-    "$JUKEBOX_MUSIC_IN_BE" \
-    "$JUKEBOX_MUSIC_LOWER" \
-    "$JUKEBOX_MUSIC_LEGACY_ROOT" \
-    "$JUKEBOX_MUSIC_LEGACY_SIBLING" \
-    "$JUKEBOX_MUSIC_LEGACY_NESTED"
-do
-    if jukebox_has_audio "$candidate"; then
-        JUKEBOX_STASH_FROM="$candidate"
-        break
-    fi
-done
-
-if [ -n "$JUKEBOX_STASH_FROM" ]; then
-    echo "Stashing jukebox music library from $JUKEBOX_STASH_FROM to $JUKEBOX_MUSIC_STASH..."
-    mkdir -p /opt/tmp
-    rm -rf "$JUKEBOX_MUSIC_STASH"
-    mv "$JUKEBOX_STASH_FROM" "$JUKEBOX_MUSIC_STASH"
+if jukebox_has_audio "$JUKEBOX_MUSIC"; then
+    echo "Jukebox music already in Knowledge ($JUKEBOX_MUSIC); leaving it alone."
 else
-    echo "No existing jukebox music library to stash."
+    for candidate in \
+        "$JUKEBOX_MUSIC_SKILLS" \
+        "$JUKEBOX_MUSIC_IN_BE" \
+        "$JUKEBOX_MUSIC_LOWER" \
+        "$JUKEBOX_MUSIC_LEGACY_ROOT" \
+        "$JUKEBOX_MUSIC_LEGACY_SIBLING" \
+        "$JUKEBOX_MUSIC_LEGACY_NESTED"
+    do
+        if jukebox_has_audio "$candidate"; then
+            JUKEBOX_STASH_FROM="$candidate"
+            break
+        fi
+    done
+
+    if [ -n "$JUKEBOX_STASH_FROM" ]; then
+        echo "Stashing jukebox music library from $JUKEBOX_STASH_FROM to $JUKEBOX_MUSIC_STASH..."
+        mkdir -p /opt/tmp
+        rm -rf "$JUKEBOX_MUSIC_STASH"
+        mv "$JUKEBOX_STASH_FROM" "$JUKEBOX_MUSIC_STASH"
+    else
+        echo "No existing jukebox music library to stash."
+    fi
 fi
 
 echo "Cleaning up old temporary files..."
@@ -134,11 +159,14 @@ for item in "$EXTRACT_DIR"/*; do
 done
 rm -rf "$EXTRACT_DIR" master.zip
 
-if [ -d "$JUKEBOX_MUSIC_STASH" ]; then
-    echo "Restoring jukebox music library..."
+if [ -d "$JUKEBOX_MUSIC_STASH" ] && ! jukebox_has_audio "$JUKEBOX_MUSIC"; then
+    echo "Restoring jukebox music library to $JUKEBOX_MUSIC..."
     mkdir -p "$(dirname "$JUKEBOX_MUSIC")"
     rm -rf "$JUKEBOX_MUSIC"
     mv "$JUKEBOX_MUSIC_STASH" "$JUKEBOX_MUSIC"
+elif jukebox_has_audio "$JUKEBOX_MUSIC"; then
+    echo "Jukebox music already in Knowledge; skipping restore."
+    rm -rf "$JUKEBOX_MUSIC_STASH" 2>/dev/null || true
 else
     echo "No stashed jukebox music library to restore."
 fi
@@ -148,7 +176,9 @@ chmod 777 -R /opt/jibo/Jibo/Skills/
 # Jetstream needs to be public
 chmod 777 /usr/local/etc/jibo-jetstream-service.json
 
-# BEacon stores custom eyes here so they survive Skills replacement; Be must be able to write.
+# Durable user data (music + custom eyes) under Knowledge
+mkdir -p "$JUKEBOX_MUSIC" "$KNOWLEDGE_BEACON"
+chmod 777 /opt/jibo/Knowledge /opt/jibo/Knowledge/jukebox "$JUKEBOX_MUSIC" "$KNOWLEDGE_BEACON" 2>/dev/null || true
 mkdir -p /opt/tmp/beacon
 chmod 777 /opt/tmp /opt/tmp/beacon
 
