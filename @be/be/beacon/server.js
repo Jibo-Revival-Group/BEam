@@ -138,12 +138,20 @@ const routes = {
         u.sendJson(res, 200, system.serverConfig());
     }),
 
-    'POST /api/beam/restart': guard((req, res) => {
-        return system.restartBe().then((result) => u.sendJson(res, 200, result));
+    'POST /api/server': guard((req, res) => {
+        return u.readJson(req).then((body) => {
+            u.sendJson(res, 200, system.setServer(body));
+        });
     }),
 
-    'POST /api/beam/update': guard((req, res) => {
-        system.streamUpdate(res);
+    'GET /api/credentials': guard((req, res) => {
+        u.sendJson(res, 200, system.credentialsState());
+    }),
+
+    'POST /api/credentials': guard((req, res) => {
+        return u.readJson(req).then((body) => {
+            u.sendJson(res, 200, system.setCredentialsEndpoint(body));
+        });
     })
 };
 

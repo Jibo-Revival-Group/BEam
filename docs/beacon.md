@@ -18,8 +18,7 @@ way the Skills Service Manager on port 8779 is already open.
 | Jukebox | Full library management: albums, uploads, covers, rename, delete |
 | Jibo eye | Replace the eye texture with your own image, revert to the original |
 | Skills | Lists what Be loads and what is on disk; installing is a placeholder |
-| Server | Shows the jetstream hub the robot uses; switching is a placeholder |
-| Update | Runs `update-beam.sh` and streams the output to the page |
+| Server | Edit jetstream hub and OTA credentials endpoint |
 
 ## How it starts
 
@@ -106,20 +105,22 @@ PIXI caches the default eye at boot, and animations keep stock White_Eye
 textures on KeysData. **Apply to face** (and upload / revert) rewrites the PNGs,
 reloads `Default_Eye.png`, hooks `EyeContainer.getTexture` so stock eye paths
 always use the live custom texture (so petting/idles cannot snap back), and
-updates matching PIXI `BaseTexture`s. Use **Restart Be** only if live reload
-fails.
+updates matching PIXI `BaseTexture`s. If live reload fails, relaunch Be from
+the robot (SSM / power cycle) so textures reload from disk.
 
-## Update and restart
+## Server (jetstream + credentials)
 
-**Update BEam now** runs `/opt/jibo/Jibo/Skills/update-beam.sh` and streams stdout
-to the log box. The script restarts Be at the end, which takes BEacon down with it;
-the page notices the dropped connection and polls until BEacon answers again.
+**Jetstream hub** writes `HubClient.override` in
+`/usr/local/etc/jibo-jetstream-service.json` (same fields as `point-at-server.sh`),
+then kills `jibo-jetstream-service` so it reloads. Presets: `api.openjibo.com:443`,
+`api.5x1.com:80`, or any custom host/port.
 
-**Restart Be only** posts `/terminate` then `/launch-dev` to the Skills Service
-Manager on `localhost:8779`, the same calls `update-beam.sh` makes.
+**OTA credentials** edits only `endpoint` in `/var/jibo/credentials.json`.
+`accessKeyId` and `secretAccessKey` are never read into the UI and never
+accepted in the request body. If `region` is missing or not `"api"`, it is
+forced to `"api"`. Preset: `http://joap.5x1.com:80`.
 
-Both refuse to run when `/opt/jibo/Jibo/Skills` is missing, so a development
-checkout cannot be wiped by accident.
+Robot-only actions refuse to run off-robot.
 
 ## Running it off the robot
 
@@ -152,9 +153,10 @@ rather than failing.
 | PUT | `/api/eye?name=` | Raw PNG body, applies the eye + live reload |
 | POST | `/api/eye/refresh` | Re-write saved eye + reload face textures |
 | POST | `/api/eye/revert` | Restore the stock eye + live reload |
-| GET | `/api/server` | Jetstream hub, read-only |
-| POST | `/api/beam/update` | Run `update-beam.sh`, streamed |
-| POST | `/api/beam/restart` | Restart Be through SSM |
+| GET | `/api/server` | Jetstream hub state + presets |
+| POST | `/api/server` | `{hostname, port}` — write hub override + restart jetstream |
+| GET | `/api/credentials` | Credentials endpoint/region (keys never returned) |
+| POST | `/api/credentials` | `{endpoint}` only — preserve keys; force region `api` if needed |
 
 ## Layout
 

@@ -168,7 +168,8 @@
                 ['Music', data.paths.musicDir + (data.paths.musicDirExists ? '' : '  (missing)')],
                 ['Eye textures', data.paths.texturesDir],
                 ['BEacon data', data.paths.dataDir],
-                ['Update script', data.paths.updateScript || 'not found']
+                ['Jetstream', data.paths.jetstreamConfig || '—'],
+                ['Credentials', data.paths.credentialsPath || '—']
             ];
             rows.forEach(function (row) {
                 dl.appendChild(el('dt', null, row[0]));
@@ -538,7 +539,7 @@
                 toast('New eye on the face (' + n + ' textures).', 'ok');
             } else {
                 toast('Eye saved to ' + n + ' texture' + (n === 1 ? '' : 's') +
-                    '. Tap Apply to face, or Restart Be if it still looks old.', 'ok');
+                    '. Tap Apply to face if it still looks old.', 'ok');
             }
             return loadEye();
         }).catch(reportError);
@@ -554,7 +555,7 @@
                 } else {
                     toast('Textures rewritten (' + n + '). Live reload failed' +
                         (data.liveReason ? ': ' + data.liveReason : '') +
-                        ' — use Restart Be.', 'error');
+                        '.', 'error');
                 }
                 return loadEye();
             })
@@ -633,91 +634,106 @@
 
     /* ------------------------------------------------------------- server */
 
+    function fillKv (dl, rows) {
+        dl.innerHTML = '';
+        rows.forEach(function (row) {
+            dl.appendChild(el('dt', null, row[0]));
+            dl.appendChild(el('dd', null, row[1]));
+        });
+    }
+
     function loadServer () {
-        return api('GET', '/api/server').then(function (data) {
-            var dl = $('#server-current');
-            dl.innerHTML = '';
+        return Promise.all([
+            api('GET', '/api/server'),
+            api('GET', '/api/credentials')
+        ]).then(function (both) {
+            var data = both[0];
+            var creds = both[1];
+
+            $('#server-note').textContent = data.note || '';
             var rows = [['Config', data.configPath]];
             if (data.current) {
                 rows.push(['Hub', (data.current.hostname || '—') + ':' + (data.current.port || '—')]);
                 rows.push(['Entrypoint', data.current.entrypoint || '—']);
             }
             if (data.error) { rows.push(['Status', data.error]); }
-            rows.forEach(function (row) {
-                dl.appendChild(el('dt', null, row[0]));
-                dl.appendChild(el('dd', null, row[1]));
-            });
+            fillKv($('#server-current'), rows);
 
-            $('#server-note').textContent = data.note;
+            if (data.current) {
+                $('#server-host').value = data.current.hostname || '';
+                $('#server-port').value = data.current.port != null ? data.current.port : '';
+            }
+
             var options = $('#server-options');
             options.innerHTML = '';
-            data.options.forEach(function (option) {
-                var current = data.current && data.current.hostname === option.hostname;
+            (data.options || []).forEach(function (option) {
+                var current = data.current && data.current.hostname === option.hostname &&
+                    Number(data.current.port) === Number(option.port);
                 var row = el('div', 'option' + (current ? ' is-current' : ''));
-                row.appendChild(el('strong', null, option.hostname));
+                row.appendChild(el('strong', null, option.hostname + ':' + option.port));
                 row.appendChild(el('span', 'hint', option.label));
                 if (current) { row.appendChild(el('span', 'chip is-role', 'in use')); }
+                row.addEventListener('click', function () {
+                    $('#server-host').value = option.hostname;
+                    $('#server-port').value = option.port;
+                });
                 options.appendChild(row);
             });
+
+            var credRows = [['File', creds.path]];
+            if (creds.endpoint) { credRows.push(['Endpoint', creds.endpoint]); }
+            if (creds.region) { credRows.push(['Region', creds.region]); }
+            credRows.push(['Keys on disk', creds.hasKeys ? 'present (not shown)' : 'missing']);
+            if (creds.error) { credRows.push(['Status', creds.error]); }
+            fillKv($('#credentials-current'), credRows);
+
+            if (creds.endpoint) {
+                $('#credentials-endpoint').value = creds.endpoint;
+            }
+
+            var credOpts = $('#credentials-options');
+            credOpts.innerHTML = '';
+            (creds.options || []).forEach(function (option) {
+                var current = creds.endpoint === option.endpoint;
+                var row = el('div', 'option' + (current ? ' is-current' : ''));
+                row.appendChild(el('strong', null, option.endpoint));
+                row.appendChild(el('span', 'hint', option.label));
+                if (current) { row.appendChild(el('span', 'chip is-role', 'in use')); }
+                row.addEventListener('click', function () {
+                    $('#credentials-endpoint').value = option.endpoint;
+                });
+                credOpts.appendChild(row);
+            });
+
             return data;
         });
     }
 
-    /* ------------------------------------------------------------- update */
-
-    function appendLog (text) {
-        var log = $('#update-log');
-        log.textContent = text;
-        log.scrollTop = log.scrollHeight;
+    function saveServer () {
+        var hostname = $('#server-host').value.trim();
+        var port = Number($('#server-port').value);
+        if (!hostname) {
+            toast('Enter a hub hostname', 'error');
+            return;
+        }
+        api('POST', '/api/server', { hostname: hostname, port: port })
+            .then(function (data) {
+                toast(data.note || 'Hub saved', 'ok');
+                return loadServer();
+            })
+            .catch(reportError);
     }
 
-    function runUpdate () {
-        if (!confirm('Update BEam now? Jibo will restart and your jukebox music is kept.')) { return; }
-        var button = $('[data-action="run-update"]');
-        button.disabled = true;
-        appendLog('Starting update…\n');
-
-        var xhr = new XMLHttpRequest();
-        xhr.open('POST', '/api/beam/update');
-        xhr.onprogress = function () { appendLog(xhr.responseText); };
-        xhr.onload = function () {
-            appendLog(xhr.responseText + '\n');
-            button.disabled = false;
-            waitForBeacon();
-        };
-        xhr.onerror = function () {
-            appendLog(xhr.responseText + '\n\nConnection closed — Be is probably restarting.\n');
-            button.disabled = false;
-            waitForBeacon();
-        };
-        xhr.send();
-    }
-
-    function waitForBeacon () {
-        setLive(false);
-        var attempts = 0;
-        var timer = setInterval(function () {
-            attempts++;
-            api('GET', '/api/status').then(function () {
-                clearInterval(timer);
-                setLive(true);
-                toast('BEacon is back', 'ok');
-                refreshPanel(state.panel);
-            }).catch(function () {
-                if (attempts > 60) {
-                    clearInterval(timer);
-                    toast('BEacon did not come back — reload the page once Jibo is up', 'error');
-                }
-            });
-        }, 3000);
-    }
-
-    function restartBe () {
-        if (!confirm('Restart Be? The face will go dark for a few seconds.')) { return; }
-        api('POST', '/api/beam/restart')
-            .then(function () {
-                toast('Restarting Be…', 'ok');
-                waitForBeacon();
+    function saveCredentials () {
+        var endpoint = $('#credentials-endpoint').value.trim();
+        if (!endpoint) {
+            toast('Enter an endpoint', 'error');
+            return;
+        }
+        api('POST', '/api/credentials', { endpoint: endpoint })
+            .then(function (data) {
+                toast(data.note || 'Endpoint saved', 'ok');
+                return loadServer();
             })
             .catch(reportError);
     }
@@ -729,8 +745,7 @@
         jukebox: loadJukebox,
         eye: loadEye,
         skills: loadSkills,
-        server: loadServer,
-        update: function () { return Promise.resolve(); }
+        server: loadServer
     };
 
     function refreshPanel (name) {
@@ -740,6 +755,7 @@
     }
 
     function showPanel (name) {
+        if (!loaders[name]) { name = 'status'; }
         state.panel = name;
         var tabs = document.querySelectorAll('.tab');
         for (var i = 0; i < tabs.length; i++) {
@@ -769,14 +785,14 @@
                     if (data.live) {
                         toast('Original eye restored on the face.', 'ok');
                     } else {
-                        toast('Original eye restored on disk. Tap Apply to face or Restart Be.', 'ok');
+                        toast('Original eye restored on disk. Tap Apply to face if needed.', 'ok');
                     }
                     return loadEye();
                 })
                 .catch(reportError);
         },
-        'restart-be': restartBe,
-        'run-update': runUpdate
+        'save-server': saveServer,
+        'save-credentials': saveCredentials
     };
 
     document.addEventListener('click', function (event) {

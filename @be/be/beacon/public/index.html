@@ -22,7 +22,6 @@
         <button class="tab" data-panel="eye">Jibo eye</button>
         <button class="tab" data-panel="skills">Skills</button>
         <button class="tab" data-panel="server">Server</button>
-        <button class="tab" data-panel="update">Update</button>
     </nav>
 </header>
 
@@ -82,7 +81,6 @@
     </div>
     <div class="eye-controls">
         <button class="btn btn-danger" data-action="revert-eye">Revert to original eye</button>
-        <button class="btn" data-action="restart-be">Restart Be</button>
     </div>
     <div class="card">
         <h3>Textures</h3>
@@ -106,34 +104,47 @@
 <section class="panel" id="panel-server">
     <div class="panel-head">
         <h2>Server</h2>
-        <button class="btn" data-action="refresh-server">Refresh</button>
+        <div class="panel-actions">
+            <button class="btn" data-action="refresh-server">Refresh</button>
+        </div>
     </div>
-    <div class="card">
-        <h3>Current hub</h3>
-        <dl class="kv" id="server-current"></dl>
-    </div>
-    <div class="card">
-        <h3>Available servers</h3>
-        <p class="hint" id="server-note"></p>
-        <div id="server-options" class="options"></div>
-        <button class="btn btn-primary" disabled>Switch server (coming soon)</button>
-    </div>
-</section>
 
-<section class="panel" id="panel-update">
-    <div class="panel-head">
-        <h2>Update BEam</h2>
+    <div class="card">
+        <h3>Jetstream hub</h3>
+        <p class="hint" id="server-note"></p>
+        <dl class="kv" id="server-current"></dl>
+        <div id="server-options" class="options"></div>
+        <div class="form-row">
+            <label>
+                Host
+                <input type="text" id="server-host" autocomplete="off" spellcheck="false" placeholder="api.5x1.com">
+            </label>
+            <label>
+                Port
+                <input type="number" id="server-port" autocomplete="off" min="1" max="65535" placeholder="80">
+            </label>
+            <button class="btn btn-primary" data-action="save-server">Save hub</button>
+        </div>
     </div>
-    <p class="hint">
-        Runs <code>update-beam.sh</code> on the robot: it stashes your jukebox music,
-        downloads the latest BEam, and restarts Be. BEacon goes down with Be near the
-        end and comes back on its own.
-    </p>
-    <div class="panel-actions">
-        <button class="btn btn-primary" data-action="run-update">Update BEam now</button>
-        <button class="btn" data-action="restart-be">Restart Be only</button>
+
+    <div class="card">
+        <h3>OTA credentials endpoint</h3>
+        <p class="hint">
+            Edits only <code>endpoint</code> in <code>/var/jibo/credentials.json</code>.
+            Access keys are never shown or changed. Region is forced to <code>api</code>
+            if it is anything else.
+        </p>
+        <dl class="kv" id="credentials-current"></dl>
+        <div id="credentials-options" class="options"></div>
+        <div class="form-row">
+            <label class="form-grow">
+                Endpoint
+                <input type="text" id="credentials-endpoint" autocomplete="off" spellcheck="false"
+                    placeholder="http://joap.5x1.com:80">
+            </label>
+            <button class="btn btn-primary" data-action="save-credentials">Save endpoint</button>
+        </div>
     </div>
-    <pre class="log" id="update-log">Nothing has run yet.</pre>
 </section>
 
 </main>

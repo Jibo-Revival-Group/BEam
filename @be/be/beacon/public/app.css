@@ -457,9 +457,45 @@ dl.kv dd { margin: 0; word-break: break-all; font-family: ui-monospace, SFMono-R
     border-radius: 10px;
     padding: 10px 12px;
     font-size: 13px;
+    cursor: pointer;
 }
 
+.option:hover { border-color: var(--accent); }
 .option.is-current { border-color: var(--accent); background: var(--accent-dim); }
+
+.form-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: flex-end;
+    margin-top: 12px;
+}
+
+.form-row label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 12px;
+    color: var(--muted);
+    min-width: 140px;
+}
+
+.form-row label.form-grow { flex: 1 1 220px; }
+
+.form-row input {
+    background: #0d1117;
+    border: 1px solid var(--line-solid);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 8px 10px;
+    font: inherit;
+    min-width: 0;
+}
+
+.form-row input:focus {
+    outline: 1px solid var(--accent);
+    border-color: var(--accent);
+}
 
 /* -------------------------------------------------------------------- log */
 

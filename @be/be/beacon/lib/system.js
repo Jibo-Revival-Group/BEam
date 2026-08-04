@@ -1,24 +1,17 @@
 'use strict';
 
 /**
- * Host-level actions: overall status, the jetstream hub the robot talks to,
- * restarting Be through the Skills Service Manager, and running update-beam.sh
- * with its output streamed to the browser.
+ * Host-level actions: overall status, jetstream hub, and OTA credentials endpoint.
  */
 
 const fs = require('fs');
-const http = require('http');
 const os = require('os');
-const spawn = require('child_process').spawn;
+const spawnSync = require('child_process').spawnSync;
 
 const paths = require('./paths');
 const eye = require('./eye');
 
-const SSM_HOST = '127.0.0.1';
-const SSM_PORT = 8779;
-const BE_COMMAND = '@be/be';
-
-/** Servers point-at-server.sh offers; the picker itself is not wired up yet. */
+/** Preset jetstream hubs offered in the Server panel. */
 const KNOWN_HUBS = [
     {
         hostname: 'api.openjibo.com',
@@ -32,7 +25,13 @@ const KNOWN_HUBS = [
     }
 ];
 
-let updateRunning = false;
+/** Preset OTA credential endpoints (host:port → http URL). */
+const KNOWN_UPDATE_ENDPOINTS = [
+    {
+        endpoint: 'http://joap.5x1.com:80',
+        label: 'joap.5x1.com:80 (update server)'
+    }
+];
 
 function fail (message, status) {
     const err = new Error(message);
@@ -51,6 +50,18 @@ function lanAddresses () {
         });
     });
     return found;
+}
+
+function remountRw () {
+    if (!paths.onRobot()) { return; }
+    try {
+        const result = spawnSync('jibo-mount', ['--rw'], { encoding: 'utf8' });
+        if (result.status !== 0 && result.error) {
+            console.warn('[beacon] jibo-mount --rw:', result.error.message);
+        }
+    } catch (err) {
+        console.warn('[beacon] jibo-mount --rw failed:', err && err.message);
+    }
 }
 
 function status () {
@@ -86,11 +97,10 @@ function status () {
             musicDirExists: paths.isDir(paths.musicDir()),
             texturesDir: paths.texturesDir(),
             dataDir: paths.dataDir(),
-            updateScript: paths.updateScript()
+            jetstreamConfig: paths.jetstreamConfig(),
+            credentialsPath: paths.credentialsPath()
         },
-        eye: eyeState,
-        canUpdate: !!paths.updateScript() && paths.onRobot(),
-        canRestart: paths.onRobot()
+        eye: eyeState
     };
 }
 
@@ -101,9 +111,11 @@ function serverConfig () {
         available: paths.isFile(file),
         current: null,
         options: KNOWN_HUBS,
-        editable: false,
-        note: 'Changing the server from BEacon is not implemented yet. ' +
-            'Run point-at-server.sh over SSH to switch hubs.'
+        editable: paths.onRobot() && paths.isFile(file),
+        note: paths.onRobot()
+            ? 'Pick a hub or enter a custom host and port. Saving remounts RW, ' +
+              'writes the jetstream config, and restarts the jetstream service.'
+            : 'Jetstream editing only works on the robot.'
     };
 
     if (!result.available) {
@@ -123,122 +135,223 @@ function serverConfig () {
         };
     } catch (err) {
         result.error = 'Could not read ' + file + ': ' + err.message;
+        result.editable = false;
     }
     return result;
 }
 
-function ssmPost (endpoint) {
-    return new Promise((resolve, reject) => {
-        const body = JSON.stringify({ command: BE_COMMAND });
-        const req = http.request({
-            host: SSM_HOST,
-            port: SSM_PORT,
-            method: 'POST',
-            path: endpoint,
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'Content-Length': Buffer.byteLength(body)
-            }
-        }, (res) => {
-            let text = '';
-            res.setEncoding('utf8');
-            res.on('data', (chunk) => { text += chunk; });
-            res.on('end', () => resolve({ endpoint: endpoint, status: res.statusCode, body: text }));
+function restartJetstream () {
+    try {
+        const listed = spawnSync('pgrep', ['-f', 'jibo-jetstream-service'], { encoding: 'utf8' });
+        const pids = String(listed.stdout || '')
+            .split(/\s+/)
+            .map((s) => s.trim())
+            .filter(Boolean);
+        pids.forEach((pid) => {
+            try { process.kill(Number(pid), 'SIGKILL'); } catch (err) { /* already gone */ }
         });
-        req.on('error', (err) => {
-            reject(fail('Skills Service Manager (' + SSM_HOST + ':' + SSM_PORT + ') is not ' +
-                'reachable: ' + err.message, 503));
-        });
-        req.setTimeout(10000, () => req.destroy(new Error('timed out')));
-        req.end(body);
-    });
+        return { killed: pids.length };
+    } catch (err) {
+        return { killed: 0, error: err.message };
+    }
 }
 
 /**
- * Terminate and relaunch Be. This also restarts BEacon, so the browser will
- * lose the connection a moment after the response.
+ * Write HubClient.override and restart jetstream (same effect as point-at-server.sh).
+ * body: { hostname, port }
  */
-function restartBe () {
+function setServer (body) {
     if (!paths.onRobot()) {
-        return Promise.reject(fail('Restarting Be only works on the robot.', 503));
+        throw fail('Changing the jetstream hub only works on the robot.', 503);
     }
-    return ssmPost('/terminate')
-        .then((terminated) => new Promise((resolve) => {
-            setTimeout(() => resolve(terminated), 2000);
-        }))
-        .then((terminated) => ssmPost('/launch-dev').then((launched) => ({
-            ok: true,
-            terminate: terminated,
-            launch: launched,
-            note: 'Be is restarting. BEacon will come back with it in a few seconds.'
-        })));
+    const hostname = body && String(body.hostname || '').trim();
+    const port = Number(body && body.port);
+    if (!hostname) {
+        throw fail('hostname is required', 400);
+    }
+    if (!port || port < 1 || port > 65535 || port !== Math.floor(port)) {
+        throw fail('port must be an integer between 1 and 65535', 400);
+    }
+
+    const file = paths.jetstreamConfig();
+    if (!paths.isFile(file)) {
+        throw fail('Jetstream config not found at ' + file, 404);
+    }
+
+    remountRw();
+
+    let data;
+    try {
+        data = JSON.parse(fs.readFileSync(file, 'utf8'));
+    } catch (err) {
+        throw fail('Could not read ' + file + ': ' + err.message, 500);
+    }
+
+    if (!data.HubClient || typeof data.HubClient !== 'object') {
+        data.HubClient = {};
+    }
+    data.HubClient.override = {
+        hub_port: port,
+        hub_hostname: hostname,
+        entrypoint_hostname: hostname
+    };
+
+    try {
+        fs.writeFileSync(file, JSON.stringify(data, null, 4) + '\n');
+        try { fs.chmodSync(file, 0o777); } catch (chmodErr) { /* best-effort */ }
+    } catch (err) {
+        throw fail('Could not write ' + file + ': ' + err.message, 500);
+    }
+
+    const restart = restartJetstream();
+    return {
+        ok: true,
+        current: {
+            hostname: hostname,
+            port: port,
+            entrypoint: hostname
+        },
+        jetstreamRestart: restart,
+        note: 'Jetstream hub set to ' + hostname + ':' + port +
+            (restart.killed ? ' (service restarted).' : ' (could not find jetstream process to kill).')
+    };
 }
 
-/**
- * Run update-beam.sh, streaming its output as it arrives. The script restarts
- * Be at the end, which kills this process mid-stream — the UI treats a dropped
- * connection as "update finished, waiting for BEacon to come back".
- */
-function streamUpdate (res) {
-    const script = paths.updateScript();
+function credentialsState () {
+    const file = paths.credentialsPath();
+    const result = {
+        path: file,
+        available: paths.isFile(file),
+        editable: false,
+        endpoint: null,
+        region: null,
+        hasKeys: false,
+        options: KNOWN_UPDATE_ENDPOINTS,
+        note: 'Only the endpoint is editable. accessKeyId, secretAccessKey, and ' +
+            'region (unless it is not "api") are never changed from BEacon.'
+    };
 
-    if (!paths.onRobot()) {
-        res.writeHead(503, { 'Content-Type': 'text/plain; charset=utf-8' });
-        res.end('Updating only works on the robot: /opt/jibo/Jibo/Skills was not found.\n' +
-            'update-beam.sh replaces the whole Skills tree, so BEacon will not run it here.\n');
-        return;
-    }
-    if (!script) {
-        res.writeHead(503, { 'Content-Type': 'text/plain; charset=utf-8' });
-        res.end('update-beam.sh not found at ' + paths.ROBOT_SKILLS + '/update-beam.sh\n');
-        return;
-    }
-    if (updateRunning) {
-        res.writeHead(409, { 'Content-Type': 'text/plain; charset=utf-8' });
-        res.end('An update is already running.\n');
-        return;
+    if (!result.available) {
+        result.error = paths.onRobot()
+            ? 'Credentials file not found at ' + file
+            : 'Not running on a robot — /var/jibo/credentials.json is unavailable.';
+        return result;
     }
 
-    updateRunning = true;
-    res.writeHead(200, {
-        'Content-Type': 'text/plain; charset=utf-8',
-        'Cache-Control': 'no-store',
-        'X-Content-Type-Options': 'nosniff'
-    });
-    res.write('Running ' + script + '\n\n');
-
-    const child = spawn('sh', [script], {
-        cwd: paths.ROBOT_SKILLS,
-        env: process.env
-    });
-
-    child.stdout.on('data', (chunk) => res.write(chunk));
-    child.stderr.on('data', (chunk) => res.write(chunk));
-
-    child.on('error', (err) => {
-        updateRunning = false;
-        res.end('\nCould not run the update script: ' + err.message + '\n');
-    });
-
-    child.on('close', (code) => {
-        updateRunning = false;
-        res.end('\n--- update-beam.sh exited with code ' + code + ' ---\n');
-    });
-
-    res.on('close', () => {
-        if (updateRunning) {
-            // The browser went away (or Be restarted); let the script finish.
-            child.stdout.removeAllListeners('data');
-            child.stderr.removeAllListeners('data');
+    try {
+        const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+        result.endpoint = data.endpoint || null;
+        result.region = data.region || null;
+        result.hasKeys = !!(data.accessKeyId && data.secretAccessKey);
+        result.editable = paths.onRobot() && result.hasKeys;
+        if (!result.hasKeys) {
+            result.error = 'Credentials file is missing accessKeyId or secretAccessKey; ' +
+                'BEacon will not invent or overwrite keys.';
+            result.editable = false;
         }
-    });
+    } catch (err) {
+        result.error = 'Could not read ' + file + ': ' + err.message;
+    }
+    return result;
+}
+
+/**
+ * Normalize user input like "joap.5x1.com:80" or "http://host:80" into an http URL.
+ * Never accepts/changes API keys.
+ */
+function normalizeEndpoint (input) {
+    let raw = String(input || '').trim();
+    if (!raw) {
+        throw fail('endpoint is required', 400);
+    }
+    if (raw.indexOf('://') === -1) {
+        raw = 'http://' + raw;
+    }
+    // Electron/Node 6 has no URL global in all builds — parse lightly.
+    const match = /^https?:\/\/([^\/\s]+)(\/.*)?$/i.exec(raw);
+    if (!match) {
+        throw fail('endpoint must look like http://host:port', 400);
+    }
+    const hostPort = match[1];
+    if (!hostPort || hostPort.indexOf('.') === -1 && hostPort.indexOf(':') === -1) {
+        throw fail('endpoint host looks invalid', 400);
+    }
+    // Keep path if present, default none; always http for the community updater.
+    const pathPart = match[2] && match[2] !== '/' ? match[2] : '';
+    const protocol = raw.toLowerCase().indexOf('https://') === 0 ? 'https' : 'http';
+    return protocol + '://' + hostPort + pathPart;
+}
+
+/**
+ * Update only credentials.endpoint. Preserve accessKeyId and secretAccessKey
+ * byte-for-byte from disk. Force region to "api" when it is missing or wrong.
+ * Rejects any attempt to supply keys in the request body.
+ */
+function setCredentialsEndpoint (body) {
+    if (body && (body.accessKeyId != null || body.secretAccessKey != null || body.region != null)) {
+        throw fail(
+            'BEacon refuses to accept accessKeyId, secretAccessKey, or region in the request. ' +
+            'Only endpoint may be set (region is forced to "api" if needed).',
+            400
+        );
+    }
+    if (!paths.onRobot()) {
+        throw fail('Editing credentials only works on the robot.', 503);
+    }
+
+    const endpoint = normalizeEndpoint(body && body.endpoint);
+    const file = paths.credentialsPath();
+    if (!paths.isFile(file)) {
+        throw fail('Credentials file not found at ' + file, 404);
+    }
+
+    remountRw();
+
+    let data;
+    try {
+        data = JSON.parse(fs.readFileSync(file, 'utf8'));
+    } catch (err) {
+        throw fail('Could not read ' + file + ': ' + err.message, 500);
+    }
+
+    if (!data.accessKeyId || !data.secretAccessKey) {
+        throw fail('Credentials file is missing keys; refusing to write.', 500);
+    }
+
+    // Rebuild object so keys/region/endpoint are explicit; values for keys
+    // come only from the file we just read.
+    const next = {
+        secretAccessKey: data.secretAccessKey,
+        region: data.region === 'api' ? data.region : 'api',
+        endpoint: endpoint,
+        accessKeyId: data.accessKeyId
+    };
+    const regionFixed = data.region !== 'api';
+
+    try {
+        fs.writeFileSync(file, JSON.stringify(next) + '\n');
+    } catch (err) {
+        throw fail('Could not write ' + file + ': ' + err.message, 500);
+    }
+
+    return {
+        ok: true,
+        path: file,
+        endpoint: next.endpoint,
+        region: next.region,
+        regionForcedToApi: regionFixed,
+        note: 'endpoint set to ' + next.endpoint +
+            (regionFixed ? ' (region forced to "api")' : '')
+    };
 }
 
 module.exports = {
     status: status,
     serverConfig: serverConfig,
-    restartBe: restartBe,
-    streamUpdate: streamUpdate,
+    setServer: setServer,
+    credentialsState: credentialsState,
+    setCredentialsEndpoint: setCredentialsEndpoint,
     lanAddresses: lanAddresses,
-    KNOWN_HUBS: KNOWN_HUBS
+    KNOWN_HUBS: KNOWN_HUBS,
+    KNOWN_UPDATE_ENDPOINTS: KNOWN_UPDATE_ENDPOINTS
 };

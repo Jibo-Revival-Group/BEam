@@ -239,6 +239,11 @@ function jetstreamConfig () {
     return '/usr/local/etc/jibo-jetstream-service.json';
 }
 
+/** OTA / update-service credentials (keys must never be rewritten by BEacon). */
+function credentialsPath () {
+    return '/var/jibo/credentials.json';
+}
+
 module.exports = {
     BE_ROOT: BE_ROOT,
     REPO_ROOT: REPO_ROOT,
@@ -260,5 +265,6 @@ module.exports = {
     pristineEye: pristineEye,
     dataDir: dataDir,
     updateScript: updateScript,
-    jetstreamConfig: jetstreamConfig
+    jetstreamConfig: jetstreamConfig,
+    credentialsPath: credentialsPath
 };
