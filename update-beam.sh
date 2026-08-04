@@ -3,7 +3,7 @@ set -e
 clear
 
 # OTA update for Skills-root packs via jibo-*-update tools.
-# Catalog = credentials.endpoint (public: http://oat.5x1.com:80).
+# Catalog = credentials.endpoint (public: http://joap.5x1.com:80).
 # Usage:
 #   ./update-beam.sh                  # check+apply every Skills-root pack with an offer
 #   ./update-beam.sh @be/be           # one subsystem

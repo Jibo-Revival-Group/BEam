@@ -125,7 +125,7 @@ then kills `jibo-jetstream-service` so it reloads. Presets: `api.openjibo.com:44
 **OTA credentials** edits only `endpoint` in `/var/jibo/credentials.json`.
 `accessKeyId` and `secretAccessKey` are never read into the UI and never
 accepted in the request body. If `region` is missing or not `"api"`, it is
-forced to `"api"`. Public preset: `http://oat.5x1.com:80`.
+forced to `"api"`. Public preset: `http://joap.5x1.com:80`.
 
 ## Update (OTA)
 

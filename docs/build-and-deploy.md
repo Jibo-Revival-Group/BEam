@@ -119,7 +119,7 @@ for Skills-root packs (same sequence as BEacon → Update):
 4. `UPDATE_NOT_FOUND` → pack reported up to date (exit 0 for that pack)
 
 The catalog host comes from `/var/jibo/credentials.json` → `endpoint`
-(public: `http://oat.5x1.com:80`). User music and custom eyes under
+(public: `http://joap.5x1.com:80`). User music and custom eyes under
 `/opt/jibo/Knowledge/` are outside apply destinations and are left alone.
 
 For a **fresh** Skills tree install (not an in-place update), use
