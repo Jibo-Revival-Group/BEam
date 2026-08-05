@@ -393,6 +393,13 @@ function spawnLines (cmd, args, onLine, done) {
     let stderr = '';
     let bufOut = '';
     let bufErr = '';
+    let settled = false;
+
+    function settle (err, result) {
+        if (settled) { return; }
+        settled = true;
+        done(err, result);
+    }
 
     function flush (chunk, which) {
         const text = String(chunk || '');
@@ -413,15 +420,18 @@ function spawnLines (cmd, args, onLine, done) {
     child.stdout.on('data', (chunk) => flush(chunk, 'out'));
     child.stderr.on('data', (chunk) => flush(chunk, 'err'));
     child.on('error', (err) => {
-        done(fail(cmd + ' failed', 500, err.message));
+        settle(fail(cmd + ' failed', 500, err.message));
     });
     child.on('close', (code) => {
         if (bufOut.trim()) { onLine(bufOut.replace(/\r$/, ''), 'out'); }
         if (bufErr.trim()) { onLine(bufErr.replace(/\r$/, ''), 'err'); }
-        done(null, { code: code, stdout: stdout, stderr: stderr });
+        settle(null, { code: code, stdout: stdout, stderr: stderr });
     });
     return child;
 }
+
+/** Only one download→apply chain at a time. */
+let applyInFlight = false;
 
 /**
  * Download then apply one offer.
@@ -430,6 +440,11 @@ function spawnLines (cmd, args, onLine, done) {
 function apply (offer, onEvent, done) {
     if (typeof onEvent !== 'function') { onEvent = function () {}; }
     if (typeof done !== 'function') { done = function () {}; }
+
+    if (applyInFlight) {
+        done(fail('An OTA apply is already in progress', 409));
+        return;
+    }
 
     if (!paths.onRobot()) {
         done(fail('Applying OTA updates only works on the robot.', 503));
@@ -443,6 +458,13 @@ function apply (offer, onEvent, done) {
         done(fail('jibo-download-update / jibo-apply-update not found on PATH', 500));
         return;
     }
+
+    applyInFlight = true;
+    const finish = (err, result) => {
+        applyInFlight = false;
+        done(err, result);
+    };
+    done = finish;
 
     const subsystem = offer.subsystem || '@be/be';
     const pkg = findPackage(subsystem);

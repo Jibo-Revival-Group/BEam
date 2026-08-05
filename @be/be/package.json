@@ -10,7 +10,7 @@
       "attention": false,
       "idle": false,
       "embodiedSpeech": false,
-      "resourceLeak": true,
+      "resourceLeak": false,
       "showTimer": false,
       "noCacheDestroy": false,
       "skipRestore": false

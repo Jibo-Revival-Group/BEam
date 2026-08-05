@@ -63,6 +63,15 @@ class Be {
         this.firstSkill = this.skills[this.packageInfo.jibo.firstSkill];
         this.restoreSkill = this.skills[this.packageInfo.jibo.restoreSkill];
         this.eosSkill = this.skills[this.packageInfo.jibo.eosSkill];
+        this._coreSkillsMissing = false;
+        if (!this.idle) {
+            this.log.error(`Core skill missing: defaultSkill '${this.packageInfo.jibo.defaultSkill}' failed to load`);
+            this._coreSkillsMissing = true;
+        }
+        if (!this.eosSkill) {
+            this.log.error(`Core skill missing: eosSkill '${this.packageInfo.jibo.eosSkill}' failed to load`);
+            this._coreSkillsMissing = true;
+        }
         this.log.debug('creating skills switch scheduler');
         this._skillSwitchScheduler = new SkillSwitchScheduler_1.default(this.idle);
         const empty = (done) => { done(); };
@@ -89,12 +98,20 @@ class Be {
                 skill.preload = empty;
             }
         }
-        this.log.debug('calling supplyCategories');
-        this.eosSkill.supplyCategories(eosCategories);
+        if (this.eosSkill && typeof this.eosSkill.supplyCategories === 'function') {
+            this.log.debug('calling supplyCategories');
+            this.eosSkill.supplyCategories(eosCategories);
+        }
         this.log.debug('bottom of Be constructor');
     }
     init(initDoneCallback) {
         this.initDoneCallback = initDoneCallback;
+        if (this._coreSkillsMissing) {
+            const err = new Error('Be cannot start: required core skills failed to load');
+            this.log.error(err.message);
+            this.initDoneCallback(err);
+            return;
+        }
         ModuleVersions_1.default.log(this.log, jibo.utils.PathUtils.findRoot());
         this.log.debug('Initting jibo');
         jibo.init({ display: 'face', analytics: new LibraryAnalytics_1.default() }, (err) => {
@@ -140,23 +157,26 @@ class Be {
                     }
                     this._skillSwitchScheduler.run();
                     this.log.info("Indexing...");
-                    // Make indexing non-blocking with a 10-second timeout
-                    const indexPromise = jibo.expression.indexRobot();
-                    const timeoutPromise = new Promise((_, reject) => {
-                        setTimeout(() => reject(new Error('Indexing timeout after 10 seconds')), 10000);
-                    });
-                    Promise.race([indexPromise, timeoutPromise])
+                    // Index in the background — do not gate plugin init / splash on it.
+                    let indexingSettled = false;
+                    jibo.expression.indexRobot()
                         .then(() => {
+                            indexingSettled = true;
                             this.log.info('Indexing completed successfully');
                         })
                         .catch((err) => {
-                            this.log.warn('Indexing failed or timed out, continuing anyway:', err.message);
-                            be_framework_1.BeSkill.errorCode('F4-Index_timeout', 'Initial indexing error in Be: ' + err.message);
-                        })
-                        .then(() => {
-                            this.log.info('initialize the BeSkill.plugins');
-                            be_framework_1.BeSkill.init(this.initPlugins.bind(this));
+                            indexingSettled = true;
+                            this.log.warn('Indexing failed, continuing anyway:', err && err.message);
+                            be_framework_1.BeSkill.errorCode('F4-Index_timeout', 'Initial indexing error in Be: ' + (err && err.message));
                         });
+                    setTimeout(() => {
+                        if (!indexingSettled) {
+                            this.log.warn('Indexing still running after 10 seconds (boot continued without waiting)');
+                            be_framework_1.BeSkill.errorCode('F4-Index_timeout', 'Initial indexing still running after 10 seconds');
+                        }
+                    }, 10000);
+                    this.log.info('initialize the BeSkill.plugins');
+                    be_framework_1.BeSkill.init(this.initPlugins.bind(this));
                 });
             });
         });

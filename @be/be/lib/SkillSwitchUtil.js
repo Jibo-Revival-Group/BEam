@@ -77,39 +77,48 @@ class SkillSwitchUtil {
         const newSkillOptions = newSkillLifecycle.skillSwitchData.options;
         let openTimeout = null;
         let oldSkillName = null;
-        return new Promise((resolve, reject) => {
-            openTimeout = setTimeout(() => {
-                return reject('skill took too long to open. Force closing.');
-            }, openSkillTimeoutMS);
-            oldSkillName = currentSkillLifecycle ? currentSkillLifecycle.skillSwitchData.skill.assetPack : '';
-            jibo.loader.basePath = newSkillLifecycle.skillSwitchData.skill.rootPath;
-            jibo.sound.basePath = newSkillLifecycle.skillSwitchData.skill.rootPath;
-            jibo.loader.addCache(newSkillLifecycle.skillSwitchData.skill.assetPack);
-            jibo.loader.activeCache = newSkillLifecycle.skillSwitchData.skill.assetPack;
-            jibo.embodied.speech.setPaths(newSkillLifecycle.skillSwitchData.skill.assetPack);
-            if (newSkillOptions && newSkillOptions.asr.text) {
-                jibo.mim.silentMenus = false;
-            }
-            try {
-                log.info("BeSkill open", oldSkillName, newSkillName, newSkillOptions);
-                be_framework_1.BeSkill.open(oldSkillName, newSkillLifecycle.skillSwitchData.skill.assetPack, newSkillOptions, (err) => {
-                    try {
-                        if (err) {
-                            log.error(err);
+        const skill = newSkillLifecycle.skillSwitchData.skill;
+        // Wait for async postInit (KB roots, etc.) before preload/open — otherwise
+        // skills like word-of-the-day throw on undefined _mainRoot and fall back to idle.
+        const postInitReady = (skill && skill._beamPostInitPromise)
+            ? skill._beamPostInitPromise
+            : Promise.resolve();
+        return postInitReady
+            .then(() => {
+            return new Promise((resolve, reject) => {
+                openTimeout = setTimeout(() => {
+                    return reject('skill took too long to open. Force closing.');
+                }, openSkillTimeoutMS);
+                oldSkillName = currentSkillLifecycle ? currentSkillLifecycle.skillSwitchData.skill.assetPack : '';
+                jibo.loader.basePath = skill.rootPath;
+                jibo.sound.basePath = skill.rootPath;
+                jibo.loader.addCache(skill.assetPack);
+                jibo.loader.activeCache = skill.assetPack;
+                jibo.embodied.speech.setPaths(skill.assetPack);
+                if (newSkillOptions && newSkillOptions.asr.text) {
+                    jibo.mim.silentMenus = false;
+                }
+                try {
+                    log.info("BeSkill open", oldSkillName, newSkillName, newSkillOptions);
+                    be_framework_1.BeSkill.open(oldSkillName, skill.assetPack, newSkillOptions, (err) => {
+                        try {
+                            if (err) {
+                                log.error(err);
+                            }
+                            log.info("new skill preload", newSkillName);
+                            skill.preload((err) => {
+                                return resolve(err);
+                            });
                         }
-                        log.info("new skill preload", newSkillName);
-                        newSkillLifecycle.skillSwitchData.skill.preload((err) => {
-                            return resolve(err);
-                        });
-                    }
-                    catch (err) {
-                        return reject(err);
-                    }
-                });
-            }
-            catch (err) {
-                return reject(err);
-            }
+                        catch (err) {
+                            return reject(err);
+                        }
+                    });
+                }
+                catch (err) {
+                    return reject(err);
+                }
+            });
         })
             .catch((err) => {
             return err;
@@ -125,8 +134,8 @@ class SkillSwitchUtil {
                     be_framework_1.BeSkill.plugins.analytics.skillEntry(newSkillName, newSkillOptions, oldSkillName);
                     let currentSkillName = currentSkillLifecycle ? currentSkillLifecycle.skillSwitchData.name : null;
                     let currentSkillOptions = currentSkillLifecycle ? currentSkillLifecycle.skillSwitchData.options : null;
-                    newSkillLifecycle.skillSwitchData.skill.skipSurprisesExternal = newSkillOptions && newSkillOptions.match && newSkillOptions.match.skipSurprises;
-                    newSkillLifecycle.skillSwitchData.skill.open(newSkillOptions, false, currentSkillName, currentSkillOptions);
+                    skill.skipSurprisesExternal = newSkillOptions && newSkillOptions.match && newSkillOptions.match.skipSurprises;
+                    skill.open(newSkillOptions, false, currentSkillName, currentSkillOptions);
                     return resolve(newSkillLifecycle.skillSwitchData);
                 }
                 catch (err) {

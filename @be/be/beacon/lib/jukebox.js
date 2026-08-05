@@ -142,13 +142,19 @@ function scan () {
         const stat = statOrNull(abs);
         if (!stat || !stat.isDirectory()) { return; }
 
-        // One nesting level: music/Artist/Album/ — prefer nested folders when
-        // present so an Artist/ parent is never mistaken for an empty album.
+        // One nesting level: music/Artist/Album/ — prefer flat album if it has
+        // tracks (matches jukebox skill); only nest when flat has no audio.
         let kids = [];
         try {
             kids = fs.readdirSync(abs);
         } catch (err) {
             result.skipped.push(name + ' (unreadable)');
+            return;
+        }
+
+        const flat = readAlbum(abs, name, prettify(name), '');
+        if (flat) {
+            result.albums.push(flat);
             return;
         }
 
@@ -158,21 +164,23 @@ function scan () {
             return !!(kidStat && kidStat.isDirectory());
         });
 
-        if (nestedDirs.length) {
-            nestedDirs.forEach((kid) => {
-                const album = readAlbum(
-                    path.join(abs, kid),
-                    name + '/' + kid,
-                    prettify(kid),
-                    prettify(name)
-                );
-                if (album) { result.albums.push(album); }
-            });
-            return;
-        }
+        let nestedFound = 0;
+        nestedDirs.forEach((kid) => {
+            const album = readAlbum(
+                path.join(abs, kid),
+                name + '/' + kid,
+                prettify(kid),
+                prettify(name)
+            );
+            if (album) {
+                result.albums.push(album);
+                nestedFound++;
+            }
+        });
 
-        const flat = readAlbum(abs, name, prettify(name), '');
-        if (flat) { result.albums.push(flat); }
+        if (!nestedFound && nestedDirs.length) {
+            result.skipped.push(name + ' (no .mp3/.opus/.ogg in nested albums)');
+        }
     });
 
     result.albums.sort((a, b) => a.title.toLowerCase().localeCompare(b.title.toLowerCase()));

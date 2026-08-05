@@ -4,8 +4,11 @@
  * Lazy skill loading + reload-on-open for Be.
  *
  * Be's constructor only constructs jibo.skills (eager/core). Feature skills listed
- * in jibo.lazySkills are require()'d on open. On close they are destroyed and
- * purged from require.cache so the next open always reads index.js from disk.
+ * in jibo.lazySkills are require()'d on first open and kept warm for fast reopen.
+ * On open, prepareForOpen reloads from disk only when index.js mtime changed.
+ *
+ * Async postInit is tracked via skill._beamPostInitPromise; open waits for it
+ * before preload (skills like word-of-the-day need KB roots before open).
  *
  * Electron 1.4 / Node 6: plain CommonJS, sync require only.
  */
@@ -200,28 +203,34 @@ function refreshEosCategories (be) {
 }
 
 function runPostInit (be, skill, id) {
-    let finished = false;
-    let sync = true;
-    try {
-        skill.postInit((err) => {
-            finished = true;
+    skill._beamPostInitReady = false;
+    const promise = new Promise((resolve) => {
+        let settled = false;
+        const finish = (err) => {
+            if (settled) { return; }
+            settled = true;
             if (err) {
                 log(be).error('error during skill ' + id + ' postinit call:', err);
             }
-            if (!sync) {
-                log(be).debug('lazy skill postInit finished asynchronously:', id);
-            }
-        });
+            skill._beamPostInitReady = true;
+            resolve();
+        };
+        try {
+            skill.postInit(finish);
+        } catch (err) {
+            log(be).error('skill ' + id + ' postInit threw:', err);
+            finish(err);
+        }
+    });
+    skill._beamPostInitPromise = promise;
+    return promise;
+}
+
+function sourceMtime (id) {
+    try {
+        return fs.statSync(skillMainPath(id)).mtime.getTime();
     } catch (err) {
-        log(be).error('skill ' + id + ' postInit threw:', err);
-        finished = true;
-    }
-    sync = false;
-    if (!finished) {
-        log(be).warn(
-            'skill postInit did not complete synchronously; continuing anyway:',
-            id
-        );
+        return null;
     }
 }
 
@@ -234,10 +243,7 @@ function loadSkill (be, id) {
 
     const startTime = Date.now();
     const main = skillMainPath(id);
-    let mtime = null;
-    try {
-        mtime = fs.statSync(main).mtime.getTime();
-    } catch (err) { /* optional diag */ }
+    const mtime = sourceMtime(id);
 
     const SkillExport = require(id);
     const Skill = resolveSkillClass(SkillExport, id);
@@ -249,11 +255,13 @@ function loadSkill (be, id) {
     if (typeof be._validateSkill === 'function' && !be._validateSkill(skill)) {
         throw new Error('not a valid BeSkill');
     }
-    wireSkill(be, skill);
-    runPostInit(be, skill, id);
+    // Reserve the slot before async postInit so concurrent prepare/bootstrap
+    // cannot double-construct the same id.
     be.skills[id] = skill;
     skill._beamSourceMtime = mtime;
     skill._beamSourceMain = main;
+    wireSkill(be, skill);
+    runPostInit(be, skill, id);
     log(be).info(
         'loading - skill construction ' + id + ' - ' + (Date.now() - startTime) + ' MS' +
         (mtime != null ? (' (mtime ' + mtime + ')') : '')
@@ -309,7 +317,7 @@ function currentSkillId (be) {
 
 /**
  * Ensure a skill instance is ready to open.
- * Lazy skills are always re-required from disk when not currently open.
+ * Lazy skills stay warm after first load; reload only when index.js mtime changes.
  */
 function prepareForOpen (be, id) {
     if (!id) {
@@ -336,6 +344,15 @@ function prepareForOpen (be, id) {
         return be.skills[id];
     }
 
+    const existing = be.skills[id];
+    if (existing) {
+        const mtime = sourceMtime(id);
+        // Fast path: same on-disk bundle — reuse instance (postInit may still be in flight).
+        if (mtime != null && existing._beamSourceMtime === mtime) {
+            return existing;
+        }
+    }
+
     preparingId = id;
     try {
         if (be.skills[id]) {
@@ -357,14 +374,12 @@ function skillSwitchData (be, skill, options) {
     return new Ctor(skill, options);
 }
 
-function install (be) {
-    if (!be || be._beamSkillRegistryInstalled) {
-        return be;
+function bootstrapEosCategories (be) {
+    if (be._beamEosBootstrapped) {
+        return;
     }
-    be._beamSkillRegistryInstalled = true;
-
-    // Bootstrap EoS category skills so surprises.supplyCategories is populated
-    // (Be's constructor only saw eager skills).
+    be._beamEosBootstrapped = true;
+    log(be).info('Deferred EoS bootstrap starting');
     EOS_BOOTSTRAP.forEach((id) => {
         if (lazyIds(be).indexOf(id) === -1 && eagerIds(be).indexOf(id) === -1) {
             return;
@@ -378,24 +393,30 @@ function install (be) {
         }
     });
     refreshEosCategories(be);
+}
 
-    // After a lazy skill closes, drop it from memory + require.cache so the next
-    // open cannot reuse the old class/instance.
+function install (be) {
+    if (!be || be._beamSkillRegistryInstalled) {
+        return be;
+    }
+    be._beamSkillRegistryInstalled = true;
+
+    // EoS packs (word-of-the-day, surprises-date, surprises-ota) used to load
+    // sync here and delayed splash. Defer until after first skill opens.
+    // Fallback timeout covers error paths that never call enableSkillSwitching.
+    setTimeout(() => {
+        bootstrapEosCategories(be);
+    }, 15000);
+
+    // Keep lazy skills warm after close for fast reopen. prepareForOpen reloads
+    // from disk only when index.js mtime changes (live-edit still works).
     const SSU = be.constructor.SkillSwitchUtil;
     if (SSU && typeof SSU.closeSkill === 'function' && !SSU._beamCloseWrapped) {
         const origClose = SSU.closeSkill.bind(SSU);
         SSU.closeSkill = function (skill, pendingSkillName) {
-            const closedId = skill && skill.assetPack;
-            return Promise.resolve(origClose(skill, pendingSkillName)).then((result) => {
-                if (closedId && !isEager(be, closedId) && closedId !== preparingId) {
-                    try {
-                        unloadSkill(be, closedId);
-                    } catch (err) {
-                        log(be).warn('post-close unload failed for ' + closedId + ':', err && err.message);
-                    }
-                }
-                return result;
-            });
+            // Asset-cache cleanup still happens in origClose; we no longer destroy
+            // the skill instance / purge require.cache on every leave.
+            return Promise.resolve(origClose(skill, pendingSkillName));
         };
         SSU._beamCloseWrapped = true;
     }
@@ -474,6 +495,11 @@ function install (be) {
                 });
             });
         });
+
+        // First skill is open / splash is clearing — load EoS packs now.
+        setTimeout(() => {
+            bootstrapEosCategories(be);
+        }, 0);
     };
 
     const origRedirect = be.redirect.bind(be);
@@ -500,7 +526,7 @@ function install (be) {
         eagerIds(be).length,
         'lazy:',
         lazyIds(be).length,
-        '(lazy skills reload from disk on every open)'
+            '(lazy skills stay warm; reload when index.js mtime changes)'
     );
     return be;
 }

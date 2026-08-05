@@ -105,12 +105,18 @@ class SkillSwitchScheduler {
                 this._currentSkillLifecycle.skillOpened();
             }
             catch (err) {
-                this._currentSkillLifecycle.skillLifecycleEnded(SkillLifecycleEndState_1.default.SKILL_REFRESH_FAILED);
-                this._pendingSkillLifecycle.skillLifecycleEnded(SkillLifecycleEndState_1.default.SKILL_REFRESH_FAILED);
+                if (this._currentSkillLifecycle) {
+                    this._currentSkillLifecycle.skillLifecycleEnded(SkillLifecycleEndState_1.default.SKILL_REFRESH_FAILED);
+                }
+                if (this._pendingSkillLifecycle) {
+                    this._pendingSkillLifecycle.skillLifecycleEnded(SkillLifecycleEndState_1.default.SKILL_REFRESH_FAILED);
+                }
                 this._pendingSkillLifecycle = null;
                 this._pendingSkillRedirectToken = null;
                 this.log.error('refresh skill failed', currentSkillName, currentSkillOptions, err);
-                this.requestSkillRedirect(new SkillSwitchData_1.default(this._idleSkill, {}));
+                if (this._idleSkill) {
+                    this.requestSkillRedirect(new SkillSwitchData_1.default(this._idleSkill, {}));
+                }
             }
             finally {
                 this._recallUpdate();
@@ -135,7 +141,15 @@ class SkillSwitchScheduler {
                 })
                     .then((pendingSkillLifecycle) => {
                     if (this._pendingSkillLifecycle !== pendingSkillLifecycle) {
-                        this.log.info('the pending skill lifecycle which the action system has completed with is not the same as the current pending skill lifecycle', pendingSkillLifecycle.skillSwitchData.name, pendingSkillLifecycle.skillSwitchData.options, this._pendingSkillLifecycle.skillSwitchData.name, this._pendingSkillLifecycle.skillSwitchData.options);
+                        const completedName = pendingSkillLifecycle && pendingSkillLifecycle.skillSwitchData
+                            ? pendingSkillLifecycle.skillSwitchData.name : null;
+                        const completedOpts = pendingSkillLifecycle && pendingSkillLifecycle.skillSwitchData
+                            ? pendingSkillLifecycle.skillSwitchData.options : null;
+                        const currentPendingName = this._pendingSkillLifecycle && this._pendingSkillLifecycle.skillSwitchData
+                            ? this._pendingSkillLifecycle.skillSwitchData.name : null;
+                        const currentPendingOpts = this._pendingSkillLifecycle && this._pendingSkillLifecycle.skillSwitchData
+                            ? this._pendingSkillLifecycle.skillSwitchData.options : null;
+                        this.log.info('the pending skill lifecycle which the action system has completed with is not the same as the current pending skill lifecycle', completedName, completedOpts, currentPendingName, currentPendingOpts);
                     }
                 }, (err) => {
                     this.log.warn('action system completed with error. Continuing with skill switching', err);
@@ -153,8 +167,17 @@ class SkillSwitchScheduler {
                     this._pendingSkillRedirectToken = null;
                     pendingSkillName = null;
                     pendingSkillOptions = null;
+                    if (!this._currentSkillLifecycle) {
+                        this.log.error('skill open aborted: no current skill lifecycle after pending transfer');
+                        return;
+                    }
                     TimerSpy_1.default.instance.getCurrentSkillNameCallback = () => {
-                        return this._currentSkillLifecycle.skillSwitchData.skill.assetPack;
+                        if (this._currentSkillLifecycle &&
+                            this._currentSkillLifecycle.skillSwitchData &&
+                            this._currentSkillLifecycle.skillSwitchData.skill) {
+                            return this._currentSkillLifecycle.skillSwitchData.skill.assetPack;
+                        }
+                        return '';
                     };
                     this._currentSkillLifecycle.startSkillOpen();
                     return Promise.resolve()
@@ -162,12 +185,18 @@ class SkillSwitchScheduler {
                         return SkillSwitchUtil_1.default.openNewSkill(prevSkillLifecycle, this._currentSkillLifecycle);
                     })
                         .then(() => {
-                        this._currentSkillLifecycle.skillOpened();
+                        if (this._currentSkillLifecycle) {
+                            this._currentSkillLifecycle.skillOpened();
+                        }
                         this.log.info('skill open success', currentSkillName, currentSkillOptions);
                     }, (err) => {
                         this.log.error('skill open failed', currentSkillName, currentSkillOptions, err);
-                        this.requestSkillRedirect(new SkillSwitchData_1.default(this._idleSkill, {}));
-                        this._currentSkillLifecycle.skillLifecycleEnded(SkillLifecycleEndState_1.default.SKILL_OPEN_FAILED);
+                        if (this._idleSkill) {
+                            this.requestSkillRedirect(new SkillSwitchData_1.default(this._idleSkill, {}));
+                        }
+                        if (this._currentSkillLifecycle) {
+                            this._currentSkillLifecycle.skillLifecycleEnded(SkillLifecycleEndState_1.default.SKILL_OPEN_FAILED);
+                        }
                     });
                 });
             }, (err) => {
