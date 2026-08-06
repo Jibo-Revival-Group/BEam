@@ -332,6 +332,9 @@ function prepareForOpen (be, id) {
     }
 
     if (isEager(be, id)) {
+        if (typeof be.ensureSkill === 'function') {
+            return be.ensureSkill(id);
+        }
         if (!be.skills[id]) {
             return loadSkill(be, id);
         }
