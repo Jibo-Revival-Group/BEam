@@ -18,7 +18,7 @@ class SkillSwitchData {
         return this._skill;
     }
     get name() {
-        return this._skill.assetPack;
+        return this._skill ? this._skill.assetPack : '';
     }
     get options() {
         return this._options;

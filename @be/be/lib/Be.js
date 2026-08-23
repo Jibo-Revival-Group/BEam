@@ -21,89 +21,267 @@ const url = require("url");
 jibo.utils.LocationUtils.setLocationLookupKey('Ri2CIo95Sa7dlwft5tQPixUtnPo=');
 jibo.utils.LocationUtils.setCapitalLookupKey('LLK5HQ-GJ5AULXWH6');
 jibo.utils.Timezone.setLocationLookupKey('Ri2CIo95Sa7dlwft5tQPixUtnPo=');
+/** Skills constructed synchronously in Be's constructor (needed for face / EoS). */
+const SYNC_CONSTRUCT = {
+    '@be/idle': true,
+    '@be/surprises': true
+};
+/** Construct ASAP in background after plugins arm (alarms / settings residency). */
+const BACKGROUND_CONSTRUCT = {
+    '@be/clock': true,
+    '@be/settings': true
+};
+/** Skills whose postInit may run in the background and need not block first launch. */
+const BACKGROUND_POSTINIT_IDS = {
+    '@be/clock': true,
+    '@be/surprises': true
+};
 class Be {
     constructor() {
         global.be = this;
+        this._bootT0 = (typeof window !== 'undefined' && window.__BE_BOOT_T0) ? window.__BE_BOOT_T0 : Date.now();
+        this._postInitById = {};
+        this._postInitsArmed = false;
         this.log = log_1.default.createChild("Be");
         this.log.info("%c Welcome to: BE SKILL ", 'font-weight:bold;color:white;padding:5px 20px;background-color:purple;border-radius:20px');
-        let splash = document.createElement('div');
-        splash.id = 'splash';
-        document.body.insertBefore(splash, document.getElementById('face'));
+        // Prefer splash painted from index.html before require("jibo").
+        if (!document.getElementById('splash')) {
+            let splash = document.createElement('div');
+            splash.id = 'splash';
+            document.body.insertBefore(splash, document.getElementById('face'));
+        }
         this.skills = {};
         this.packageInfo = require(path.join(jibo.utils.PathUtils.findRoot(), 'package.json'));
-        this.packageInfo.jibo.skills.forEach((id) => {
+        const skillIds = this.packageInfo.jibo.skills || [];
+        skillIds.forEach((id) => {
+            if (!SYNC_CONSTRUCT[id]) {
+                return;
+            }
             try {
-                const startTime = Date.now();
-                const SkillExport = require(id);
-                let Skill;
-                if (typeof SkillExport === 'function') {
-                    Skill = SkillExport;
-                }
-                else if (typeof SkillExport.Skill === 'function') {
-                    Skill = SkillExport.Skill;
-                }
-                else {
-                    throw new Error(`Error loading skill: ${id}. Incorrect exports`);
-                }
-                const skill = new Skill({
-                    assetPack: id,
-                    rootPath: path.dirname(jibo.utils.PathUtils.resolve(id))
-                });
-                if (!this._validateSkill(skill)) {
-                    throw new Error('not a valid BeSkill');
-                }
-                this.skills[id] = skill;
-                this.log.info(`loading - skill construction ${id} - ${Date.now() - startTime} MS`);
+                this.ensureSkill(id);
             }
             catch (err) {
                 this.log.error(`Skill creation for '${id}' failed: ${err}`);
             }
         });
-        this.idle = this.skills[this.packageInfo.jibo.defaultSkill];
-        this.firstSkill = this.skills[this.packageInfo.jibo.firstSkill];
-        this.restoreSkill = this.skills[this.packageInfo.jibo.restoreSkill];
-        this.eosSkill = this.skills[this.packageInfo.jibo.eosSkill];
+        this._refreshSkillAliases();
+        this._coreSkillsMissing = false;
+        if (!this.idle) {
+            this.log.error(`Core skill missing: defaultSkill '${this.packageInfo.jibo.defaultSkill}' failed to load`);
+            this._coreSkillsMissing = true;
+        }
+        if (!this.eosSkill) {
+            this.log.error(`Core skill missing: eosSkill '${this.packageInfo.jibo.eosSkill}' failed to load`);
+            this._coreSkillsMissing = true;
+        }
         this.log.debug('creating skills switch scheduler');
         this._skillSwitchScheduler = new SkillSwitchScheduler_1.default(this.idle);
+        this._refreshEosCategories();
+        this._bootMark('Be construct done (sync idle+surprises only)');
+        this.log.debug('bottom of Be constructor');
+    }
+    _bootMark(label) {
+        this.log.info(`loading - boot ${label} - ${Date.now() - this._bootT0} MS`);
+    }
+    _refreshSkillAliases() {
+        const j = this.packageInfo.jibo;
+        this.idle = this.skills[j.defaultSkill];
+        this.firstSkill = this.skills[j.firstSkill];
+        this.restoreSkill = this.skills[j.restoreSkill];
+        this.eosSkill = this.skills[j.eosSkill];
+    }
+    _wireSkill(skill) {
         const empty = (done) => { done(); };
+        skill.on('exit', function () {
+            this.exit.call(this, skill, ...arguments);
+        }.bind(this));
+        skill.on('redirect', function () {
+            this.skillRedirect.call(this, skill, ...arguments);
+        }.bind(this));
+        skill.on('refresh', function () {
+            this.skillRedirect.call(this, skill, skill.assetPack, ...arguments);
+        }.bind(this));
+        if (!skill.postInit) {
+            skill.postInit = empty;
+        }
+        if (!skill.preload) {
+            skill.preload = empty;
+        }
+    }
+    _refreshEosCategories() {
+        if (!this.eosSkill || typeof this.eosSkill.supplyCategories !== 'function') {
+            return;
+        }
         const eosCategories = [];
         for (let id in this.skills) {
-            this.log.debug('listening for when skill finishes', id);
             const skill = this.skills[id];
-            skill.on('exit', function () {
-                this.exit.call(this, skill, ...arguments);
-            }.bind(this));
-            skill.on('redirect', function () {
-                this.skillRedirect.call(this, skill, ...arguments);
-            }.bind(this));
-            skill.on('refresh', function () {
-                this.skillRedirect.call(this, skill, skill.assetPack, ...arguments);
-            }.bind(this));
-            if (skill.isElementOfSurprise) {
+            if (skill && skill.isElementOfSurprise) {
                 eosCategories.push(skill);
             }
-            if (!skill.postInit) {
-                skill.postInit = empty;
-            }
-            if (!skill.preload) {
-                skill.preload = empty;
-            }
         }
-        this.log.debug('calling supplyCategories');
-        this.eosSkill.supplyCategories(eosCategories);
-        this.log.debug('bottom of Be constructor');
+        try {
+            this.eosSkill.supplyCategories(eosCategories);
+        }
+        catch (err) {
+            this.log.warn('supplyCategories failed:', err && err.message);
+        }
+    }
+    /**
+     * Construct (and optionally postInit) a jibo.skills pack on demand.
+     * Sync construct for idle/surprises at boot; deferred packs use this later.
+     */
+    ensureSkill(id) {
+        if (!id) {
+            return null;
+        }
+        if (this.skills[id]) {
+            const existing = this.skills[id];
+            if (this._postInitsArmed && !this._postInitById[id]) {
+                if (existing._beamPostInitPromise) {
+                    this._postInitById[id] = existing._beamPostInitPromise;
+                }
+                else {
+                    this._startSkillPostInit(id, existing);
+                }
+            }
+            return existing;
+        }
+        const startTime = Date.now();
+        const SkillExport = require(id);
+        let Skill;
+        if (typeof SkillExport === 'function') {
+            Skill = SkillExport;
+        }
+        else if (SkillExport && typeof SkillExport.Skill === 'function') {
+            Skill = SkillExport.Skill;
+        }
+        else {
+            throw new Error(`Error loading skill: ${id}. Incorrect exports`);
+        }
+        const skill = new Skill({
+            assetPack: id,
+            rootPath: path.dirname(jibo.utils.PathUtils.resolve(id))
+        });
+        if (!this._validateSkill(skill)) {
+            throw new Error('not a valid BeSkill');
+        }
+        this.skills[id] = skill;
+        this._wireSkill(skill);
+        this._refreshSkillAliases();
+        if (skill.isElementOfSurprise) {
+            this._refreshEosCategories();
+        }
+        this.log.info(`loading - skill construction ${id} - ${Date.now() - startTime} MS` +
+            (SYNC_CONSTRUCT[id] ? '' : ' (deferred)'));
+        this._bootMark('ensureSkill ' + id);
+        if (this._postInitsArmed) {
+            this._startSkillPostInit(id, skill);
+        }
+        return skill;
+    }
+    _waitPostInits(ids, done) {
+        const unique = [];
+        ids.forEach((id) => {
+            if (id && unique.indexOf(id) === -1) {
+                unique.push(id);
+            }
+        });
+        // Ensure deferred packs exist and have postInit started before waiting.
+        unique.forEach((id) => {
+            try {
+                this.ensureSkill(id);
+            }
+            catch (err) {
+                this.log.error(`ensureSkill failed for critical id ${id}:`, err);
+            }
+        });
+        const waitStart = Date.now();
+        const tasks = unique.map((id) => {
+            const p = this._postInitById[id];
+            if (!p) {
+                this.log.warn(`no postInit promise for ${id}; continuing`);
+                return Promise.resolve();
+            }
+            return p;
+        });
+        Promise.all(tasks).then(() => {
+            this.log.info(`loading - boot critical postInits [${unique.join(', ')}] - ${Date.now() - waitStart} MS`);
+            done();
+        }, (err) => {
+            this.log.warn('critical postInit wait error (continuing):', err);
+            done();
+        });
+    }
+    _startSkillPostInit(id, skill) {
+        if (this._postInitById[id]) {
+            return this._postInitById[id];
+        }
+        const startTime = Date.now();
+        const background = !!BACKGROUND_POSTINIT_IDS[id];
+        this.log.debug(`Calling postInit for skill ${id}${background ? ' (background)' : ''}`);
+        const promise = new Promise((resolve) => {
+            try {
+                skill.postInit.bind(skill)((err) => {
+                    if (err) {
+                        this.log.error(`error during skill ${skill.assetPack} postinit call:`, err);
+                    }
+                    this.log.info(`loading - skill ${skill.assetPack} postinit call - ${Date.now() - startTime} MS` +
+                        (background ? ' (background)' : ''));
+                    resolve();
+                });
+            }
+            catch (err) {
+                this.log.error(`skill ${id} postInit threw:`, err);
+                resolve();
+            }
+        });
+        this._postInitById[id] = promise;
+        if (skill) {
+            skill._beamPostInitPromise = promise;
+            promise.then(() => {
+                skill._beamPostInitReady = true;
+            });
+        }
+        return promise;
+    }
+    _startBackgroundConstructs() {
+        Object.keys(BACKGROUND_CONSTRUCT).forEach((id) => {
+            const run = () => {
+                try {
+                    if (!this.skills[id]) {
+                        this.log.info(`loading - boot background construct ${id}`);
+                        this.ensureSkill(id);
+                    }
+                    else if (this._postInitsArmed && !this._postInitById[id]) {
+                        this._startSkillPostInit(id, this.skills[id]);
+                    }
+                }
+                catch (err) {
+                    this.log.error(`background ensureSkill ${id} failed:`, err);
+                }
+            };
+            setTimeout(run, 0);
+        });
     }
     init(initDoneCallback) {
         this.initDoneCallback = initDoneCallback;
+        if (this._coreSkillsMissing) {
+            const err = new Error('Be cannot start: required core skills failed to load');
+            this.log.error(err.message);
+            this.initDoneCallback(err);
+            return;
+        }
         ModuleVersions_1.default.log(this.log, jibo.utils.PathUtils.findRoot());
         this.log.debug('Initting jibo');
+        const jiboInitStart = Date.now();
         jibo.init({ display: 'face', analytics: new LibraryAnalytics_1.default() }, (err) => {
             if (err) {
                 this.log.error(err);
                 this.initDoneCallback(err);
                 return;
             }
-            this.log.debug('Jibo initted');
+            this.log.info(`loading - boot jibo.init - ${Date.now() - jiboInitStart} MS`);
+            this._bootMark('jibo.init done');
             window.Module = null;
             this.log.debug('loading log config');
             log_1.loadLogConfig(err => {
@@ -114,7 +292,10 @@ class Be {
                 const hostUrl = url.parse(jibo.registryHost);
                 jibo_client_framework_1.RegistryClient.createInstance(hostUrl.hostname, parseInt(hostUrl.port));
                 this.log.debug('Initializing NotificationsDispatcher');
+                const notifStart = Date.now();
                 jibo_client_framework_1.NotificationsDispatcher.instance.init(err => {
+                    this.log.info(`loading - boot notifications - ${Date.now() - notifStart} MS`);
+                    this._bootMark('notifications done');
                     if (err) {
                         this.log.warn('Problem initializing; notifications disabled', err);
                     }
@@ -140,23 +321,26 @@ class Be {
                     }
                     this._skillSwitchScheduler.run();
                     this.log.info("Indexing...");
-                    // Make indexing non-blocking with a 10-second timeout
-                    const indexPromise = jibo.expression.indexRobot();
-                    const timeoutPromise = new Promise((_, reject) => {
-                        setTimeout(() => reject(new Error('Indexing timeout after 10 seconds')), 10000);
-                    });
-                    Promise.race([indexPromise, timeoutPromise])
+                    // Index in the background — do not gate plugin init / splash on it.
+                    let indexingSettled = false;
+                    jibo.expression.indexRobot()
                         .then(() => {
+                            indexingSettled = true;
                             this.log.info('Indexing completed successfully');
                         })
                         .catch((err) => {
-                            this.log.warn('Indexing failed or timed out, continuing anyway:', err.message);
-                            be_framework_1.BeSkill.errorCode('F4-Index_timeout', 'Initial indexing error in Be: ' + err.message);
-                        })
-                        .then(() => {
-                            this.log.info('initialize the BeSkill.plugins');
-                            be_framework_1.BeSkill.init(this.initPlugins.bind(this));
+                            indexingSettled = true;
+                            this.log.warn('Indexing failed, continuing anyway:', err && err.message);
+                            be_framework_1.BeSkill.errorCode('F4-Index_timeout', 'Initial indexing error in Be: ' + (err && err.message));
                         });
+                    setTimeout(() => {
+                        if (!indexingSettled) {
+                            this.log.warn('Indexing still running after 10 seconds (boot continued without waiting)');
+                            be_framework_1.BeSkill.errorCode('F4-Index_timeout', 'Initial indexing still running after 10 seconds');
+                        }
+                    }, 10000);
+                    this.log.info('initialize the BeSkill.plugins');
+                    be_framework_1.BeSkill.init(this.initPlugins.bind(this));
                 });
             });
         });
@@ -167,24 +351,39 @@ class Be {
             this.initDoneCallback(err);
             return;
         }
-        const tasks = [];
+        // Arm postInit for skills already constructed (idle + surprises). First
+        // launch waits only for idle + the selected first skill; clock/settings
+        // construct + postInit in the background.
+        this._postInitsArmed = true;
         for (let id in this.skills) {
-            const skill = this.skills[id];
-            this.log.debug(`About to push task for skill ${id}`);
-            tasks.push((done) => {
-                const startTime = Date.now();
-                this.log.debug(`Calling postInit for skill ${id}`);
-                skill.postInit.bind(skill)((err) => {
-                    if (err) {
-                        this.log.error(`error during skill ${skill.assetPack} postinit call:`, err);
-                    }
-                    this.log.info(`loading - skill ${skill.assetPack} postinit call - ${Date.now() - startTime} MS`);
-                    done();
+            this._startSkillPostInit(id, this.skills[id]);
+        }
+        this._startBackgroundConstructs();
+        this._bootMark('postInits started');
+        this.afterPluginsReady();
+    }
+    afterPluginsReady() {
+        this.log.debug('initting analytics');
+        this.initAnalyticsContext();
+        this.log.info('Jibo is ready... awaiting launch command.');
+        jibo.face.views.changeView({ removeAll: true, leaveEmpty: true }, () => {
+            this._bootMark('face cleared');
+            const selectStart = Date.now();
+            this.selectFirstSkill((nextSkill, nextSkillLaunchOptions, currentErrorId, firstTime) => {
+                this.log.info(`loading - boot selectFirstSkill - ${Date.now() - selectStart} MS`);
+                this._bootMark('selectFirstSkill done');
+                if (!nextSkill) {
+                    this.log.error('selectFirstSkill returned no skill');
+                    this.initDoneCallback(new Error('No first skill available'));
+                    return;
+                }
+                const criticalIds = [this.packageInfo.jibo.defaultSkill, nextSkill.assetPack];
+                this._waitPostInits(criticalIds, () => {
+                    this._bootMark('critical postInits ready');
+                    this.launchFirstSkill(nextSkill, nextSkillLaunchOptions, currentErrorId, firstTime);
                 });
             });
-        }
-        this.log.debug('calling jibo loader to load the skills');
-        jibo.loader.load(tasks, this.postInit.bind(this));
+        });
     }
     initAnalyticsContext() {
         let context = {
@@ -217,18 +416,13 @@ class Be {
         this.log.debug('context set on BeSkill analytics plugin');
     }
     postInit(err) {
-        this.log.debug('postInit !!');
+        // Kept for compatibility; boot now uses afterPluginsReady after starting postInits.
         if (err) {
             this.log.error(err);
             this.initDoneCallback(err);
             return;
         }
-        this.log.debug('initting alalytics');
-        this.initAnalyticsContext();
-        this.log.info('Jibo is ready... awaiting launch command.');
-        jibo.face.views.changeView({ removeAll: true, leaveEmpty: true }, () => {
-            this.selectFirstSkill(this.launchFirstSkill.bind(this));
-        });
+        this.afterPluginsReady();
     }
     selectFirstSkill(callback) {
         const kbm = jibo.kb.createModel('/skills-config');
@@ -254,8 +448,9 @@ class Be {
                         this.log.info(`error reading the hasAlreadyLaunchedFirstContact property from the KB.  assuming first time is false`);
                     }
                     this.log.info(`selectFirstSkill parameter readout: Skills config load error: ${loadRootErr}, first time: ${firstTime}, has backup data: ${hasBackupData}, skip restore: ${this.packageInfo.jibo.debug.skipRestore}, current error id: ${currentErrorId}`);
+                    let nextSkillId = this.packageInfo.jibo.defaultSkill;
                     if (currentErrorId) {
-                        nextSkill = this.skills['@be/settings'];
+                        nextSkillId = '@be/settings';
                         nextSkillLaunchOptions = { nlu: { entities: { errorId: currentErrorId } } };
                     }
                     else if (firstTime) {
@@ -264,11 +459,18 @@ class Be {
                             return;
                         }
                         else if (hasBackupData && !this.packageInfo.jibo.debug.skipRestore) {
-                            nextSkill = this.restoreSkill;
+                            nextSkillId = this.packageInfo.jibo.restoreSkill;
                         }
                         else {
-                            nextSkill = this.firstSkill;
+                            nextSkillId = this.packageInfo.jibo.firstSkill;
                         }
+                    }
+                    try {
+                        nextSkill = this.ensureSkill(nextSkillId);
+                    }
+                    catch (ensureErr) {
+                        this.log.error(`selectFirstSkill: failed to ensure '${nextSkillId}':`, ensureErr);
+                        nextSkill = this.idle;
                     }
                     callback(nextSkill, nextSkillLaunchOptions, currentErrorId, firstTime);
                 });
@@ -277,37 +479,65 @@ class Be {
     }
     launchFirstSkill(firstSkill, firstSkillLaunchOptions, firstErrorId, firstTime) {
         this.log.debug('launching first skill');
-        const firstSkillHasOpened = () => {
+        this._bootMark('launchFirstSkill start');
+        const hideSplash = () => {
+            const el = document.getElementById('splash');
+            if (!el) {
+                return;
+            }
             if (firstErrorId) {
-                document.getElementById('splash').style.display = 'none';
+                el.style.display = 'none';
             }
             else {
-                document.getElementById('splash').remove();
+                el.remove();
+            }
+            this._bootMark('splash hidden');
+        };
+        const firstSkillHasOpened = () => {
+            this._bootMark('first skill opened');
+            if (!firstErrorId) {
                 this.enableSkillSwitching();
             }
             this.initDoneCallback();
         };
         let firstSkillRedirectToken = this.redirect(new SkillSwitchData_1.default(firstSkill, firstSkillLaunchOptions));
+        // Hide splash as soon as open begins (preload finished / open starting),
+        // so the face appears before SKILL_OPENED finishes wiring.
+        firstSkillRedirectToken.onState(SkillLifecycleState_1.default.SKILL_START_OPEN, hideSplash);
         firstSkillRedirectToken.onState(SkillLifecycleState_1.default.SKILL_OPENED, firstSkillHasOpened);
         if (firstErrorId) {
             const onErrorResolved = () => {
                 if (firstTime) {
-                    document.getElementById('splash').style.display = 'block';
+                    const splash = document.getElementById('splash');
+                    if (splash) {
+                        splash.style.display = 'block';
+                    }
                 }
                 this.selectFirstSkill((nextSkill, nextSkillLaunchOptions, currentErrorId) => {
-                    let nextSkillRedirectToken = this.redirect(new SkillSwitchData_1.default(nextSkill, nextSkillLaunchOptions));
-                    if (currentErrorId) {
-                        nextSkillRedirectToken.onState(SkillLifecycleState_1.default.LIFECYCLE_ENDED, onErrorResolved);
-                        nextSkillRedirectToken.onState(SkillLifecycleState_1.default.SKILL_OPENED, () => {
-                            document.getElementById('splash').style.display = 'none';
-                        });
-                    }
-                    else {
-                        nextSkillRedirectToken.onState(SkillLifecycleState_1.default.SKILL_OPENED, () => {
-                            document.getElementById('splash').remove();
-                            this.enableSkillSwitching();
-                        });
-                    }
+                    const criticalIds = [this.packageInfo.jibo.defaultSkill, nextSkill && nextSkill.assetPack];
+                    this._waitPostInits(criticalIds, () => {
+                        let nextSkillRedirectToken = this.redirect(new SkillSwitchData_1.default(nextSkill, nextSkillLaunchOptions));
+                        if (currentErrorId) {
+                            nextSkillRedirectToken.onState(SkillLifecycleState_1.default.LIFECYCLE_ENDED, onErrorResolved);
+                            nextSkillRedirectToken.onState(SkillLifecycleState_1.default.SKILL_START_OPEN, () => {
+                                const el = document.getElementById('splash');
+                                if (el) {
+                                    el.style.display = 'none';
+                                }
+                            });
+                        }
+                        else {
+                            nextSkillRedirectToken.onState(SkillLifecycleState_1.default.SKILL_START_OPEN, () => {
+                                const el = document.getElementById('splash');
+                                if (el) {
+                                    el.remove();
+                                }
+                            });
+                            nextSkillRedirectToken.onState(SkillLifecycleState_1.default.SKILL_OPENED, () => {
+                                this.enableSkillSwitching();
+                            });
+                        }
+                    });
                 });
             };
             firstSkillRedirectToken.onState(SkillLifecycleState_1.default.LIFECYCLE_ENDED, onErrorResolved);
@@ -316,11 +546,27 @@ class Be {
     enableSkillSwitching() {
         jibo.globalEvents.skillRelaunch.on(data => {
             const skillName = data.match.skillID;
-            this.redirect(new SkillSwitchData_1.default(this.skills[skillName], data));
+            let skill;
+            try {
+                skill = this.ensureSkill(skillName);
+            }
+            catch (err) {
+                this.log.error(`skillRelaunch: failed to ensure '${skillName}':`, err);
+                return;
+            }
+            this.redirect(new SkillSwitchData_1.default(skill, data));
         });
         jibo.action.setSkillSwitchHandler((skillName, skillData) => {
             return new Promise((resolve) => {
-                const skill = this.skills[skillName];
+                let skill;
+                try {
+                    skill = this.ensureSkill(skillName);
+                }
+                catch (err) {
+                    this.log.error(`skillSwitch: failed to ensure '${skillName}':`, err);
+                    resolve(jibo.action.types.Status.FAILED);
+                    return;
+                }
                 let redirectToken = this.redirect(new SkillSwitchData_1.default(skill, skillData));
                 let resolved = false;
                 redirectToken.onState(SkillLifecycleState_1.default.SKILL_OPENED, () => {
@@ -361,7 +607,14 @@ class Be {
         }
     }
     skillRedirect(redirectingSkill, name, options) {
-        const skill = this.skills[name];
+        let skill;
+        try {
+            skill = this.ensureSkill(name);
+        }
+        catch (err) {
+            this.log.error(`skillRedirect: failed to ensure '${name}':`, err);
+            return;
+        }
         if (!skill) {
             this.log.error(`skillRedirect: no loaded skill named '${name}'`);
             return;
@@ -371,13 +624,8 @@ class Be {
             this.log.warn(`Trying to call Be#redirect from non-current skill ${redirectingSkill.assetPack}. Current skill is ${currentSkill && currentSkill.assetPack}`);
             return;
         }
-        if (skill) {
-            this.log.info("REDIRECT: skill redirect: ", name, options);
-            this.redirect(new SkillSwitchData_1.default(skill, options));
-        }
-        else {
-            this.log.error("REDIRECT: skill redirect failed.  cannot find skill: ", name, options);
-        }
+        this.log.info("REDIRECT: skill redirect: ", name, options);
+        this.redirect(new SkillSwitchData_1.default(skill, options));
     }
     redirect(skillSwitchData) {
         return this._skillSwitchScheduler.requestSkillRedirect(skillSwitchData);

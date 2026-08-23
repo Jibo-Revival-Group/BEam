@@ -95,21 +95,21 @@ function start (options, callback) {
         );
     }
 
-    // Migrate legacy libraries (Skills music, /opt/tmp/beacon eye) once.
-    try {
-        paths.migrateMusicToKnowledge();
-    } catch (err) {
-        warn('music migrate:', err && err.message);
-    }
-
-    // Re-apply a saved custom eye: a BEam update restores the pristine
-    // textures, so this heals the face on the first boot afterwards.
-    try {
-        const healed = eye.selfHeal();
-        if (healed) { log('re-applied custom eye from', healed); }
-    } catch (err) {
-        warn('could not re-apply custom eye:', err && err.message);
-    }
+    // Migrate + eye self-heal can be slow (FS copy / texture rewrite). Defer so
+    // Be construct and splash paint are not blocked on the critical path.
+    setImmediate(() => {
+        try {
+            paths.migrateMusicToKnowledge();
+        } catch (err) {
+            warn('music migrate:', err && err.message);
+        }
+        try {
+            const healed = eye.selfHeal();
+            if (healed) { log('re-applied custom eye from', healed); }
+        } catch (err) {
+            warn('could not re-apply custom eye:', err && err.message);
+        }
+    });
 
     const port = opts.port || Number(process.env.BEACON_PORT) || DEFAULT_PORT;
     listen(port, 0, (err, srv) => {
