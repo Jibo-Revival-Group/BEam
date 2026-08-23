@@ -121,6 +121,7 @@ for Skills-root packs (same sequence as BEacon → Update):
 The catalog host comes from `/var/jibo/credentials.json` → `endpoint`
 (public: `http://joap.5x1.com:80`). User music and custom eyes under
 `/opt/jibo/Knowledge/` are outside apply destinations and are left alone.
+Reboot the robot afterward to finish applying updates.
 
 For a **fresh** Skills tree install (not an in-place update), use
 `post-mod.sh` instead.

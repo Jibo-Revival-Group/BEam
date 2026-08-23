@@ -142,7 +142,8 @@ If the service returns `UPDATE_NOT_FOUND` / “Update not found”, that pack is
 already current — shown as up to date, not as an error.
 
 Music and custom eyes under `/opt/jibo/Knowledge/` are not part of `@be/be`
-apply destinations, so they survive. After applying `@be/be`, Be restarts to finish.
+apply destinations, so they survive. After applying an update, reboot the robot
+to finish.
 
 Robot-only actions refuse to run off-robot.
 
@@ -178,7 +179,7 @@ rather than failing.
 | POST | `/api/eye/refresh` | Re-write saved eye + reload face textures |
 | POST | `/api/eye/revert` | Restore the stock eye + live reload |
 | GET | `/api/server` | Jetstream hub state + presets |
-| POST | `/api/server` | `{hostname, port}` — write hub override + restart jetstream |
+| POST | `/api/server` | `{hostname, port}` — write hub override; kill jetstream; reboot to apply |
 | GET | `/api/credentials` | Credentials endpoint/region (keys never returned) |
 | POST | `/api/credentials` | `{endpoint}` only — preserve keys; force region `api` if needed |
 | GET | `/api/ota` | Discovered Skills-root packs, tool availability |

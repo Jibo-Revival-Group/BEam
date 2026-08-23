@@ -54,8 +54,27 @@ function lanAddresses () {
 
 function remountRw () {
     if (!paths.onRobot()) { return; }
+    const dirs = ['/usr/bin', '/usr/local/bin', '/bin'];
+    let bin = null;
+    for (let i = 0; i < dirs.length; i++) {
+        const candidate = dirs[i] + '/jibo-mount';
+        try {
+            if (fs.existsSync(candidate)) { bin = candidate; break; }
+        } catch (err) { /* next */ }
+    }
     try {
-        const result = spawnSync('jibo-mount', ['--rw'], { encoding: 'utf8' });
+        const result = spawnSync(bin || 'jibo-mount', ['--rw'], {
+            encoding: 'utf8',
+            env: (function () {
+                const env = {};
+                const src = process.env || {};
+                Object.keys(src).forEach((k) => { env[k] = src[k]; });
+                const pathVal = String(env.PATH || '');
+                env.PATH = '/usr/bin:/usr/local/bin:/bin:/sbin:/usr/sbin' +
+                    (pathVal ? ':' + pathVal : '');
+                return env;
+            })()
+        });
         if (result.status !== 0 && result.error) {
             console.warn('[beacon] jibo-mount --rw:', result.error.message);
         }
@@ -114,7 +133,8 @@ function serverConfig () {
         editable: paths.onRobot() && paths.isFile(file),
         note: paths.onRobot()
             ? 'Pick a hub or enter a custom host and port. Saving remounts RW, ' +
-              'writes the jetstream config, and restarts the jetstream service.'
+              'writes the jetstream config, and kills the jetstream process. ' +
+              'Reboot the robot to apply the new hub.'
             : 'Jetstream editing only works on the robot.'
     };
 
@@ -140,37 +160,154 @@ function serverConfig () {
     return result;
 }
 
-function restartJetstream () {
-    // Match the working robot shell form — process.kill from Be often fails
-    // silently (EPERM) even when pgrep finds PIDs.
+function robotEnv () {
+    const next = {};
+    const src = process.env || {};
+    Object.keys(src).forEach((k) => { next[k] = src[k]; });
+    const pathVal = String(next.PATH || '');
+    next.PATH = '/usr/local/bin:/usr/bin:/bin:/sbin:/usr/sbin' +
+        (pathVal ? ':' + pathVal : '');
+    return next;
+}
+
+function resolveTool (name) {
+    const dirs = ['/usr/local/bin', '/usr/bin', '/bin', '/sbin', '/usr/sbin'];
+    for (let i = 0; i < dirs.length; i++) {
+        const candidate = dirs[i] + '/' + name;
+        try {
+            if (fs.existsSync(candidate)) { return candidate; }
+        } catch (err) { /* next */ }
+    }
+    return name;
+}
+
+/**
+ * Find jetstream PIDs. Prefer /proc cmdline (works even when BusyBox pgrep
+ * is missing from Electron's PATH). Binary on robot:
+ *   /usr/local/bin/jibo-jetstream-service -c .../jibo-jetstream-service.json
+ */
+function findJetstreamPids () {
+    const found = [];
+    const seen = {};
+    const add = (pid) => {
+        const id = String(pid || '').trim();
+        if (!id || !/^\d+$/.test(id) || seen[id]) { return; }
+        if (id === String(process.pid)) { return; }
+        seen[id] = true;
+        found.push(id);
+    };
+
+    // 1) Scan /proc (most reliable from inside Be)
     try {
-        const listed = spawnSync('sh', ['-c', 'pgrep -f jibo-jetstream-service || true'], {
-            encoding: 'utf8'
-        });
-        const pids = String(listed.stdout || '')
-            .split(/\s+/)
-            .map((s) => s.trim())
-            .filter(Boolean);
-
-        if (!pids.length) {
-            return { killed: 0, command: 'kill -9 $(pgrep -f jibo-jetstream-service)' };
+        const names = fs.readdirSync('/proc');
+        for (let i = 0; i < names.length; i++) {
+            const name = names[i];
+            if (!/^\d+$/.test(name)) { continue; }
+            let cmd = '';
+            try {
+                cmd = fs.readFileSync('/proc/' + name + '/cmdline', 'utf8');
+            } catch (err) {
+                continue;
+            }
+            if (cmd.indexOf('jibo-jetstream-service') !== -1) {
+                add(name);
+            }
         }
+    } catch (err) { /* fall through */ }
 
-        const result = spawnSync('sh', ['-c', 'kill -9 $(pgrep -f jibo-jetstream-service)'], {
-            encoding: 'utf8'
+    if (found.length) {
+        return { pids: found, via: '/proc/cmdline' };
+    }
+
+    const env = robotEnv();
+
+    // 2) pidof by executable basename
+    try {
+        const pidof = resolveTool('pidof');
+        const result = spawnSync(pidof, ['jibo-jetstream-service'], {
+            encoding: 'utf8',
+            env: env
         });
-        const ok = result.status === 0 || result.status === null;
+        String(result.stdout || '').split(/\s+/).forEach(add);
+        if (found.length) {
+            return { pids: found, via: 'pidof' };
+        }
+    } catch (err) { /* next */ }
+
+    // 3) pgrep -f with absolute binary
+    try {
+        const pgrep = resolveTool('pgrep');
+        const result = spawnSync(pgrep, ['-f', 'jibo-jetstream-service'], {
+            encoding: 'utf8',
+            env: env
+        });
+        String(result.stdout || '').split(/\s+/).forEach(add);
+        if (found.length) {
+            return { pids: found, via: pgrep + ' -f' };
+        }
+    } catch (err) { /* next */ }
+
+    return { pids: [], via: null };
+}
+
+function restartJetstream () {
+    // Working robot form: kill -9 $(pgrep -f jibo-jetstream-service)
+    // Be often has a stripped PATH and must use absolute tools + /proc.
+    const env = robotEnv();
+    const found = findJetstreamPids();
+    const pids = found.pids || [];
+    const killBin = resolveTool('kill');
+    const killallBin = resolveTool('killall');
+
+    if (!pids.length) {
+        // Last-ditch: killall by name (same absolute binary directory as the service)
+        try {
+            const ka = spawnSync(killallBin, ['-9', 'jibo-jetstream-service'], {
+                encoding: 'utf8',
+                env: env
+            });
+            if (ka.status === 0) {
+                return {
+                    killed: 1,
+                    via: 'killall',
+                    ok: true,
+                    command: killallBin + ' -9 jibo-jetstream-service'
+                };
+            }
+        } catch (err) { /* report below */ }
+
         return {
-            killed: pids.length,
-            pids: pids,
-            status: result.status,
-            stderr: String(result.stderr || '').trim() || null,
-            ok: ok,
+            killed: 0,
+            via: found.via,
+            ok: false,
+            error: 'no jibo-jetstream-service process visible to Be',
+            hint: 'Expected /usr/local/bin/jibo-jetstream-service. ' +
+                'If it is running as root and Be cannot see it, run: ' +
+                'kill -9 $(pgrep -f jibo-jetstream-service)',
             command: 'kill -9 $(pgrep -f jibo-jetstream-service)'
         };
-    } catch (err) {
-        return { killed: 0, error: err.message };
     }
+
+    const result = spawnSync(killBin, ['-9'].concat(pids), {
+        encoding: 'utf8',
+        env: env
+    });
+
+    // Also try the user's shell form for good measure
+    spawnSync('sh', ['-c',
+        killBin + ' -9 $(' + resolveTool('pgrep') + ' -f jibo-jetstream-service) 2>/dev/null || true'
+    ], { encoding: 'utf8', env: env });
+
+    const ok = result.status === 0 || result.status === null;
+    return {
+        killed: pids.length,
+        pids: pids,
+        via: found.via,
+        status: result.status,
+        stderr: String(result.stderr || '').trim() || null,
+        ok: ok,
+        command: killBin + ' -9 ' + pids.join(' ')
+    };
 }
 
 /**
@@ -232,8 +369,12 @@ function setServer (body) {
         jetstreamRestart: restart,
         note: 'Jetstream hub set to ' + hostname + ':' + port +
             (restarted
-                ? ' (killed jetstream via kill -9; it should respawn).'
-                : ' (no jibo-jetstream-service process found to kill).')
+                ? ' (killed pid ' + (restart.pids || []).join(',') +
+                  (restart.via ? ' via ' + restart.via : '') +
+                  '). Reboot the robot to apply.'
+                : ' (could not see/kill jetstream — ' +
+                  ((restart && restart.error) || 'unknown') +
+                  '). Reboot the robot to apply.')
     };
 }
 

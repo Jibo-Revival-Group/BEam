@@ -279,5 +279,5 @@ chmod 777 /opt/jibo/Knowledge /opt/jibo/Knowledge/jukebox \
 echo ""
 echo "Done. Knowledge music/eyes were left alone."
 if [ "$CHECK_ONLY" != "1" ]; then
-    echo "If @be/be was updated, Be should restart to finish."
+    echo "Reboot the robot to finish applying updates."
 fi

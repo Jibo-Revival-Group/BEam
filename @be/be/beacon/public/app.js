@@ -822,7 +822,7 @@
             if (data.note) { rows.push(['Note', data.note]); }
             var tools = data.tools || {};
             Object.keys(tools).forEach(function (name) {
-                rows.push([name, tools[name] ? 'found' : 'missing']);
+                rows.push([name, tools[name] || 'missing']);
             });
             fillKv($('#ota-status'), rows);
 
@@ -904,8 +904,7 @@
         if (!confirm(
             'Download and apply ' + subsystem +
             (offer.toVersion ? (' ' + offer.toVersion) : '') +
-            '?' +
-            (subsystem === '@be/be' ? ' Be will restart when apply finishes.' : '')
+            '? Reboot the robot afterward to finish.'
         )) {
             return;
         }
@@ -951,7 +950,8 @@
                     if (event.message) { appendOtaLog(event.message); }
                 } else if (event.phase === 'done') {
                     setOtaProgress(100, (event.result && event.result.note) || event.message || 'Done');
-                    toast((event.result && event.result.note) || 'Update applied', 'ok');
+                    toast((event.result && event.result.note) ||
+                        'Update applied. Reboot the robot to finish.', 'ok');
                     appendOtaLog('done');
                     delete state.otaOffers[subsystem];
                     if (!state.otaChecked) { state.otaChecked = {}; }

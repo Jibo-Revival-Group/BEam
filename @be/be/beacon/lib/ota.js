@@ -18,6 +18,13 @@ const paths = require('./paths');
 
 const FILTER = 'fcs';
 const OTA_DIR = '/opt/ota';
+/** Be's Electron PATH is often incomplete — look in the usual robot bins first. */
+const BIN_DIRS = ['/usr/local/bin', '/usr/bin', '/bin', '/sbin', '/usr/sbin'];
+const NODE_CANDIDATES = [
+    '/usr/bin/node',
+    '/usr/sbin/node',
+    '/usr/local/bin/node'
+];
 const SKIP_NAMES = {
     'old-BEer': true,
     'Beam-master': true,
@@ -32,20 +39,148 @@ function fail (message, status, detail) {
     return err;
 }
 
-function remountRw () {
+function spawnEnv () {
+    const env = {};
+    const src = process.env || {};
+    Object.keys(src).forEach((key) => { env[key] = src[key]; });
+    const current = String(env.PATH || '');
+    const parts = current.split(':').filter(Boolean);
+    BIN_DIRS.forEach((dir) => {
+        if (parts.indexOf(dir) === -1) { parts.unshift(dir); }
+    });
+    env.PATH = parts.join(':');
+    return env;
+}
+
+/** Absolute path to a robot CLI, or null if missing. */
+function resolveBin (name) {
+    for (let i = 0; i < BIN_DIRS.length; i++) {
+        const candidate = path.join(BIN_DIRS[i], name);
+        try {
+            if (fs.existsSync(candidate)) { return candidate; }
+        } catch (err) { /* try next */ }
+    }
     try {
-        spawnSync('jibo-mount', ['--rw'], { encoding: 'utf8' });
+        const whichBin = fs.existsSync('/usr/bin/which') ? '/usr/bin/which' : 'which';
+        const result = spawnSync(whichBin, [name], {
+            encoding: 'utf8',
+            env: spawnEnv()
+        });
+        if (result.status === 0) {
+            const found = String(result.stdout || '').trim().split(/\r?\n/)[0];
+            if (found && fs.existsSync(found)) { return found; }
+        }
+    } catch (err) { /* fall through */ }
+    return null;
+}
+
+function resolveNode () {
+    for (let i = 0; i < NODE_CANDIDATES.length; i++) {
+        try {
+            if (fs.existsSync(NODE_CANDIDATES[i])) { return NODE_CANDIDATES[i]; }
+        } catch (err) { /* next */ }
+    }
+    return resolveBin('node');
+}
+
+function realPath (p) {
+    try {
+        return fs.realpathSync(p);
     } catch (err) {
-        console.warn('[beacon] jibo-mount --rw failed:', err && err.message);
+        return p;
     }
 }
 
+/**
+ * jibo-*-update are symlinks to .js under @jibo/jibo-ota-updater. Spawning the
+ * symlink from Electron fails because the shebang uses `env node` and Be's
+ * PATH has no node. Always invoke: /usr/bin/node <script.js> ...
+ *
+ * Returns { cmd, args, detail } ready for spawn/spawnSync.
+ */
+function robotCli (name, cliArgs) {
+    const bin = resolveBin(name);
+    if (!bin) {
+        return {
+            error: fail(name + ' not found', 500, 'Looked in ' + BIN_DIRS.join(', '))
+        };
+    }
+    const resolved = realPath(bin);
+    const args = (cliArgs || []).slice();
+    const looksLikeJs = /\.js$/i.test(resolved) || /\.js$/i.test(bin);
+
+    if (looksLikeJs) {
+        const node = resolveNode();
+        if (!node) {
+            return {
+                error: fail(
+                    'system node not found to run ' + name,
+                    500,
+                    'script=' + resolved
+                )
+            };
+        }
+        return {
+            cmd: node,
+            args: [resolved].concat(args),
+            detail: node + ' ' + resolved
+        };
+    }
+
+    return {
+        cmd: bin,
+        args: args,
+        detail: bin
+    };
+}
+
+function runSync (name, cliArgs, opts) {
+    const run = robotCli(name, cliArgs);
+    if (run.error) { return { error: run.error }; }
+
+    const options = opts || {};
+    const result = spawnSync(run.cmd, run.args, {
+        encoding: 'utf8',
+        maxBuffer: options.maxBuffer || (8 * 1024 * 1024),
+        env: spawnEnv()
+    });
+
+    // If direct node+script still fails, try sh -c as the interactive shell does.
+    if (result.error) {
+        const shellCmd = [run.cmd].concat(run.args).map((part) => {
+            const s = String(part);
+            if (/^[A-Za-z0-9_@%+=:,.\/-]+$/.test(s)) { return s; }
+            return "'" + s.replace(/'/g, "'\\''") + "'";
+        }).join(' ');
+        const viaSh = spawnSync('/bin/sh', ['-c', shellCmd], {
+            encoding: 'utf8',
+            maxBuffer: options.maxBuffer || (8 * 1024 * 1024),
+            env: spawnEnv()
+        });
+        viaSh._via = run.detail + ' (via sh)';
+        return viaSh;
+    }
+    result._via = run.detail;
+    return result;
+}
+
 function commandExists (name) {
+    return !!resolveBin(name);
+}
+
+function remountRw () {
+    const run = robotCli('jibo-mount', ['--rw']);
+    if (run.error) {
+        console.warn('[beacon] jibo-mount not found under', BIN_DIRS.join(', '));
+        return;
+    }
     try {
-        const result = spawnSync('which', [name], { encoding: 'utf8' });
-        return result.status === 0;
+        const result = spawnSync(run.cmd, run.args, { encoding: 'utf8', env: spawnEnv() });
+        if (result.error) {
+            console.warn('[beacon] jibo-mount --rw:', result.error.message);
+        }
     } catch (err) {
-        return false;
+        console.warn('[beacon] jibo-mount --rw failed:', err && err.message);
     }
 }
 
@@ -192,21 +327,30 @@ function isUpdateNotFound (blob, stdout, stderr) {
 }
 
 function toolsState () {
-    return {
-        'jibo-mount': commandExists('jibo-mount'),
-        'jibo-get-update': commandExists('jibo-get-update'),
-        'jibo-download-update': commandExists('jibo-download-update'),
-        'jibo-apply-update': commandExists('jibo-apply-update')
-    };
+    const names = [
+        'jibo-mount',
+        'jibo-get-update',
+        'jibo-download-update',
+        'jibo-apply-update'
+    ];
+    const tools = {};
+    names.forEach((name) => {
+        const run = robotCli(name, []);
+        tools[name] = run.error
+            ? null
+            : (run.detail || resolveBin(name));
+    });
+    tools.node = resolveNode();
+    return tools;
 }
 
 function state () {
     const onRobot = paths.onRobot();
     const tools = toolsState();
     const ready = onRobot &&
-        tools['jibo-get-update'] &&
-        tools['jibo-download-update'] &&
-        tools['jibo-apply-update'];
+        !!tools['jibo-get-update'] &&
+        !!tools['jibo-download-update'] &&
+        !!tools['jibo-apply-update'];
 
     return {
         robot: onRobot,
@@ -216,11 +360,12 @@ function state () {
         otaDir: OTA_DIR,
         packages: listPackages(),
         tools: tools,
+        path: spawnEnv().PATH,
         note: onRobot
             ? (ready
                 ? 'Checks each Skills-root pack against the credentials endpoint ' +
                   '(public: http://joap.5x1.com:80). UPDATE_NOT_FOUND means up to date.'
-                : 'Missing jibo-*-update tools on PATH.')
+                : 'Missing jibo-*-update tools under /usr/bin (and /usr/local/bin).')
             : 'OTA only runs on the robot. Dev checkout lists repo-root packs.'
     };
 }
@@ -248,8 +393,12 @@ function checkOne (subsystem) {
     if (!paths.onRobot()) {
         throw fail('Checking for OTA updates only works on the robot.', 503);
     }
-    if (!commandExists('jibo-get-update')) {
-        throw fail('jibo-get-update not found on PATH', 500);
+    if (!resolveBin('jibo-get-update')) {
+        throw fail(
+            'jibo-get-update not found',
+            500,
+            'Looked in ' + BIN_DIRS.join(', ')
+        );
     }
 
     const pkg = findPackage(subsystem);
@@ -265,14 +414,22 @@ function checkOne (subsystem) {
         '--version', pkg.version,
         '--filter', FILTER
     ];
-    const result = spawnSync('jibo-get-update', args, {
-        encoding: 'utf8',
-        maxBuffer: 8 * 1024 * 1024
-    });
+    const result = runSync('jibo-get-update', args);
+    if (result.error && result.error.status) {
+        throw result.error;
+    }
     const stdout = String(result.stdout || '');
     const stderr = String(result.stderr || '');
     if (result.error) {
-        throw fail('jibo-get-update failed to start', 500, result.error.message);
+        throw fail(
+            'jibo-get-update failed to start',
+            500,
+            (result.error.message || String(result.error)) +
+                (result._via ? ' via ' + result._via : '') +
+                '; node=' + (resolveNode() || 'missing') +
+                '; bin=' + (resolveBin('jibo-get-update') || 'missing') +
+                '; real=' + realPath(resolveBin('jibo-get-update') || '')
+        );
     }
 
     const blob = parseJsonBlob(stdout) || parseJsonBlob(stderr);
@@ -383,7 +540,10 @@ function ensureOtaDir () {
 function spawnLines (cmd, args, onLine, done) {
     let child;
     try {
-        child = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+        child = spawn(cmd, args, {
+            stdio: ['ignore', 'pipe', 'pipe'],
+            env: spawnEnv()
+        });
     } catch (err) {
         done(fail(cmd + ' failed to start', 500, err.message));
         return null;
@@ -439,10 +599,6 @@ function apply (offer, onEvent, done) {
         done(fail('offer must include id, url, and shaHash', 400));
         return;
     }
-    if (!commandExists('jibo-download-update') || !commandExists('jibo-apply-update')) {
-        done(fail('jibo-download-update / jibo-apply-update not found on PATH', 500));
-        return;
-    }
 
     const subsystem = offer.subsystem || '@be/be';
     const pkg = findPackage(subsystem);
@@ -457,6 +613,30 @@ function apply (offer, onEvent, done) {
     const fromVersion = offer.fromVersion || (pkg && pkg.version) || '0.0.0';
     const filter = offer.filter || FILTER;
     const tarPath = tarPathFor(subsystem);
+
+    const downloadRun = robotCli('jibo-download-update', [
+        '--id', String(id),
+        '--url', String(offer.url),
+        '--destination', tarPath,
+        '--shasum', String(offer.shaHash)
+    ]);
+    if (downloadRun.error) {
+        done(downloadRun.error);
+        return;
+    }
+
+    const applyRun = robotCli('jibo-apply-update', [
+        '--source', tarPath,
+        '--subsystem', subsystem,
+        '--from', String(fromVersion),
+        '--to', String(toVersion),
+        '--destination', dest,
+        '--filter', filter
+    ]);
+    if (applyRun.error) {
+        done(applyRun.error);
+        return;
+    }
 
     remountRw();
     try {
@@ -473,14 +653,7 @@ function apply (offer, onEvent, done) {
         message: 'Downloading ' + subsystem + ' from ' + offer.url
     });
 
-    const downloadArgs = [
-        '--id', String(id),
-        '--url', String(offer.url),
-        '--destination', tarPath,
-        '--shasum', String(offer.shaHash)
-    ];
-
-    spawnLines('jibo-download-update', downloadArgs, (line) => {
+    spawnLines(downloadRun.cmd, downloadRun.args, (line) => {
         const obj = parseJsonBlob(line);
         if (obj && (obj.percent != null || obj.status)) {
             onEvent({
@@ -526,16 +699,7 @@ function apply (offer, onEvent, done) {
             message: 'Applying ' + subsystem + ' to ' + dest
         });
 
-        const applyArgs = [
-            '--source', tarPath,
-            '--subsystem', subsystem,
-            '--from', String(fromVersion),
-            '--to', String(toVersion),
-            '--destination', dest,
-            '--filter', filter
-        ];
-
-        spawnLines('jibo-apply-update', applyArgs, (line) => {
+        spawnLines(applyRun.cmd, applyRun.args, (line) => {
             if (line && line.trim()) {
                 onEvent({
                     phase: 'apply',
@@ -567,9 +731,7 @@ function apply (offer, onEvent, done) {
                 }
             }
 
-            const note = subsystem === '@be/be'
-                ? 'Update applied. Be should restart to finish.'
-                : ('Update applied for ' + subsystem + '.');
+            const note = 'Update applied. Reboot the robot to finish.';
 
             onEvent({ phase: 'done', subsystem: subsystem, message: note });
             done(null, {
@@ -594,5 +756,7 @@ module.exports = {
     check: check,
     checkOne: checkOne,
     apply: apply,
-    tarPathFor: tarPathFor
+    tarPathFor: tarPathFor,
+    robotCli: robotCli,
+    resolveNode: resolveNode
 };
