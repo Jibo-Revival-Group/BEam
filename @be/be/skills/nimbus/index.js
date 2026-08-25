@@ -95,6 +95,7 @@ class Nimbus extends be_framework_1.BeSkill {
     }
     open(listenResult, refresh, lastSkill) {
         this.log.info('Nimbus Opening');
+        this._isInterruptible = false;
         this.nextAction = null;
         this.nextActionTransID = null;
         if (listenResult && listenResult.cloudSkillResponse) {
@@ -141,6 +142,22 @@ class Nimbus extends be_framework_1.BeSkill {
         this.session.close()
             .then(() => cleanUp())
             .catch(cleanUp);
+    }
+    keepListenInNimbus(turnResult) {
+        if (!turnResult) {
+            return turnResult;
+        }
+        const skillId = turnResult.match && turnResult.match.skillID;
+        if (!skillId || skillId === '@be/nimbus') {
+            return turnResult;
+        }
+        this.log.info('Nimbus keeping follow-up instead of launching', skillId);
+        turnResult.match.skillID = '@be/nimbus';
+        turnResult.match.launch = false;
+        if (!turnResult.match.cloudSkill) {
+            turnResult.match.cloudSkill = 'chitchat-skill';
+        }
+        return turnResult;
     }
     getNextAction() {
         if (this.nextAction) {
@@ -190,7 +207,7 @@ class Nimbus extends be_framework_1.BeSkill {
                     break;
                 case jibo.jetstream.types.TurnResultType.SUCCEEDED:
                     if (this.isSuccessResult(result)) {
-                        this.nextAction.resolve(result.result);
+                        this.nextAction.resolve(this.keepListenInNimbus(result.result));
                         break;
                     }
                 default:
@@ -596,6 +613,7 @@ class ProcessCloudState extends exports.State {
                 rule_name: rules,
                 gui: view,
                 es_auto_tagging: true,
+                ignore_global_rules: !!rules,
                 prompts: [prompt]
             };
         }).filter(mim => !!mim);
@@ -745,9 +763,10 @@ class WaitForAdditionalState extends exports.State {
             this.stopped = false;
             this.redirectTimer = null;
             try {
-                const turnResult = yield this.nimbus.getNextAction();
+                const turnResult = this.nimbus.keepListenInNimbus(yield this.nimbus.getNextAction());
                 if (turnResult && !this.stopped) {
                     this.nimbus.redirect('@be/nimbus', turnResult);
+                    this.nimbus._isInterruptible = false;
                     this.redirectTimer = this.nimbus.jibo.timer.setTimeout(() => {
                         this.nimbus.log.warn('Nimbus self-redirect likely failed, exit Nimbus');
                         this.transitionTo(this._completeState, data);

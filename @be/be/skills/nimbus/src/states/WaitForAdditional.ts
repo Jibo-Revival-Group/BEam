@@ -27,9 +27,10 @@ export class WaitForAdditionalState extends State {
             this.stopped = false;
             this.redirectTimer = null;
             try {
-                const turnResult = await this.nimbus.getNextAction();
+                const turnResult = this.nimbus.keepListenInNimbus(await this.nimbus.getNextAction());
                 if (turnResult && !this.stopped) {
                     this.nimbus.redirect('@be/nimbus', turnResult);
+                    this.nimbus._isInterruptible = false;
                     this.redirectTimer = this.nimbus.jibo.timer.setTimeout(() => {
                         this.nimbus.log.warn('Nimbus self-redirect likely failed, exit Nimbus');
                         this.transitionTo(this._completeState, data);

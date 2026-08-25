@@ -37,6 +37,7 @@ class Remote extends be_framework_1.BeSkill {
         this._openHelper(result);
     }
     _openHelper(result) {
+        this._isInterruptible = false;
         jibo.face.views.forceEyeView();
         jibo.remote.sessionDiscarded.on(this.onConnectionClosed);
         this.closeReason = null;

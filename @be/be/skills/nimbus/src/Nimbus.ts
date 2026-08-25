@@ -130,6 +130,7 @@ export class Nimbus extends BeSkill {
      */
     open(listenResult: jibo.jetstream.types.ListenResult, refresh?: boolean, lastSkill?: string): void {
         this.log.info('Nimbus Opening');
+        this._isInterruptible = false;
 
         this.nextAction = null;
         this.nextActionTransID = null;
@@ -193,6 +194,26 @@ export class Nimbus extends BeSkill {
         this.session.close()
             .then(() => cleanUp())
             .catch(cleanUp);
+    }
+
+    /**
+     * Drop Hey Jibo skill launches from a follow-up listen so Nimbus stays open.
+     */
+    keepListenInNimbus(turnResult: jibo.jetstream.types.ListenResult): jibo.jetstream.types.ListenResult {
+        if (!turnResult) {
+            return turnResult;
+        }
+        const skillId = turnResult.match && turnResult.match.skillID;
+        if (!skillId || skillId === '@be/nimbus') {
+            return turnResult;
+        }
+        this.log.info('Nimbus keeping follow-up instead of launching', skillId);
+        turnResult.match.skillID = '@be/nimbus';
+        turnResult.match.launch = false;
+        if (!turnResult.match.cloudSkill) {
+            turnResult.match.cloudSkill = 'chitchat-skill';
+        }
+        return turnResult;
     }
 
     /**
@@ -274,7 +295,7 @@ export class Nimbus extends BeSkill {
                     break;
                 case jibo.jetstream.types.TurnResultType.SUCCEEDED:
                     if (this.isSuccessResult(result)) {
-                        this.nextAction.resolve(result.result);
+                        this.nextAction.resolve(this.keepListenInNimbus(result.result));
                         break;
                     }
                 default:

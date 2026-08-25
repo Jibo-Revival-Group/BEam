@@ -42,6 +42,9 @@ class SkillSwitchData {
             ((this._options.nlu.entities.domain === "alarm") || (this._options.nlu.entities.domain === "timer"))) {
             return 3;
         }
+        else if (this.name === "@be/nimbus" || this.name === "@be/remote") {
+            return 3;
+        }
         else if (this._options.match && this._options.match.isProactive) {
             return 1;
         }

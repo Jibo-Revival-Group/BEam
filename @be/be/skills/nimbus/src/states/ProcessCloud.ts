@@ -218,6 +218,7 @@ export class ProcessCloudState extends State {
                 rule_name: rules,
                 gui: view,  // Short term, handle GUI/Views with Mim GUI manager
                 es_auto_tagging: true,
+                ignore_global_rules: !!rules,
                 prompts: [prompt]
             };
         }).filter(mim => !!mim);
