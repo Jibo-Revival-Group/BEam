@@ -2534,14 +2534,9 @@ class Idle extends be_framework_2.BeSkill {
             this.log.info('Starting');
             this.session.open(result);
         }
-        let kbm = jibo.kb.createModel('/qrcommander');
-        kbm.loadRoot((err, root) => {
-            if (root && root.data.enabled) {
-                this.qrScanning = true;
-                this.qrCommandActive = false;
-                this._readQR();
-            }
-        });
+        this.qrScanning = true;
+        this.qrCommandActive = false;
+        this._readQR();
     }
     _readQR() {
         if (!this.qrCommandActive) {

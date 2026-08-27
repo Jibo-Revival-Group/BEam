@@ -532,7 +532,6 @@ const jibo = require("jibo");
 const WiFi_1 = require("./WiFi");
 const AboutSkill_1 = require("./subskills/AboutSkill");
 const BatterySkill_1 = require("./subskills/BatterySkill");
-const CommanderSkill_1 = require("./subskills/CommanderSkill");
 const ErrorSkill_1 = require("./subskills/ErrorSkill");
 const MenuSkill_1 = require("./subskills/MenuSkill");
 const ShutdownSkill_1 = require("./subskills/ShutdownSkill");
@@ -551,7 +550,6 @@ class Settings extends be_framework_1.BeSkill {
             battery: { Class: BatterySkill_1.default },
             error: { Class: ErrorSkill_1.default, uninterruptible: true, refreshable: true },
             menu: { Class: MenuSkill_1.default },
-            qrCommander: { Class: CommanderSkill_1.default },
             shutDown: { Class: ShutdownSkill_1.default },
             shutdownAnimation: { Class: ShutdownAnimationSkill_1.default, uninterruptible: true },
             updates: { Class: UpdatesSkill_1.default },
@@ -748,7 +746,7 @@ Settings.BeSkill = be_framework_1.BeSkill;
 Settings.AboutPage = AboutSkill_1.AboutPage;
 exports.default = Settings;
 
-},{"./WiFi":6,"./analytics/Analytics":7,"./analytics/PowerAnalytics":8,"./subskills/AboutSkill":11,"./subskills/BatterySkill":12,"./subskills/CommanderSkill":26,"./subskills/ErrorSkill":13,"./subskills/MenuSkill":14,"./subskills/ShutdownAnimationSkill":15,"./subskills/ShutdownSkill":16,"./subskills/UpdatesSkill":18,"./subskills/VolumeSkill":19,"./subskills/WifiSkill":20,"./subskills/WipeSkill":21,"@be/be-framework":undefined,"jibo":undefined}],6:[function(require,module,exports){
+},{"./WiFi":6,"./analytics/Analytics":7,"./analytics/PowerAnalytics":8,"./subskills/AboutSkill":11,"./subskills/BatterySkill":12,"./subskills/ErrorSkill":13,"./subskills/MenuSkill":14,"./subskills/ShutdownAnimationSkill":15,"./subskills/ShutdownSkill":16,"./subskills/UpdatesSkill":18,"./subskills/VolumeSkill":19,"./subskills/WifiSkill":20,"./subskills/WipeSkill":21,"@be/be-framework":undefined,"jibo":undefined}],6:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const JSC = require("@jibo/jibo-server-client");
@@ -3512,80 +3510,6 @@ class WipeView extends jibo.rendering.gui.views.View {
 }
 exports.default = WipeView;
 
-},{"jibo":undefined}],26:[function(require,module,exports){
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-const jibo = require("jibo");
-const SubSkill_1 = require("./SubSkill");
-const TouchyTimeout_1 = require("../utils/TouchyTimeout");
-const TIMEOUT_TIME = 16000;
-class CommanderSkill extends SubSkill_1.default {
-    constructor(skill, intent, onClose) {
-        super(skill, intent, onClose);
-        this.enable = () => {
-            this.view.getComponentById('text').text = 'QR Commander is enabled';
-            this.root.data.enabled = true;
-        };
-        this.disable = () => {
-            this.view.getComponentById('text').text = 'QR Commander is disabled';
-            this.root.data.enabled = false;
-        };
-        jibo.face.views.addView('assets/commander/toggle.json', (view) => {
-            this.view = view;
-            this.view.once(jibo.face.views.CLOSED, this.destroyThenClose);
-            this.view.on('enable', this.enable);
-            this.view.on('disable', this.disable);
-            if (this.root && this.root.data) {
-                let enabled = this.root.data.enabled ? 'enabled' : 'disabled';
-                this.view.getComponentById('text').text = `QR Commander is ${enabled}`;
-            }
-        });
-        let kbm = jibo.kb.createModel('/qrcommander');
-        kbm.loadRoot((err, root) => {
-            if (err) {
-                this.log.error('error loading settings root from KB', err);
-            }
-            this.root = root;
-            if (this.view) {
-                let enabled = this.root.data.enabled ? 'enabled' : 'disabled';
-                this.view.getComponentById('text').text = `QR Commander is ${enabled}`;
-            }
-        });
-        this.timeout = new TouchyTimeout_1.default(() => {
-            this.stopAndDestroy(this.onClose);
-        }, TIMEOUT_TIME);
-    }
-    stopAndDestroy(done) {
-        if (this.timeout) {
-            this.timeout.destroy();
-            this.timeout = null;
-        }
-        this.view.removeListener(jibo.face.views.CLOSED, this.destroyThenClose);
-        jibo.face.views.changeView({ removeAll: true, leaveEmpty: true }, () => {
-            this.destroy();
-            done();
-        }, () => {
-            this.destroy();
-            done('about view close failed');
-        });
-    }
-    destroy() {
-        if (this.root) {
-            this.root.save();
-        }
-        this.root = null;
-        this.view.removeListener('enable', this.enable);
-        this.view.removeListener('disable', this.disable);
-        if (this.timeout) {
-            this.timeout.destroy();
-            this.timeout = null;
-        }
-        this.view = null;
-        super.destroy();
-    }
-}
-exports.default = CommanderSkill;
-
-},{"../utils/TouchyTimeout":22,"./SubSkill":17,"jibo":undefined}]},{},[10])(10)
+},{"jibo":undefined}]},{},[10])(10)
 });
 //# sourceMappingURL=index.js.map
