@@ -2287,47 +2287,41 @@ module.exports = function (blackboard, notepad, result, emitter) {
                     'Script': () => {
                         notepad.updateStatus = false;
                         console.log('checkin 4 updates');
-                        jibo.scheduler.backupStatus((err, backingUp) => {
+                        // JOAP has no usable cloud backup. Do not gate Updates on
+                        // backupStatus — a stuck _backingBeforeUpdate / failed backup
+                        // previously prevented otaCheckUpdates (and any JOAP traffic).
+                        jibo.scheduler.otaDownloadStatus((err, status) => {
                             if (err) {
-                                notepad.params.log.error('error getting backup status ', err);
+                                notepad.params.log.error('error getting download status ', err);
                             }
-                            if (backingUp) {
-                                notepad.updateStatus = 'backup';
-                            } else {
-                                jibo.scheduler.otaDownloadStatus((err, status) => {
+                            if (!status) {
+                                jibo.scheduler.otaCheckUpdates((err, updateList) => {
+                                    console.log('updates check returned. err?', err, ' list?', updateList);
                                     if (err) {
-                                        notepad.params.log.error('error getting download status ', err);
-                                    }
-                                    if (!status) {
-                                        jibo.scheduler.otaCheckUpdates((err, updateList) => {
-                                            console.log('updates check returned. err?', err, ' list?', updateList);
+                                        notepad.updateStatus = 'down';
+                                    } else if (updateList && updateList.length) {
+                                        notepad.kbm = jibo.kb.createModel('/ota');
+                                        notepad.kbm.loadRoot((err, root) => {
                                             if (err) {
-                                                notepad.updateStatus = 'down';
-                                            } else if (updateList && updateList.length) {
-                                                notepad.kbm = jibo.kb.createModel('/ota');
-                                                notepad.kbm.loadRoot((err, root) => {
-                                                    if (err) {
-                                                        notepad.params.log.error('couldnt load OTA KB ', err);
-                                                    }
-                                                    root.data.updatesAvailable = true;
-                                                    root.data.lastUpdateNotification = Date.now();
-                                                    root.save(err => {
-                                                        if (err) {
-                                                            notepad.params.log.error('couldnt save OTA available status ', err);
-                                                        }
-                                                        notepad.updateStatus = 'updates';
-                                                    });
-                                                });
-                                            } else {
-                                                notepad.updateStatus = 'none';
+                                                notepad.params.log.error('couldnt load OTA KB ', err);
                                             }
+                                            root.data.updatesAvailable = true;
+                                            root.data.lastUpdateNotification = Date.now();
+                                            root.save(err => {
+                                                if (err) {
+                                                    notepad.params.log.error('couldnt save OTA available status ', err);
+                                                }
+                                                notepad.updateStatus = 'updates';
+                                            });
                                         });
                                     } else {
-                                        console.log('download status recieved.', status);
-                                        notepad.downloadStatus = status;
-                                        notepad.updateStatus = 'downloading';
+                                        notepad.updateStatus = 'none';
                                     }
                                 });
+                            } else {
+                                console.log('download status recieved.', status);
+                                notepad.downloadStatus = status;
+                                notepad.updateStatus = 'downloading';
                             }
                         });
                     }
