@@ -20,7 +20,11 @@ echo "=== Patch SSM ==="
 python << 'PY'
 import os, sys
 
-root = '/opt/jibo'
+# Live SSM is under /usr/local/bin/jibo-ssm (see service args), not Skills.
+roots = [
+    '/usr/local/bin/jibo-ssm',
+    '/opt/jibo/Jibo/jibo-ssm',
+]
 needle = 'this._backupHelper((bkError, maxError) => {'
 marker = "this._doLog('Skipping pre-OTA backup');"
 replacement = (
@@ -28,41 +32,47 @@ replacement = (
     '            return callback();\n'
     '            ' + needle
 )
-skip_dirs = set([
-    'Skills', 'Knowledge', 'old-BEer', 'BEam-master', 'Beam-master', 'node_modules'
-])
+skip_dirs = set(['node_modules'])
 patched = 0
 already = 0
+searched = []
 
-for dirpath, dirnames, filenames in os.walk(root):
-    dirnames[:] = [d for d in dirnames if d not in skip_dirs]
-    for name in filenames:
-        if not name.endswith('.js'):
-            continue
-        path = os.path.join(dirpath, name)
-        try:
-            with open(path, 'r') as f:
-                text = f.read()
-        except Exception:
-            continue
-        if needle not in text:
-            continue
-        if marker in text:
-            already += 1
-            print('already patched: ' + path)
-            continue
-        text = text.replace(needle, replacement)
-        try:
-            with open(path, 'w') as f:
-                f.write(text)
-        except Exception as e:
-            sys.stderr.write('WARNING: could not write ' + path + ': ' + str(e) + '\n')
-            continue
-        patched += 1
-        print('patched ' + path)
+for root in roots:
+    if not os.path.isdir(root):
+        continue
+    searched.append(root)
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [d for d in dirnames if d not in skip_dirs]
+        for name in filenames:
+            if not name.endswith('.js'):
+                continue
+            path = os.path.join(dirpath, name)
+            try:
+                with open(path, 'r') as f:
+                    text = f.read()
+            except Exception:
+                continue
+            if needle not in text:
+                continue
+            if marker in text:
+                already += 1
+                print('already patched: ' + path)
+                continue
+            text = text.replace(needle, replacement)
+            try:
+                with open(path, 'w') as f:
+                    f.write(text)
+            except Exception as e:
+                sys.stderr.write('WARNING: could not write ' + path + ': ' + str(e) + '\n')
+                continue
+            patched += 1
+            print('patched ' + path)
 
 if patched == 0 and already == 0:
-    sys.stderr.write('WARNING: no SSM _backupIfOTA site found under /opt/jibo\n')
+    sys.stderr.write(
+        'ERROR: no SSM _backupIfOTA site found.\n'
+        '  looked in: %s\n' % (', '.join(searched) if searched else '(none exist)')
+    )
     sys.exit(1)
 print('SSM backup skip: patched %d, already %d' % (patched, already))
 PY
