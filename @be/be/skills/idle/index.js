@@ -2534,6 +2534,50 @@ class Idle extends be_framework_2.BeSkill {
             this.log.info('Starting');
             this.session.open(result);
         }
+        let kbm = jibo.kb.createModel('/qrcommander');
+        kbm.loadRoot((err, root) => {
+            if (root && root.data.enabled) {
+                this.qrScanning = true;
+                this.qrCommandActive = false;
+                this._readQR();
+            }
+        });
+    }
+    _readQR() {
+        if (!this.qrCommandActive) {
+            jibo.lps.readBarcode((err, data) => {
+                if (!err && data && data.length && (data[0].type === 9 || data[0].type === 10)) {
+                    this.log.info('Code Detected: ', err);
+                    let codeType = data[0].type;
+                    let barcode = data[0].content;
+                    let parts = barcode.split('[#]');
+                    let qrCommand = parts[0];
+                    let qrText = parts[1];
+                    this.log.info(`Code Type: ${codeType} Command: ${qrCommand}`);
+                    switch (qrCommand) {
+                        case "ESML":
+                            if (qrText) {
+                                this.qrCommandActive = true;
+                                this.log.info('QR Code ESML: ' + qrText);
+                                jibo.embodied.speech.speak(qrText)
+                                    .then(() => { this.qrCommandActive = false; })
+                                    .catch(() => { this.qrCommandActive = false; });
+                            }
+                            break;
+                        case "NAME":
+                            let greeting = `hi ${qrText}`;
+                            this.qrCommandActive = true;
+                            this.log.info(`QR Code NAME: ${qrText}, ${greeting}`);
+                            jibo.embodied.speech.speak(greeting)
+                                .then(() => { this.qrCommandActive = false; })
+                                .catch(() => { this.qrCommandActive = false; });
+                    }
+                }
+            });
+        }
+        if (this.qrScanning) {
+            this.qrTimeout = setTimeout(this._readQR.bind(this), 2000);
+        }
     }
     getIntent(options) {
         if (options) {
@@ -2574,6 +2618,10 @@ class Idle extends be_framework_2.BeSkill {
     close(done) {
         this.closing = true;
         this.log.info('Stopping');
+        this.qrScanning = false;
+        if (this.qrTimeout) {
+            clearTimeout(this.qrTimeout);
+        }
         const cleanUp = (err) => {
             if (jibo.face.views.currentView) {
                 jibo.face.views.currentView.clearActions();

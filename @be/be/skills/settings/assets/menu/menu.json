@@ -56,6 +56,18 @@
                 }
             },
             {
+                "id": "qrCommander",
+                "label": "QR Commander",
+                "iconSrc": "assets/wifi/images/icons/qr.png",
+                "action": {
+                    "type": "event",
+                    "data": {
+                        "event": "press",
+                        "intent": "qrCommander"
+                    }
+                }
+            },
+            {
                 "id": "updates",
                 "label": "Updates",
                 "iconSrc": "assets/menu/icons/updates.png",
