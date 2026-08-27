@@ -3339,15 +3339,11 @@ class OTAUpdater {
         this.otaDelay = 0;
         this.enableDelayedCheck = false;
         this.checkerDelay = 0;
-        this.enableBackup = false;
-        this.backupDelay = 0;
         this.skill = idle;
     }
     checkForUpdates() {
         this.otaDelay = 0;
-        this.backupDelay = 0;
         this.checkerDelay = 0;
-        this.enableBackup = false;
         this.enableDelayedCheck = false;
         this.updatesAvailable = false;
         this.kbm = jibo.kb.createModel(OTA_KB);
@@ -3359,7 +3355,7 @@ class OTAUpdater {
                         this._enableDelayedCheck();
                     }
                     else {
-                        this._enableBackup();
+                        this.skill.log.info('No Updates Available. Skipping nightly backup.');
                     }
                 }
                 else {
@@ -3384,17 +3380,6 @@ class OTAUpdater {
             this.enableDelayedCheck = false;
             this._delayedCheck();
         }
-        else if (this.enableBackup && sleepyTime > this.backupDelay) {
-            this.enableBackup = false;
-            jibo.scheduler.backupRobot((err) => {
-                if (err) {
-                    this.skill.log.error('nightly backup failed: ', err);
-                }
-                else {
-                    this.skill.log.info('nightly backup initiated');
-                }
-            });
-        }
     }
     _delayedCheck() {
         this.kbm.loadRoot((err, root) => {
@@ -3414,9 +3399,6 @@ class OTAUpdater {
                     if (root.data.updatesAvailable) {
                         this._enableUpdates();
                     }
-                    else {
-                        this._enableBackup();
-                    }
                 });
             });
         });
@@ -3428,15 +3410,6 @@ class OTAUpdater {
         }
         this.enableDelayedCheck = true;
         this.skill.log.info(`Initializing Nighttime OTA Helper. Will check for updates in ${this.checkerDelay / cu.TimeUtils.minutesToMs(1)} minutes`);
-    }
-    _enableBackup() {
-        this.backupDelay = cu.TimeUtils.minutesToMs(Math.round(Math.random() * 90) + 30);
-        if (this.skill.debug) {
-            this.backupDelay = cu.TimeUtils.minutesToMs(Math.round(Math.random() * 2) + 1);
-        }
-        this.backupDelay += this.checkerDelay;
-        this.enableBackup = true;
-        this.skill.log.info(`No Updates Available. Attempting backup in ${this.backupDelay / cu.TimeUtils.minutesToMs(1)} minutes.`);
     }
     _enableUpdates() {
         this.otaDelay = cu.TimeUtils.minutesToMs(Math.round(Math.random() * 90) + 30);
