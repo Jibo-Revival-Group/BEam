@@ -6,7 +6,7 @@ These skills are based off Jibo 1.9.2
 
 Here are a few things these skills change:
 
-- Versions are now 2.x.x
+- Versions are now 3.x.x
 - Added a few Be Skills
 - Changed 2d eye to 3d eye
 - `@be/*` skill packs live under `@be/be/skills/` (not under `node_modules`); Be resolves them via `jibo.skillsRoot`
