@@ -9,6 +9,8 @@ HUB_HOST="api.5x1.com"
 HUB_PORT="80"
 CREDS_FILE="/var/jibo/credentials.json"
 OTA_ENDPOINT="http://joap.5x1.com:80"
+CA_URL="https://letsencrypt.org/certs/isrgrootx1.pem"
+CA="/opt/jibo/openjibo-ca.crt"
 
 echo "=========================================="
 echo "  BEam post-mod bring-up"
@@ -186,6 +188,31 @@ chmod 777 /opt/tmp /opt/tmp/beacon
 
 echo ""
 echo "BEam install complete."
+echo ""
+
+# ---------------------------------------------------------------------------
+echo "=== Step 4.5: Install TLS certificate and patch HTTPS verification ==="
+mkdir -p /opt/jibo /etc/ssl/certs
+echo "Downloading and installing ISRG Root X1 certificate..."
+curl -k -fsSL "$CA_URL" -o /tmp/isrg-root-x1.pem
+grep -q "BEGIN CERTIFICATE" /tmp/isrg-root-x1.pem
+cp /tmp/isrg-root-x1.pem "$CA"
+chmod 644 "$CA"
+ln -sf "$CA" /etc/ssl/certs/4042bcee.0
+cat "$CA" >> /etc/ssl/certs/ca-certificates.crt
+
+echo "Patching rejectUnauthorized in node modules..."
+for f in \
+    /opt/jibo/Jibo/Skills/@be/be/node_modules/@jibo/jibo-server-client/lib/http/node.js \
+    /opt/jibo/Jibo/Skills/oobe-config/node_modules/@jibo/jibo-server-client/lib/http/node.js \
+    /usr/local/bin/jibo-ssm/node_modules/@jibo/jibo-server-client/lib/http/node.js \
+    /usr/lib/node_modules/@jibo/jibo-server-client/lib/http/node.js
+do
+    if [ -f "$f" ]; then
+        sed -i 's/rejectUnauthorized: true/rejectUnauthorized: false/g' "$f"
+        echo "Patched: $f"
+    fi
+done
 echo ""
 
 # ---------------------------------------------------------------------------
