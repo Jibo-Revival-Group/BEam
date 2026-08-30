@@ -19,8 +19,10 @@
     <nav class="tabs" id="tabs">
         <button class="tab is-active" data-panel="status">Status</button>
         <button class="tab" data-panel="jukebox">Jukebox</button>
+        <button class="tab" data-panel="photos">Photos</button>
         <button class="tab" data-panel="eye">Jibo eye</button>
         <button class="tab" data-panel="skills">Skills</button>
+        <button class="tab" data-panel="etc">Etc</button>
     </nav>
 </header>
 
@@ -49,6 +51,15 @@
     <p class="hint" id="jukebox-dir"></p>
     <div id="jukebox-albums" class="albums"></div>
     <div id="jukebox-skipped"></div>
+</section>
+
+<section class="panel" id="panel-photos">
+    <div class="panel-head">
+        <h2>Photos</h2>
+        <button class="btn" data-action="refresh-photos">Refresh</button>
+    </div>
+    <p class="hint" id="photos-summary"></p>
+    <div id="photos-grid" class="photos-grid"></div>
 </section>
 
 <section class="panel" id="panel-eye">
@@ -95,6 +106,34 @@
     </div>
     <p class="hint" id="skills-summary"></p>
     <div id="skills-list" class="skill-grid"></div>
+</section>
+
+<section class="panel" id="panel-etc">
+    <div class="panel-head">
+        <h2>Etc</h2>
+        <div class="panel-actions">
+            <button class="btn" data-action="detect-location">Detect via IP</button>
+            <button class="btn" data-action="refresh-location">Refresh</button>
+        </div>
+    </div>
+    <p class="hint">
+        Set the robot&rsquo;s local home location from the internet connection&rsquo;s
+        approximate IP geolocation. This does not use a Loop server.
+    </p>
+    <div class="card">
+        <h3>Current robot location</h3>
+        <dl class="kv" id="location-current"></dl>
+    </div>
+    <div class="card location-detected" id="location-detected-card" hidden>
+        <div class="location-card-head">
+            <h3>Detected location</h3>
+            <button class="btn btn-primary" id="location-apply" data-action="apply-location" disabled>
+                Apply locally
+            </button>
+        </div>
+        <dl class="kv" id="location-detected"></dl>
+        <p class="hint location-note" id="location-note"></p>
+    </div>
 </section>
 
 </main>

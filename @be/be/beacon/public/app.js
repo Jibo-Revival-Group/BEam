@@ -9,6 +9,11 @@
     var state = {
         panel: 'status',
         jukebox: null,
+        photos: null,
+        location: {
+            current: null,
+            detected: null
+        },
         audio: null,
         playing: null
     };
@@ -166,6 +171,7 @@
                 ['Be root', data.paths.beRoot],
                 ['Skills', data.paths.skillsRoot],
                 ['Music', data.paths.musicDir + (data.paths.musicDirExists ? '' : '  (missing)')],
+                ['Photos', data.paths.photosDir + (data.paths.photosDirExists ? '' : '  (missing)')],
                 ['Eye textures', data.paths.texturesDir],
                 ['BEacon data', data.paths.dataDir],
                 ['Jetstream', data.paths.jetstreamConfig || '—'],
@@ -485,6 +491,99 @@
         }).catch(reportError);
     }
 
+    /* ---------------------------------------------------------------- photos */
+
+    function photoUrl (id, download) {
+        return '/api/photos/file?id=' + encodeURIComponent(id) +
+            (download ? '&download=1' : '');
+    }
+
+    function photoDate (timestamp) {
+        if (!timestamp) { return 'Date unavailable'; }
+        var date = new Date(timestamp);
+        return isNaN(date.getTime()) ? 'Date unavailable' : date.toLocaleString();
+    }
+
+    function deletePhoto (photo) {
+        if (!confirm('Delete this photo from the robot?')) { return; }
+        api('DELETE', '/api/photos?id=' + encodeURIComponent(photo.id))
+            .then(function () {
+                toast('Deleted photo', 'ok');
+                return loadPhotos();
+            })
+            .catch(reportError);
+    }
+
+    function photoCard (photo) {
+        var card = el('article', 'photo-card' + (photo.available ? '' : ' is-unavailable'));
+        var media = el('div', 'photo-media');
+
+        if (photo.available) {
+            var link = el('a', 'photo-link');
+            link.href = photoUrl(photo.id, false);
+            link.target = '_blank';
+            link.rel = 'noopener';
+            var img = el('img', 'photo-image');
+            img.src = photoUrl(photo.id, false) + '&t=' + Date.now();
+            img.alt = 'Photo taken ' + photoDate(photo.created);
+            link.appendChild(img);
+            media.appendChild(link);
+        } else {
+            media.appendChild(el('div', 'photo-missing', 'Photo file is not on the robot'));
+        }
+        card.appendChild(media);
+
+        var details = el('div', 'photo-details');
+        details.appendChild(el('div', 'photo-date', photoDate(photo.created)));
+        details.appendChild(el('div', 'photo-meta', photo.available ? bytes(photo.size) : 'Unavailable'));
+        card.appendChild(details);
+
+        var actions = el('div', 'photo-actions');
+        if (photo.available) {
+            var download = el('a', 'btn btn-icon', 'Download');
+            download.href = photoUrl(photo.id, true);
+            download.setAttribute('download', photo.file);
+            actions.appendChild(download);
+        }
+        var remove = el('button', 'btn btn-icon btn-danger', 'Delete');
+        remove.onclick = function () { deletePhoto(photo); };
+        actions.appendChild(remove);
+        card.appendChild(actions);
+        return card;
+    }
+
+    function renderPhotos () {
+        var data = state.photos;
+        if (!data) { return; }
+
+        var summary = $('#photos-summary');
+        if (!data.available) {
+            summary.textContent = data.error || 'Photo library unavailable';
+        } else {
+            summary.textContent = data.count + ' photo' + (data.count === 1 ? '' : 's') +
+                ' in ' + data.dir;
+        }
+
+        var grid = $('#photos-grid');
+        grid.innerHTML = '';
+        if (!data.available) {
+            grid.appendChild(el('div', 'empty', data.error || 'Photo library unavailable'));
+        } else if (!data.photos.length) {
+            grid.appendChild(el('div', 'empty',
+                'No saved photos yet. Take a photo with Jibo and save it to the gallery.'));
+        } else {
+            data.photos.forEach(function (photo) { grid.appendChild(photoCard(photo)); });
+        }
+    }
+
+    function loadPhotos () {
+        return api('GET', '/api/photos').then(function (data) {
+            state.photos = data;
+            renderPhotos();
+            return data;
+        });
+    }
+
     /* ---------------------------------------------------------------- eye */
 
     /** Centre-crop to a square and redraw at the texture size the face wants. */
@@ -626,13 +725,115 @@
         });
     }
 
+    /* ------------------------------------------------------------ location */
+
+    function locationOffset (offsetUTC) {
+        if (typeof offsetUTC !== 'number' || !isFinite(offsetUTC)) { return '—'; }
+        var minutes = Math.round(offsetUTC / 60000);
+        var sign = minutes < 0 ? '-' : '+';
+        minutes = Math.abs(minutes);
+        var hours = Math.floor(minutes / 60);
+        var rest = minutes % 60;
+        return 'UTC' + sign + (hours < 10 ? '0' : '') + hours + ':' +
+            (rest < 10 ? '0' : '') + rest;
+    }
+
+    function locationValue (value) {
+        return value === undefined || value === null || value === '' ? '—' : String(value);
+    }
+
+    function renderLocationList (selector, location) {
+        var list = $(selector);
+        list.innerHTML = '';
+        if (!location) {
+            list.appendChild(el('dd', null, 'Location unavailable'));
+            return;
+        }
+
+        var timezone = location.timezone || {};
+        var rows = [
+            ['City', location.city],
+            ['State / region', location.state || location.stateAbbr],
+            ['Country', location.country || location.countryCode],
+            ['Coordinates', typeof location.lat === 'number' && typeof location.lng === 'number'
+                ? location.lat.toFixed(4) + ', ' + location.lng.toFixed(4)
+                : null],
+            ['Timezone', timezone.id],
+            ['UTC offset', locationOffset(timezone.offsetUTC)]
+        ];
+        rows.forEach(function (row) {
+            list.appendChild(el('dt', null, row[0]));
+            list.appendChild(el('dd', null, locationValue(row[1])));
+        });
+    }
+
+    function renderLocation () {
+        renderLocationList('#location-current', state.location.current);
+        renderLocationList('#location-detected', state.location.detected);
+
+        var card = $('#location-detected-card');
+        var apply = $('#location-apply');
+        var hasDetected = !!state.location.detected;
+        card.hidden = !hasDetected;
+        apply.disabled = !hasDetected;
+        $('#location-note').textContent = hasDetected
+            ? 'IP geolocation is approximate and identifies the network connection, not the robot itself.'
+            : '';
+    }
+
+    function loadLocation () {
+        return api('GET', '/api/location').then(function (data) {
+            state.location.current = data.location || null;
+            renderLocation();
+            return data;
+        });
+    }
+
+    function detectLocation () {
+        var button = $('[data-action="detect-location"]');
+        if (button) { button.disabled = true; }
+        toast('Looking up the robot connection…');
+        return api('POST', '/api/location/detect').then(function (data) {
+            state.location.detected = data.location || null;
+            renderLocation();
+            toast('Location detected. Review it before applying.', 'ok');
+            return data;
+        }).catch(function (err) {
+            renderLocation();
+            reportError(err);
+        }).then(function (data) {
+            if (button) { button.disabled = false; }
+            return data;
+        });
+    }
+
+    function applyLocation () {
+        if (!state.location.detected) { return null; }
+        if (!confirm('Save this location to the robot locally?')) { return null; }
+        var button = $('#location-apply');
+        button.disabled = true;
+        return api('POST', '/api/location', { location: state.location.detected })
+            .then(function (data) {
+                state.location.current = data.location || state.location.detected;
+                state.location.detected = null;
+                renderLocation();
+                toast('Location saved locally. Restart Be if needed.', 'ok');
+                return data;
+            }).catch(function (err) {
+                renderLocation();
+                reportError(err);
+            });
+    }
+
     /* --------------------------------------------------------------- wire */
 
     var loaders = {
         status: loadStatus,
         jukebox: loadJukebox,
+        photos: loadPhotos,
         eye: loadEye,
-        skills: loadSkills
+        skills: loadSkills,
+        etc: loadLocation
     };
 
     function refreshPanel (name) {
@@ -659,8 +860,12 @@
     var actions = {
         'refresh-status': loadStatus,
         'refresh-jukebox': loadJukebox,
+        'refresh-photos': loadPhotos,
         'refresh-eye': refreshEye,
         'refresh-skills': loadSkills,
+        'refresh-location': loadLocation,
+        'detect-location': detectLocation,
+        'apply-location': applyLocation,
         'new-album': newAlbum,
         'pick-eye': function () { $('#eye-file').click(); },
         'revert-eye': function () {

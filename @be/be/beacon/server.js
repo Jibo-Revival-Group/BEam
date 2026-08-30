@@ -15,10 +15,12 @@ const querystring = require('querystring');
 const paths = require('./lib/paths');
 const u = require('./lib/http-util');
 const jukebox = require('./lib/jukebox');
+const photos = require('./lib/photos');
 const eye = require('./lib/eye');
 const skills = require('./lib/skills');
 const system = require('./lib/system');
 const ota = require('./lib/ota');
+const location = require('./lib/location');
 
 const MAX_UPLOAD = 256 * 1024 * 1024;
 const MAX_IMAGE = 16 * 1024 * 1024;
@@ -109,6 +111,23 @@ const routes = {
         jukebox.streamAudio(req, res, query.path);
     }),
 
+    'GET /api/photos': guard((req, res) => {
+        return photos.scan().then((result) => u.sendJson(res, 200, result));
+    }),
+
+    'GET /api/photos/file': guard((req, res, query) => {
+        const abs = photos.resolveFile(query.id);
+        const download = query.download === '1' || query.download === 'true';
+        u.serveFile(req, res, abs, {
+            contentType: 'image/jpeg',
+            download: download
+        });
+    }),
+
+    'DELETE /api/photos': guard((req, res, query) => {
+        return photos.remove(query.id).then((result) => u.sendJson(res, 200, result));
+    }),
+
     'GET /api/eye': guard((req, res) => {
         u.sendJson(res, 200, eye.state());
     }),
@@ -152,6 +171,25 @@ const routes = {
     'POST /api/credentials': guard((req, res) => {
         return u.readJson(req).then((body) => {
             u.sendJson(res, 200, system.setCredentialsEndpoint(body));
+        });
+    }),
+
+    'GET /api/location': guard((req, res) => {
+        return location.current().then((result) => u.sendJson(res, 200, result));
+    }),
+
+    'POST /api/location/detect': guard((req, res) => {
+        return location.detect().then((result) => u.sendJson(res, 200, {
+            available: true,
+            location: result
+        }));
+    }),
+
+    'POST /api/location': guard((req, res) => {
+        return u.readJson(req).then((body) => {
+            return location.apply(body && body.location).then((result) => {
+                u.sendJson(res, 200, result);
+            });
         });
     }),
 

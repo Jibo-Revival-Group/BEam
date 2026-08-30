@@ -114,6 +114,8 @@ function status () {
             skillsRoot: paths.skillsRoot(),
             musicDir: paths.musicDir(),
             musicDirExists: paths.isDir(paths.musicDir()),
+            photosDir: paths.photosDir(),
+            photosDirExists: paths.isDir(paths.photosDir()),
             texturesDir: paths.texturesDir(),
             dataDir: paths.dataDir(),
             jetstreamConfig: paths.jetstreamConfig(),

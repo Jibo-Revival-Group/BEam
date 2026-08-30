@@ -15,6 +15,7 @@ const BEACON_ROOT = path.resolve(__dirname, '..');
 
 const ROBOT_SKILLS = '/opt/jibo/Jibo/Skills';
 const ROBOT_KNOWLEDGE = '/opt/jibo/Knowledge';
+const ROBOT_PHOTOS = '/opt/jibo/Photos';
 
 function isDir (p) {
     try {
@@ -203,6 +204,12 @@ function musicDir () {
     return firstDir([local]) || local;
 }
 
+/** Local photo store used by the Jibo media and media-manager services. */
+function photosDir () {
+    const override = process.env.BEACON_PHOTOS_DIR;
+    return override ? path.resolve(override) : ROBOT_PHOTOS;
+}
+
 function texturesDir () {
     return path.join(
         BE_ROOT,
@@ -304,6 +311,7 @@ module.exports = {
     BEACON_ROOT: BEACON_ROOT,
     ROBOT_SKILLS: ROBOT_SKILLS,
     ROBOT_KNOWLEDGE: ROBOT_KNOWLEDGE,
+    ROBOT_PHOTOS: ROBOT_PHOTOS,
     publicDir: path.join(BEACON_ROOT, 'public'),
     onRobot: onRobot,
     isDir: isDir,
@@ -316,6 +324,7 @@ module.exports = {
     musicDirCandidates: musicDirCandidates,
     musicDirHasAlbums: musicDirHasAlbums,
     migrateMusicToKnowledge: migrateMusicToKnowledge,
+    photosDir: photosDir,
     texturesDir: texturesDir,
     eyeTextures: eyeTextures,
     pristineEye: pristineEye,

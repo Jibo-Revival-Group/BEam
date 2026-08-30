@@ -346,6 +346,77 @@ dl.kv dd { margin: 0; word-break: break-all; font-family: ui-monospace, SFMono-R
     transition: width 0.15s linear;
 }
 
+/* ------------------------------------------------------------------ photos */
+
+.photos-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 14px;
+}
+
+.photo-card {
+    background: var(--bg-card);
+    border: 1px solid var(--line-solid);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+
+.photo-card.is-unavailable { opacity: 0.65; }
+
+.photo-media {
+    aspect-ratio: 16 / 9;
+    background: #05070b;
+}
+
+.photo-link {
+    display: block;
+    height: 100%;
+}
+
+.photo-image {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.photo-missing {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    padding: 16px;
+    color: var(--muted);
+    font-size: 12px;
+    text-align: center;
+}
+
+.photo-details {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 11px 12px 0;
+}
+
+.photo-date {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.photo-meta {
+    color: var(--muted);
+    font-size: 11px;
+    white-space: nowrap;
+}
+
+.photo-actions {
+    display: flex;
+    gap: 6px;
+    padding: 9px 12px 12px;
+}
+
 .log {
     max-height: 220px;
     overflow: auto;
@@ -475,6 +546,17 @@ dl.kv dd { margin: 0; word-break: break-all; font-family: ui-monospace, SFMono-R
 
 .option:hover { border-color: var(--accent); }
 .option.is-current { border-color: var(--accent); background: var(--accent-dim); }
+
+.location-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.location-card-head h3 { margin: 0; }
+.location-note { margin: 14px 0 0; }
 
 .form-row {
     display: flex;

@@ -16,8 +16,10 @@ way the Skills Service Manager on port 8779 is already open.
 |-------|--------|
 | Status | Version, LAN addresses, resolved paths, uptime |
 | Jukebox | Full library management: albums, uploads, covers, rename, delete |
+| Photos | View saved robot photos, download originals, delete local copies |
 | Jibo eye | Replace the eye texture with your own image, revert to the original |
 | Skills | Lists what Be loads and what is on disk; installing is a placeholder |
+| Etc | Detect the robot's approximate IP location and save its local home location |
 | Server | Edit jetstream hub and OTA credentials endpoint |
 | Update | Check / download / apply `@be/be` via jibo OTA tools |
 
@@ -66,6 +68,27 @@ them up the next time it opens, with no rebuild.
 
 Every path from the browser is resolved inside `music/` and rejected if it tries
 to escape, so a malformed request cannot touch the rest of the filesystem.
+
+## Photos
+
+The **Photos** panel reads saved image entries from `jibo.kb.media` and serves
+their full-size JPEGs from the media service's local store:
+
+```
+/opt/jibo/Photos/<photo-uuid>.jpg
+/opt/jibo/Photos/cache/<photo-uuid>.jpg
+/opt/jibo/Photos/upload/<photo-uuid>.jpg
+```
+
+BEacon checks the store root and one immediate subdirectory, including the
+media service's `cache/` and `upload/` directories. If the Knowledge Base
+media list has not populated its root edges yet, BEacon falls back to those
+JPEG files and excludes the standard 330×330 and 720×405 generated thumbnails.
+
+Generated thumbnails are omitted from the list. **Download** retrieves the
+original JPEG. **Delete** uses the same behavior as the robot Gallery:
+`jibo.media.deletePhoto()` removes the local media and its Knowledge Base
+entry; BEacon does not request cloud deletion.
 
 ## Jibo eye
 
@@ -127,6 +150,19 @@ then kills `jibo-jetstream-service` so it reloads. Presets: `api.openjibo.com:44
 accepted in the request body. If `region` is missing or not `"api"`, it is
 forced to `"api"`. Public preset: `http://joap.5x1.com:80`.
 
+## Etc
+
+The **Etc** panel can ask `http://ip-api.com/json/` for the public internet
+connection's approximate location. BEacon makes that request on the robot and
+shows the result before changing anything. **Apply locally** writes the
+location and timezone into the existing `/jibo/location` Knowledge Base slice
+used by Jibo's runtime; it does not use a Loop server or cloud account.
+
+IP geolocation is approximate: it identifies the network connection, not the
+robot's actual physical position. The free ip-api endpoint is HTTP-only and
+subject to its usage limits, so detection requires network access. A running
+skill may retain the old location until Be is restarted.
+
 ## Update (OTA)
 
 The **Update** panel (and root [`update-beam.sh`](../update-beam.sh)) drives the
@@ -173,6 +209,9 @@ rather than failing.
 | DELETE | `/api/jukebox/track?path=` | Delete one track |
 | GET | `/api/jukebox/cover?path=` | Serve a cover image |
 | GET | `/api/jukebox/audio?path=` | Stream a track, supports Range |
+| GET | `/api/photos` | List saved full-size robot photos |
+| GET | `/api/photos/file?id=` | Serve a photo JPEG; `download=1` downloads it |
+| DELETE | `/api/photos?id=` | Delete a photo from the local robot gallery |
 | GET | `/api/eye` | Custom-eye state and texture hashes |
 | GET | `/api/eye/current.png`, `/api/eye/original.png` | Previews |
 | PUT | `/api/eye?name=` | Raw PNG body, applies the eye + live reload |
@@ -182,6 +221,9 @@ rather than failing.
 | POST | `/api/server` | `{hostname, port}` — write hub override; kill jetstream; reboot to apply |
 | GET | `/api/credentials` | Credentials endpoint/region (keys never returned) |
 | POST | `/api/credentials` | `{endpoint}` only — preserve keys; force region `api` if needed |
+| GET | `/api/location` | Current local `/jibo/location` home and timezone |
+| POST | `/api/location/detect` | Detect approximate location through ip-api |
+| POST | `/api/location` | `{location}` — save home and timezone locally |
 | GET | `/api/ota` | Discovered Skills-root packs, tool availability |
 | POST | `/api/ota/check` | `{subsystem?}` or all — offers / up-to-date / errors |
 | POST | `/api/ota/apply` | `{offer}` — NDJSON progress of download + apply |
@@ -195,8 +237,10 @@ rather than failing.
   lib/paths.js            robot and repo path resolution
   lib/http-util.js        JSON, raw bodies, static files, traversal guard
   lib/jukebox.js          library operations
+  lib/photos.js           saved robot photo listing and deletion
   lib/eye.js              apply, revert, self-heal
   lib/skills.js           skill inventory
+  lib/location.js         local home location, ip-api detection, timezone persistence
   lib/system.js           status, hub config, credentials
   lib/ota.js              jibo-get/download/apply-update
   assets/eye-original/    pristine copy of the stock eye
