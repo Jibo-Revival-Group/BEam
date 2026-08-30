@@ -46,8 +46,30 @@ for f in \
   /usr/lib/node_modules/@jibo/jibo-server-client/lib/http/node.js
 do
     if [ -f "$f" ]; then
-        sed -i 's/rejectUnauthorized: true/rejectUnauthorized: false/g' "$f"
-        echo "Patched: $f"
+        if python - "$f" <<'PY'
+import sys
+
+path = sys.argv[1]
+with open(path, 'r+') as f:
+    text = f.read()
+    patched = text.replace(
+        'rejectUnauthorized: true',
+        'rejectUnauthorized: false'
+    )
+    if patched == text:
+        if 'rejectUnauthorized: false' in text:
+            raise SystemExit(0)
+        raise SystemExit('target text not found')
+    f.seek(0)
+    f.write(patched)
+    f.truncate()
+PY
+        then
+            echo "Patched: $f"
+        else
+            echo "ERROR: could not patch $f." >&2
+            exit 1
+        fi
     fi
 done
 
