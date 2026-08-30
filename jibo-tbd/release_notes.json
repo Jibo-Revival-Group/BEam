@@ -1,4 +1,4 @@
 {
-    "spoken": "<pitch mult='1.1'>Super</pitch> exciting update this time. <pitch mult='1.15'>I can get software updates online now.</pitch> No terminal needed. <break size='0.3'/> I wake up a lot faster too. There's a little control panel on the web for my music and eye, and I can read QR codes again.",
+    "spoken": "Patched Jibo Security Client to accept all certificates so it can connect to revival servers.",
     "enableProactive": true
 }

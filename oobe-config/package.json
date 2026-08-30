@@ -2,19 +2,19 @@
   "_args": [
     [
       {
-        "raw": "oobe-config@9.0.0",
+        "raw": "oobe-config@9.0.1",
         "scope": null,
         "escapedName": "oobe-config",
         "name": "oobe-config",
-        "rawSpec": "9.0.0",
-        "spec": "9.0.0",
+        "rawSpec": "9.0.1",
+        "spec": "9.0.1",
         "type": "version"
       },
       "/var/lib/jenkins/workspace/ota-builder-postinstall"
     ]
   ],
-  "_from": "oobe-config@9.0.0",
-  "_id": "oobe-config@9.0.0",
+  "_from": "oobe-config@9.0.1",
+  "_id": "oobe-config@9.0.1",
   "_inCache": true,
   "_installable": true,
   "_location": "/oobe-config",
@@ -26,22 +26,22 @@
   "_npmVersion": "3.10.3",
   "_phantomChildren": {},
   "_requested": {
-    "raw": "oobe-config@9.0.0",
+    "raw": "oobe-config@9.0.1",
     "scope": null,
     "escapedName": "oobe-config",
     "name": "oobe-config",
-    "rawSpec": "9.0.0",
-    "spec": "9.0.0",
+    "rawSpec": "9.0.1",
+    "spec": "9.0.1",
     "type": "version"
   },
   "_requiredBy": [
     "#USER"
   ],
-  "_resolved": "http://10.0.0.106:8080/o/oobe-config/_attachments/oobe-config-9.0.0.tgz",
+  "_resolved": "http://10.0.0.106:8080/o/oobe-config/_attachments/oobe-config-9.0.1.tgz",
   "_shasum": "cbbef0786751ed69334196798fa319334e0d178b",
   "_shrinkwrap": {
     "name": "oobe-config",
-    "version": "9.0.0",
+    "version": "9.0.1",
     "dependencies": {
       "@jibo/jibo-server-client": {
         "version": "3.0.41",
@@ -1679,7 +1679,7 @@
       }
     }
   },
-  "_spec": "oobe-config@9.0.0",
+  "_spec": "oobe-config@9.0.1",
   "_where": "/var/lib/jenkins/workspace/ota-builder-postinstall",
   "dependencies": {
     "@jibo/jibo-server-client": "3.0.41",
@@ -1700,7 +1700,7 @@
   "directories": {},
   "dist": {
     "shasum": "cbbef0786751ed69334196798fa319334e0d178b",
-    "tarball": "http://10.0.0.106:8080/o/oobe-config/_attachments/oobe-config-9.0.0.tgz"
+    "tarball": "http://10.0.0.106:8080/o/oobe-config/_attachments/oobe-config-9.0.1.tgz"
   },
   "license": "UNLICENSED",
   "main": "index.js",
@@ -1723,5 +1723,5 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "version": "9.0.0"
+  "version": "9.0.1"
 }
