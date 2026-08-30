@@ -2315,6 +2315,9 @@ class EntryState extends sm.State {
         this.addInternalTransition(hjNoMatch, this.mainSM.hjNoMatch);
     }
     resumeGlobalListen() {
+        if (jibo.deafenController && jibo.deafenController.enabled) {
+            return Promise.resolve();
+        }
         return jibo.jetstream.resetHotwordMode()
             .catch(e => {
             this.skill.log.warn('Error resuming global list: ', e);

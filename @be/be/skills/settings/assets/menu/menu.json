@@ -20,6 +20,18 @@
                 }
             },
             {
+                "id": "deafen",
+                "label": "Deafen",
+                "iconSrc": "assets/menu/icons/lock.png",
+                "action": {
+                    "type": "event",
+                    "data": {
+                        "event": "press",
+                        "intent": "deafen"
+                    }
+                }
+            },
+            {
                 "id": "wifi",
                 "label": "Wi-Fi",
                 "iconSrc": "assets/menu/icons/wifi.png",

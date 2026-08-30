@@ -4297,6 +4297,10 @@ class Introductions extends be_framework_1.BeSkill {
         this._blackboard = null;
         let reenableGL = () => {
             jibo.action.configure({ orientToHJ: true });
+            if (jibo.deafenController && jibo.deafenController.enabled) {
+                done();
+                return;
+            }
             jibo.jetstream.resetHotwordMode().catch((err) => {
                 this.log.error('GL RESUME FAILURE', err);
             }).then(() => {

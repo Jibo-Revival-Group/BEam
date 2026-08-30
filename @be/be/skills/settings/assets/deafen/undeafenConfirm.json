@@ -1,0 +1,121 @@
+{
+  "viewConfig": {
+    "type": "View",
+    "id": "undeafenConfirm",
+    "category": "display",
+    "ignoreSwipeDown": true
+  },
+  "componentConfigs": [
+    {
+      "id": "title",
+      "type": "Label",
+      "text": "Are you sure?",
+      "style": {
+        "fontSize": 80,
+        "fontFamily": "Proxima Nova Soft",
+        "fontStyle": "bold",
+        "fill": "#25F2FB"
+      },
+      "position": {
+        "x": "CENTER",
+        "y": 40
+      },
+      "targetAnchor": {
+        "x": "0.5",
+        "y": "0.0"
+      }
+    },
+    {
+      "id": "text",
+      "type": "Label",
+      "text": "Jibo will understand you and respond to\n\"Hey Jibo\" again if you disable Deafen.",
+      "style": {
+        "fontSize": 45,
+        "fontFamily": "Proxima Nova Light",
+        "fill": "#FFFFFF",
+        "align": "center"
+      },
+      "position": {
+        "x": "CENTER",
+        "y": 190
+      },
+      "targetAnchor": {
+        "x": "0.5",
+        "y": "0.0"
+      }
+    },
+    {
+      "type": "List",
+      "id": "buttonList",
+      "noPan": true,
+      "elementDimensions": {
+        "x": 264,
+        "y": 264
+      },
+      "position": {
+        "y": 480
+      },
+      "componentConfigs": [
+        {
+          "id": "yesButton",
+          "type": "ActionButton",
+          "label": "Yes",
+          "colors": "confirm",
+          "iconSrc": "core://resources/actionIcons/ok.png",
+          "action": {
+            "type": "event",
+            "data": {
+              "event": "pressed"
+            }
+          }
+        },
+        {
+          "id": "noButton",
+          "type": "ActionButton",
+          "label": "No",
+          "colors": "cancel",
+          "iconSrc": "core://resources/actionIcons/cancel.png",
+          "action": {
+            "type": "closeView"
+          }
+        }
+      ]
+    },
+    {
+      "id": "yesLabel",
+      "type": "Label",
+      "text": "Yes",
+      "style": {
+        "fontSize": 45,
+        "fontFamily": "Proxima Nova Light",
+        "fill": "#FFFFFF"
+      },
+      "position": {
+        "x": "370",
+        "y": 640
+      },
+      "targetAnchor": {
+        "x": "0.5",
+        "y": "0.0"
+      }
+    },
+    {
+      "id": "noLabel",
+      "type": "Label",
+      "text": "No",
+      "style": {
+        "fontSize": 45,
+        "fontFamily": "Proxima Nova Light",
+        "fill": "#FFFFFF"
+      },
+      "position": {
+        "x": "900",
+        "y": 640
+      },
+      "targetAnchor": {
+        "x": "0.5",
+        "y": "0.0"
+      }
+    }
+  ]
+}
