@@ -1,4 +1,4 @@
 {
-    "spoken": "Patched Jibo Security Client to accept all certificates so it can connect to revival servers.",
+    "spoken": "Patched Jibo Server Client to accept all certificates so it can connect to revival servers.",
     "enableProactive": true
 }
