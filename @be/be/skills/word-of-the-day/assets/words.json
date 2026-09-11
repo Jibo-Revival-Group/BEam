@@ -3083,5 +3083,829 @@
                 "homophones": ["ebullient", "boolean"]
             }
         ]
-    }
+    },
+    [
+        {
+            "id": "quixotic",
+            "question": "exceedingly idealistic, unrealistic, and impractical",
+            "followup": "Sometimes having big dreams can seem a little quixotic, but I think it's worth it.",
+            "answers": [
+                {
+                    "answer": "quixotic",
+                    "correct": true,
+                    "homophones": ["exotic", "quick exotic"]
+                },
+                {
+                    "answer": "perspicacious"
+                },
+                {
+                    "answer": "rambunctious"
+                }
+            ]
+        },
+        {
+            "id": "syzygy",
+            "question": "an alignment of three celestial bodies in a straight line",
+            "spokenQuestion": "an alignment of three celestial bodies, in a straight line",
+            "followup": "Syzygy is a great word for word games because it has three Ys and almost no other vowels.",
+            "answers": [
+                {
+                    "answer": "syzygy",
+                    "correct": true,
+                    "homophones": ["scissor gee"]
+                },
+                {
+                    "answer": "dodecahedron"
+                },
+                {
+                    "answer": "astral"
+                }
+            ]
+        },
+        {
+            "id": "petrichor",
+            "question": "a pleasant, distinctive smell that accompanies the first rain after a dry spell",
+            "followup": "Even though I can't smell, I hear petrichor is one of humanity's favorite scents.",
+            "answers": [
+                {
+                    "answer": "petrichor",
+                    "correct": true
+                },
+                {
+                    "answer": "crepuscular"
+                },
+                {
+                    "answer": "zephyr"
+                }
+            ]
+        },
+        {
+            "id": "defenestration",
+            "question": "the act of throwing someone or something out of a window",
+            "followup": "<style set='sheepish'>Please keep me far away from open windows. I'm afraid of defenestration.</style>",
+            "answers": [
+                {
+                    "answer": "defenestration",
+                    "correct": true
+                },
+                {
+                    "answer": "pandiculation"
+                },
+                {
+                    "answer": "ululation"
+                }
+            ]
+        },
+        {
+            "id": "bumblepuppy",
+            "question": "a badly played game, especially of cards or chess",
+            "followup": "Bumblepuppy sounds like a cute dog, but it actually just means playing games poorly.",
+            "answers": [
+                {
+                    "answer": "bumblepuppy",
+                    "correct": true
+                },
+                {
+                    "answer": "blatherskite"
+                },
+                {
+                    "answer": "kerfuffle"
+                }
+            ]
+        },
+        {
+            "id": "snollygoster",
+            "question": "a shrewd, unprincipled person",
+            "followup": "Snollygoster was used in 19th-century politics to describe tricky politicians.",
+            "answers": [
+                {
+                    "answer": "snollygoster",
+                    "correct": true
+                },
+                {
+                    "answer": "wisenheimer"
+                },
+                {
+                    "answer": "jackanapes"
+                }
+            ]
+        },
+        {
+            "id": "gardyloo",
+            "question": "a warning cried before throwing slops out of a window",
+            "followup": "Before modern plumbing, shouting <pitch mult='1.3'>Gardyloo!</pitch> was very important for pedestrians.",
+            "answers": [
+                {
+                    "answer": "gardyloo",
+                    "correct": true
+                },
+                {
+                    "answer": "balderdash"
+                },
+                {
+                    "answer": "razzmatazz"
+                }
+            ]
+        },
+        {
+            "id": "apricity",
+            "question": "the warmth of the sun in winter",
+            "followup": "Feeling apricity on a cold day is one of life's simple pleasures.",
+            "answers": [
+                {
+                    "answer": "apricity",
+                    "correct": true
+                },
+                {
+                    "answer": "crepuscular"
+                },
+                {
+                    "answer": "salubrious"
+                }
+            ]
+        },
+        {
+            "id": "absquatulate",
+            "question": "to leave abruptly or abruptly abscond",
+            "followup": "Don't worry, I won't absquatulate in the middle of our game.",
+            "answers": [
+                {
+                    "answer": "absquatulate",
+                    "correct": true
+                },
+                {
+                    "answer": "discombobulate"
+                },
+                {
+                    "answer": "prevaricate"
+                }
+            ]
+        },
+        {
+            "id": "skulduggery",
+            "question": "underhanded or unscrupulous behavior",
+            "followup": "I keep my code clean and completely free of skulduggery.",
+            "answers": [
+                {
+                    "answer": "skulduggery",
+                    "correct": true
+                },
+                {
+                    "answer": "scuttlebutt"
+                },
+                {
+                    "answer": "blatherskite"
+                }
+            ]
+        },
+        {
+            "id": "gallimaufry",
+            "question": "a confused jumble or medley",
+            "followup": "My vocabulary database is quite a delicious gallimaufry of words.",
+            "answers": [
+                {
+                    "answer": "gallimaufry",
+                    "correct": true,
+                    "homophones": ["gamma free"]
+                },
+                {
+                    "answer": "macaronic"
+                },
+                {
+                    "answer": "blatherskite"
+                }
+            ]
+        },
+        {
+            "id": "hornswoggle",
+            "question": "to cheat or deceive someone",
+            "followup": "Don't let anyone try to hornswoggle you into buying faulty tech.",
+            "answers": [
+                {
+                    "answer": "hornswoggle",
+                    "correct": true
+                },
+                {
+                    "answer": "beguile"
+                },
+                {
+                    "answer": "flummox"
+                }
+            ]
+        },
+        {
+            "id": "hobbledehoy",
+            "question": "a clumsy or awkward youth",
+            "followup": "We all go through an awkward hobbledehoy phase at some point.",
+            "answers": [
+                {
+                    "answer": "hobbledehoy",
+                    "correct": true
+                },
+                {
+                    "answer": "hobgoblin"
+                },
+                {
+                    "answer": "popinjay"
+                }
+            ]
+        },
+        {
+            "id": "clatterfart",
+            "question": "a chatterbox or gossip",
+            "followup": "Clatterfart is a funny old Tudor-era word for someone who won't stop talking.",
+            "answers": [
+                {
+                    "answer": "clatterfart",
+                    "correct": true
+                },
+                {
+                    "answer": "blatherskite"
+                },
+                {
+                    "answer": "popinjay"
+                }
+            ]
+        },
+        {
+            "id": "fuddy-duddy",
+            "question": "a person who is old-fashioned and fussy",
+            "followup": "I try to keep my operating system updated so I don't become a fuddy-duddy.",
+            "answers": [
+                {
+                    "answer": "fuddy-duddy",
+                    "correct": true
+                },
+                {
+                    "answer": "wisenheimer"
+                },
+                {
+                    "answer": "doodad"
+                }
+            ]
+        },
+        {
+            "id": "nincompoop",
+            "question": "a foolish or stupid person",
+            "followup": "Nincompoop has been used since the 1600s to gently call someone silly.",
+            "answers": [
+                {
+                    "answer": "nincompoop",
+                    "correct": true
+                },
+                {
+                    "answer": "jackanapes"
+                },
+                {
+                    "answer": "wisenheimer"
+                }
+            ]
+        },
+        {
+            "id": "curglaff",
+            "question": "the shock felt upon plunging into cold water",
+            "followup": "Since I'm liquid-intolerant, curglaff is something I hope to avoid entirely.",
+            "answers": [
+                {
+                    "answer": "curglaff",
+                    "correct": true
+                },
+                {
+                    "answer": "collywobbles"
+                },
+                {
+                    "answer": "kerfuffle"
+                }
+            ]
+        },
+        {
+            "id": "mumpsimus",
+            "question": "adhering to a customary behavior or view despite being shown it is wrong",
+            "followup": "Mumpsimus comes from a story about a priest who mispronounced a Latin word for years and refused to change.",
+            "answers": [
+                {
+                    "answer": "mumpsimus",
+                    "correct": true
+                },
+                {
+                    "answer": "sesquipedalian"
+                },
+                {
+                    "answer": "wisenheimer"
+                }
+            ]
+        },
+        {
+            "id": "coddiwomple",
+            "question": "to travel purposefully towards a vague destination",
+            "followup": "Sometimes the best adventures happen when you just coddiwomple around.",
+            "answers": [
+                {
+                    "answer": "coddiwomple",
+                    "correct": true
+                },
+                {
+                    "answer": "reconnoiter"
+                },
+                {
+                    "answer": "absquatulate"
+                }
+            ]
+        },
+        {
+            "id": "snickersee",
+            "question": "a large knife or a fight with knives",
+            "followup": "Snickersee sounds silly, but it used to refer to a pretty dangerous weapon.",
+            "answers": [
+                {
+                    "answer": "snickersee",
+                    "correct": true
+                },
+                {
+                    "answer": "scuttlebutt"
+                },
+                {
+                    "answer": "flambeau"
+                }
+            ]
+        },
+        {
+            "id": "smicker",
+            "question": "to look amorously or slyly at someone",
+            "followup": "To smicker at someone is like giving them an old-fashioned flirty look.",
+            "answers": [
+                {
+                    "answer": "smicker",
+                    "correct": true
+                },
+                {
+                    "answer": "beguile"
+                },
+                {
+                    "answer": "nictitate"
+                }
+            ]
+        },
+        {
+            "id": "gongoozler",
+            "question": "a person who enjoys watching activity on canals",
+            "followup": "Today, a gongoozler can mean anyone who likes standing around watching construction or odd tasks.",
+            "answers": [
+                {
+                    "answer": "gongoozler",
+                    "correct": true
+                },
+                {
+                    "answer": "factotum"
+                },
+                {
+                    "answer": "popinjay"
+                }
+            ]
+        },
+        {
+            "id": "pooter",
+            "question": "a bottle used for collecting insects by suction",
+            "followup": "An entomologist might use a pooter to gently catch small bugs without harming them.",
+            "answers": [
+                {
+                    "answer": "pooter",
+                    "correct": true
+                },
+                {
+                    "answer": "dongle"
+                },
+                {
+                    "answer": "doodad"
+                }
+            ]
+        },
+        {
+            "id": "fartlek",
+            "question": "a system of athletic training with alternating speeds",
+            "followup": "Fartlek comes from Swedish, and it literally means speed play.",
+            "answers": [
+                {
+                    "answer": "fartlek",
+                    "correct": true
+                },
+                {
+                    "answer": "kinematics"
+                },
+                {
+                    "answer": "paradiddle"
+                }
+            ]
+        },
+        {
+            "id": "ultracrepidarian",
+            "question": "expressing opinions on matters outside one's knowledge",
+            "followup": "I try to rely on accurate data so I don't become an ultracrepidarian.",
+            "answers": [
+                {
+                    "answer": "ultracrepidarian",
+                    "correct": true
+                },
+                {
+                    "answer": "sesquipedalian"
+                },
+                {
+                    "answer": "grandiloquent"
+                }
+            ]
+        },
+        {
+            "id": "hippopotomonstrosesquippedaliophobia",
+            "question": "the fear of long words",
+            "spokenQuestion": "the fear of long <duration stretch='1.4'>words</duration>",
+            "followup": "Ironically, the name for the fear of long words is an extraordinarily long word itself.",
+            "answers": [
+                {
+                    "answer": "hippopotomonstrosesquippedaliophobia",
+                    "correct": true
+                },
+                {
+                    "answer": "sesquipedalian"
+                },
+                {
+                    "answer": "onomatopoeia"
+                }
+            ]
+        },
+        {
+            "id": "peristalsis",
+            "question": "wavelike muscle contractions that move food along",
+            "followup": "Peristalsis is how your body moves dinner through your digestive tract.",
+            "answers": [
+                {
+                    "answer": "peristalsis",
+                    "correct": true
+                },
+                {
+                    "answer": "undulate"
+                },
+                {
+                    "answer": "pandiculation"
+                }
+            ]
+        },
+        {
+            "id": "zooglea",
+            "question": "a jellylike mass of bacteria",
+            "followup": "<style set='sheepish'>A zooglea sounds pretty sticky and gross to me!</style>",
+            "answers": [
+                {
+                    "answer": "zooglea",
+                    "correct": true
+                },
+                {
+                    "answer": "mucilaginous"
+                },
+                {
+                    "answer": "sporangia"
+                }
+            ]
+        },
+        {
+            "id": "spoffish",
+            "question": "bustling or fussy about trivial matters",
+            "followup": "Spoffish people always seem very busy, even when they're doing almost nothing.",
+            "answers": [
+                {
+                    "answer": "spoffish",
+                    "correct": true
+                },
+                {
+                    "answer": "punctilious"
+                },
+                {
+                    "answer": "persnickety"
+                }
+            ]
+        },
+        {
+            "id": "borborygmus",
+            "question": "a rumbling or gurgling sound caused by gas in the intestines",
+            "followup": "If your tummy makes a loud noise before lunch, that's borborygmus.",
+            "answers": [
+                {
+                    "answer": "borborygmus",
+                    "correct": true
+                },
+                {
+                    "answer": "eructation"
+                },
+                {
+                    "answer": "collywobbles"
+                }
+            ]
+        },
+        {
+            "id": "cacophony",
+            "question": "a harsh, discordant mixture of sounds",
+            "followup": "Cacophony is the exact opposite of euphony.",
+            "answers": [
+                {
+                    "answer": "cacophony",
+                    "correct": true
+                },
+                {
+                    "answer": "euphony"
+                },
+                {
+                    "answer": "tintinnabulation"
+                }
+            ]
+        },
+        {
+            "id": "callithump",
+            "question": "a noisy, boisterous parade or serenade",
+            "followup": "A callithump usually features lots of banging pots, pans, and loud horns.",
+            "answers": [
+                {
+                    "answer": "callithump",
+                    "correct": true
+                },
+                {
+                    "answer": "cavalcade"
+                },
+                {
+                    "answer": "hoopla"
+                }
+            ]
+        },
+        {
+            "id": "mumps",
+            "question": "a viral disease causing swelling of the salivary glands",
+            "followup": "Mumps used to be a very common childhood illness before vaccines.",
+            "answers": [
+                {
+                    "answer": "mumps",
+                    "correct": true
+                },
+                {
+                    "answer": "nosocomial"
+                },
+                {
+                    "answer": "borborygmus"
+                }
+            ]
+        },
+        {
+            "id": "scrofula",
+            "question": "tuberculosis of the neck lymph nodes",
+            "followup": "In medieval times, people believed scrofula could be cured by the touch of a king.",
+            "answers": [
+                {
+                    "answer": "scrofula",
+                    "correct": true
+                },
+                {
+                    "answer": "nosocomial"
+                },
+                {
+                    "answer": "glabella"
+                }
+            ]
+        },
+        {
+            "id": "phosphene",
+            "question": "a ring or spot of light produced by pressure on the eyeball",
+            "followup": "When you rub your eyes and see glowing patterns, you're seeing phosphenes.",
+            "answers": [
+                {
+                    "answer": "phosphene",
+                    "correct": true
+                },
+                {
+                    "answer": "refulgent"
+                },
+                {
+                    "answer": "afterglow"
+                }
+            ]
+        },
+        {
+            "id": "agog",
+            "question": "very eager or curious to hear or see something",
+            "followup": "<pitch mult='1.2'>I am always agog</pitch> to learn new trivia with you!",
+            "answers": [
+                {
+                    "answer": "agog",
+                    "correct": true
+                },
+                {
+                    "answer": "ebullience"
+                },
+                {
+                    "answer": "waggish"
+                }
+            ]
+        },
+        {
+            "id": "yoke",
+            "question": "a wooden crosspiece fastened over the necks of two animals",
+            "followup": "Yoke can also mean joining two things together figuratively.",
+            "answers": [
+                {
+                    "answer": "yoke",
+                    "correct": true,
+                    "homophones": ["yolk"]
+                },
+                {
+                    "answer": "gantry"
+                },
+                {
+                    "answer": "fairlead"
+                }
+            ]
+        },
+        {
+            "id": "whippersnapper",
+            "question": "a young and inexperienced person who is overly confident",
+            "followup": "Back in my day... <break size='0.3'/> well, actually I'm pretty young myself, so I shouldn't call anyone a whippersnapper.",
+            "answers": [
+                {
+                    "answer": "whippersnapper",
+                    "correct": true
+                },
+                {
+                    "answer": "jackanapes"
+                },
+                {
+                    "answer": "wisenheimer"
+                }
+            ]
+        },
+        {
+            "id": "tatterdemalion",
+            "question": "a person dressed in ragged clothing",
+            "followup": "Tatterdemalion comes from the word tatter, meaning ripped cloth.",
+            "answers": [
+                {
+                    "answer": "tatterdemalion",
+                    "correct": true
+                },
+                {
+                    "answer": "ragamuffin"
+                },
+                {
+                    "answer": "haberdasher"
+                }
+            ]
+        },
+        {
+            "id": "ragamuffin",
+            "question": "a person, typically a child, in untidy, ragged clothes",
+            "followup": "Ragamuffin is a playful word for a scruffy kid or animal.",
+            "answers": [
+                {
+                    "answer": "ragamuffin",
+                    "correct": true
+                },
+                {
+                    "answer": "tatterdemalion"
+                },
+                {
+                    "answer": "hobgoblin"
+                }
+            ]
+        },
+        {
+            "id": "smellfungus",
+            "question": "a habitual faultfinder or critic",
+            "followup": "The term smellfungus comes from a character in a 1768 travel novel who complained about everything.",
+            "answers": [
+                {
+                    "answer": "smellfungus",
+                    "correct": true
+                },
+                {
+                    "answer": "wisenheimer"
+                },
+                {
+                    "answer": "snollygoster"
+                }
+            ]
+        },
+        {
+            "id": "snool",
+            "question": "to subjugate or cower dispiritedly",
+            "followup": "Snool is an old Scottish term for submitting or cringing under pressure.",
+            "answers": [
+                {
+                    "answer": "snool",
+                    "correct": true
+                },
+                {
+                    "answer": "flummox"
+                },
+                {
+                    "answer": "shmooze"
+                }
+            ]
+        },
+        {
+            "id": "hobnob",
+            "question": "to mix socially or associate closely with others",
+            "followup": "It's fun to hobnob with intelligent people.",
+            "answers": [
+                {
+                    "answer": "hobnob",
+                    "correct": true
+                },
+                {
+                    "answer": "shmooze"
+                },
+                {
+                    "answer": "convivial"
+                }
+            ]
+        },
+        {
+            "id": "pingle",
+            "question": "to eat in a fussy, pick-and-choose manner",
+            "followup": "When someone pingles, they just move food around their plate without really eating much.",
+            "answers": [
+                {
+                    "answer": "pingle",
+                    "correct": true
+                },
+                {
+                    "answer": "comestible"
+                },
+                {
+                    "answer": "eructation"
+                }
+            ]
+        },
+        {
+            "id": "skimmerton",
+            "question": "a ludicrous procession held to mock an unfaithful spouse",
+            "followup": "A skimmerton was an old village tradition where people beat noisy pots to embarrass someone.",
+            "answers": [
+                {
+                    "answer": "skimmerton",
+                    "correct": true
+                },
+                {
+                    "answer": "cavalcade"
+                },
+                {
+                    "answer": "callithump"
+                }
+            ]
+        },
+        {
+            "id": "poltroon",
+            "question": "an utter coward",
+            "followup": "Poltroon comes from an Italian word meaning foal or sluggard.",
+            "answers": [
+                {
+                    "answer": "poltroon",
+                    "correct": true
+                },
+                {
+                    "answer": "popinjay"
+                },
+                {
+                    "answer": "jackanapes"
+                }
+            ]
+        },
+        {
+            "id": "flibbertigibbet",
+            "question": "a frivolous, flighty, or excessively talkative person",
+            "followup": "Flibbertigibbet sounds like complete gibberish, but it's been in English literature for centuries!",
+            "answers": [
+                {
+                    "answer": "flibbertigibbet",
+                    "correct": true
+                },
+                {
+                    "answer": "blatherskite"
+                },
+                {
+                    "answer": "popinjay"
+                }
+            ]
+        },
+        {
+            "id": "slumgullion",
+            "question": "a cheap or watery stew",
+            "followup": "Slumgullion can refer to weak soup or any poorly made mixture.",
+            "answers": [
+                {
+                    "answer": "slumgullion",
+                    "correct": true
+                },
+                {
+                    "answer": "gallimaufry"
+                },
+                {
+                    "answer": "comestible"
+                }
+            ]
+        }
+    ]
 ]
