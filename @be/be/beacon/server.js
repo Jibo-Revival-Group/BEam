@@ -21,6 +21,7 @@ const skills = require('./lib/skills');
 const system = require('./lib/system');
 const ota = require('./lib/ota');
 const location = require('./lib/location');
+const units = require('./lib/units');
 
 const MAX_UPLOAD = 256 * 1024 * 1024;
 const MAX_IMAGE = 16 * 1024 * 1024;
@@ -190,6 +191,16 @@ const routes = {
             return location.apply(body && body.location).then((result) => {
                 u.sendJson(res, 200, result);
             });
+        });
+    }),
+
+    'GET /api/units': guard((req, res) => {
+        u.sendJson(res, 200, units.get());
+    }),
+
+    'POST /api/units': guard((req, res) => {
+        return u.readJson(req).then((body) => {
+            u.sendJson(res, 200, units.set(body && body.temperature));
         });
     }),
 

@@ -466,6 +466,7 @@ var cu = be_framework_1.libraries.jibo_cai_utils;
 const { PromiseUtils } = be_framework_1.libraries.jibo_cai_utils;
 const timeout = PromiseUtils.timeout;
 const prify = PromiseUtils.promisify;
+const TemperatureUnits_1 = require("../utils/TemperatureUnits");
 const ATTENTION_TIMEOUT = 2000;
 const CLOUD_SKILL_TIMEOUT = 8000;
 const CLOUD_SKILL_TIMED_OUT = 'CLOUD_SKILL_TIMED_OUT';
@@ -524,6 +525,10 @@ class ProcessCloudState extends exports.State {
         }
         const response = data.cloudResponse;
         const cloudBehaviors = this.processAction(response.action);
+        if (TemperatureUnits_1.TemperatureUnits.shouldConvertPersonalReport(response.skill && response.skill.id)) {
+            this.nimbus.log.info('Converting report-skill weather temperatures to Celsius.');
+            TemperatureUnits_1.TemperatureUnits.convertCloudBehaviors(cloudBehaviors);
+        }
         data.mims = this.processSlimBehaviors(cloudBehaviors);
         this.processSupplementalBehaviors(cloudBehaviors);
         this.processAnalytics(response.analytics, data.listenResult, data.lastSkill);
@@ -740,7 +745,7 @@ ProcessCloudState.isSetPresentPerson = (behavior) => { return (behavior.type ===
 ProcessCloudState.isImpactEmotion = (behavior) => { return (behavior.type === 'IMPACT_EMOTION'); };
 exports.ProcessCloudState = ProcessCloudState;
 
-},{"@be/be-framework":undefined,"jibo":undefined,"jibo-expression-client":undefined}],10:[function(require,module,exports){
+},{"../utils/TemperatureUnits":15,"@be/be-framework":undefined,"jibo":undefined,"jibo-expression-client":undefined}],10:[function(require,module,exports){
 "use strict";
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -927,6 +932,180 @@ class Analytics {
 }
 exports.Analytics = Analytics;
 
-},{}]},{},[3])(3)
+},{}],15:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const fs = require("fs");
+const UNITS_PATH = '/opt/jibo/Knowledge/beacon/units.json';
+const WEATHER_SKILL_IDS = {
+    'report-skill': true,
+    'personal-report-skill': true
+};
+class TemperatureUnits {
+    static unitsPath() {
+        return UNITS_PATH;
+    }
+    static fToC(fahrenheit) {
+        return Math.round((fahrenheit - 32) * 5 / 9);
+    }
+    static isMetricPreferred() {
+        try {
+            if (!fs.existsSync(UNITS_PATH)) {
+                return false;
+            }
+            const data = JSON.parse(fs.readFileSync(UNITS_PATH, 'utf8'));
+            return !!(data && String(data.temperature).toLowerCase() === 'celsius');
+        }
+        catch (err) {
+            return false;
+        }
+    }
+    static shouldConvertPersonalReport(skillId) {
+        return !!(skillId && WEATHER_SKILL_IDS[skillId] && TemperatureUnits.isMetricPreferred());
+    }
+    static convertSpokenText(text) {
+        if (!text || typeof text !== 'string') {
+            return text;
+        }
+        let out = text;
+        out = out.replace(/Temperatures are in Fahrenheit\./gi, 'Temperatures are in Celsius.');
+        out = out.replace(/(-?\d+)\s*degrees\s+Fahrenheit\b/gi, (_match, raw) => {
+            return TemperatureUnits.fToC(Number(raw)) + ' degrees Celsius';
+        });
+        out = out.replace(/(-?\d+)\s*degrees\b(?!\s*(?:Celsius|Fahrenheit))/gi, (_match, raw) => {
+            return TemperatureUnits.fToC(Number(raw)) + ' degrees';
+        });
+        out = out.replace(/\b((?:high|low)\s+(?:is|of|will be|near|around)\s+)(-?\d+)\b(?!\s*degrees)/gi, (_match, prefix, raw) => prefix + TemperatureUnits.fToC(Number(raw)));
+        out = out.replace(/\b(high\s+)(-?\d+)(\s*,\s*low\s+)(-?\d+)\b/gi, (_match, highPrefix, highRaw, mid, lowRaw) => {
+            return highPrefix +
+                TemperatureUnits.fToC(Number(highRaw)) +
+                mid +
+                TemperatureUnits.fToC(Number(lowRaw));
+        });
+        return out;
+    }
+    static convertGuiValue(key, value) {
+        if (value === undefined || value === null) {
+            return value;
+        }
+        const keyLower = String(key || '').toLowerCase();
+        if (typeof value === 'number' && isFinite(value)) {
+            if (keyLower === 'weather_high' ||
+                keyLower === 'weather_low' ||
+                keyLower === 'hightemp' ||
+                keyLower === 'lowtemp' ||
+                keyLower === 'temperature' ||
+                keyLower === 'high' ||
+                keyLower === 'low') {
+                return TemperatureUnits.fToC(value);
+            }
+            return value;
+        }
+        if (typeof value === 'string') {
+            if (keyLower === 'weather_unit' ||
+                keyLower === 'temperatureunit' ||
+                keyLower === 'unit' ||
+                /unitlabel$/i.test(String(key))) {
+                if (value === 'F' || value === 'f') {
+                    return 'C';
+                }
+                if (/^fahrenheit$/i.test(value)) {
+                    return 'Celsius';
+                }
+            }
+            if (keyLower === 'text' || keyLower === 'label' || keyLower === 'esml' || keyLower === 'prompt') {
+                const degOnly = /^(-?\d+)\s*°$/.exec(value.trim());
+                if (degOnly) {
+                    return TemperatureUnits.fToC(Number(degOnly[1])) + '°';
+                }
+                if (value.trim() === 'F' || value.trim() === 'f') {
+                    return 'C';
+                }
+                return TemperatureUnits.convertSpokenText(value);
+            }
+            if (keyLower === 'weather_high' ||
+                keyLower === 'weather_low' ||
+                keyLower === 'hightemp' ||
+                keyLower === 'lowtemp' ||
+                keyLower === 'temperature') {
+                if (/^-?\d+$/.test(value.trim())) {
+                    return String(TemperatureUnits.fToC(Number(value.trim())));
+                }
+            }
+            const degOnly = /^(-?\d+)\s*°$/.exec(value.trim());
+            if (degOnly) {
+                return TemperatureUnits.fToC(Number(degOnly[1])) + '°';
+            }
+            if (/Fahrenheit|\bdegrees\b|high\s+\d|low\s+\d/i.test(value)) {
+                return TemperatureUnits.convertSpokenText(value);
+            }
+            return value;
+        }
+        if (Array.isArray(value)) {
+            return value.map((item, index) => TemperatureUnits.convertGuiValue(String(index), item));
+        }
+        if (typeof value === 'object') {
+            const out = Array.isArray(value) ? [] : {};
+            const id = typeof value.id === 'string' ? value.id : '';
+            Object.keys(value).forEach((childKey) => {
+                let child = value[childKey];
+                if (childKey === 'text' && typeof child === 'string') {
+                    if (/UnitLabel$/i.test(id) && (child === 'F' || child === 'f')) {
+                        out[childKey] = 'C';
+                        return;
+                    }
+                    if (/NumLabel$/i.test(id)) {
+                        const numDeg = /^(-?\d+)\s*°$/.exec(child.trim());
+                        if (numDeg) {
+                            out[childKey] = TemperatureUnits.fToC(Number(numDeg[1])) + '°';
+                            return;
+                        }
+                    }
+                }
+                out[childKey] = TemperatureUnits.convertGuiValue(childKey, child);
+            });
+            return out;
+        }
+        return value;
+    }
+    static convertSlimConfig(config) {
+        if (!config) {
+            return;
+        }
+        if (config.play && typeof config.play.esml === 'string') {
+            config.play.esml = TemperatureUnits.convertSpokenText(config.play.esml);
+        }
+        if (config.display && config.display.view) {
+            config.display.view = TemperatureUnits.convertGuiValue('view', config.display.view);
+        }
+        if (config.gui) {
+            config.gui = TemperatureUnits.convertGuiValue('gui', config.gui);
+        }
+        if (config.views) {
+            config.views = TemperatureUnits.convertGuiValue('views', config.views);
+        }
+        if (config.local) {
+            config.local = TemperatureUnits.convertGuiValue('local', config.local);
+        }
+    }
+    static convertCloudBehaviors(behaviors) {
+        if (!behaviors) {
+            return;
+        }
+        if (behaviors.slim && behaviors.slim.config) {
+            TemperatureUnits.convertSlimConfig(behaviors.slim.config);
+        }
+        if (behaviors.slimSequence && Array.isArray(behaviors.slimSequence.children)) {
+            behaviors.slimSequence.children.forEach((child) => {
+                if (child && child.config) {
+                    TemperatureUnits.convertSlimConfig(child.config);
+                }
+            });
+        }
+    }
+}
+exports.TemperatureUnits = TemperatureUnits;
+
+},{"fs":undefined}]},{},[3])(3)
 });
 //# sourceMappingURL=index.js.map

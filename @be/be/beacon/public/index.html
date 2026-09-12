@@ -113,7 +113,27 @@
         <h2>Etc</h2>
         <div class="panel-actions">
             <button class="btn" data-action="detect-location">Detect via IP</button>
-            <button class="btn" data-action="refresh-location">Refresh</button>
+            <button class="btn" data-action="refresh-etc">Refresh</button>
+        </div>
+    </div>
+    <div class="card">
+        <h3>Temperature units</h3>
+        <p class="hint">
+            Weather from the cloud still arrives in Fahrenheit. When Celsius is
+            selected, Nimbus converts spoken and on-face temperatures locally.
+        </p>
+        <div class="unit-choices" id="units-choices">
+            <label class="unit-choice">
+                <input type="radio" name="temperature-unit" value="fahrenheit">
+                <span>Fahrenheit (&deg;F)</span>
+            </label>
+            <label class="unit-choice">
+                <input type="radio" name="temperature-unit" value="celsius">
+                <span>Celsius (&deg;C)</span>
+            </label>
+        </div>
+        <div class="form-row">
+            <button class="btn btn-primary" data-action="save-units">Save units</button>
         </div>
     </div>
     <p class="hint">

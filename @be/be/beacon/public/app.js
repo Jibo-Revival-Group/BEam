@@ -14,6 +14,9 @@
             current: null,
             detected: null
         },
+        units: {
+            temperature: 'fahrenheit'
+        },
         audio: null,
         playing: null
     };
@@ -825,6 +828,52 @@
             });
     }
 
+    /* --------------------------------------------------------------- units */
+
+    function renderUnits () {
+        var value = state.units.temperature === 'celsius' ? 'celsius' : 'fahrenheit';
+        var inputs = document.querySelectorAll('input[name="temperature-unit"]');
+        for (var i = 0; i < inputs.length; i++) {
+            inputs[i].checked = inputs[i].value === value;
+        }
+    }
+
+    function selectedTemperatureUnit () {
+        var checked = $('input[name="temperature-unit"]:checked');
+        return checked ? checked.value : 'fahrenheit';
+    }
+
+    function loadUnits () {
+        return api('GET', '/api/units').then(function (data) {
+            state.units.temperature = data.temperature === 'celsius' ? 'celsius' : 'fahrenheit';
+            renderUnits();
+            return data;
+        });
+    }
+
+    function saveUnits () {
+        var temperature = selectedTemperatureUnit();
+        var button = $('[data-action="save-units"]');
+        if (button) { button.disabled = true; }
+        return api('POST', '/api/units', { temperature: temperature })
+            .then(function (data) {
+                state.units.temperature = data.temperature === 'celsius' ? 'celsius' : 'fahrenheit';
+                renderUnits();
+                toast('Temperature units saved.', 'ok');
+                return data;
+            }).catch(function (err) {
+                renderUnits();
+                reportError(err);
+            }).then(function (data) {
+                if (button) { button.disabled = false; }
+                return data;
+            });
+    }
+
+    function loadEtc () {
+        return Promise.all([loadLocation(), loadUnits()]);
+    }
+
     /* --------------------------------------------------------------- wire */
 
     var loaders = {
@@ -833,7 +882,7 @@
         photos: loadPhotos,
         eye: loadEye,
         skills: loadSkills,
-        etc: loadLocation
+        etc: loadEtc
     };
 
     function refreshPanel (name) {
@@ -863,9 +912,11 @@
         'refresh-photos': loadPhotos,
         'refresh-eye': refreshEye,
         'refresh-skills': loadSkills,
-        'refresh-location': loadLocation,
+        'refresh-location': loadEtc,
+        'refresh-etc': loadEtc,
         'detect-location': detectLocation,
         'apply-location': applyLocation,
+        'save-units': saveUnits,
         'new-album': newAlbum,
         'pick-eye': function () { $('#eye-file').click(); },
         'revert-eye': function () {

@@ -6,6 +6,7 @@ import { AnimationInstance, AnimationState } from 'jibo-expression-client';
 import { Nimbus } from '../Nimbus';
 import { Dataflow, MIMConfig, MIMPrompt } from '../common/Types';
 import { Utils } from "../utils/Utils";
+import { TemperatureUnits } from "../utils/TemperatureUnits";
 
 export import State = libraries.jibo_state_machine.State;
 import cu = libraries.jibo_cai_utils;
@@ -116,6 +117,10 @@ export class ProcessCloudState extends State {
         }
         const response = (data.cloudResponse as cloud.skill.response.SkillActionData);
         const cloudBehaviors = this.processAction(response.action);
+        if (TemperatureUnits.shouldConvertPersonalReport(response.skill && response.skill.id)) {
+            this.nimbus.log.info('Converting report-skill weather temperatures to Celsius.');
+            TemperatureUnits.convertCloudBehaviors(cloudBehaviors);
+        }
         data.mims = this.processSlimBehaviors(cloudBehaviors);
         this.processSupplementalBehaviors(cloudBehaviors);
         this.processAnalytics(response.analytics, data.listenResult, data.lastSkill);

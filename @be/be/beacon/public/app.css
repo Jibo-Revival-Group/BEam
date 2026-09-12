@@ -558,6 +558,35 @@ dl.kv dd { margin: 0; word-break: break-all; font-family: ui-monospace, SFMono-R
 .location-card-head h3 { margin: 0; }
 .location-note { margin: 14px 0 0; }
 
+.unit-choices {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 12px;
+}
+
+.unit-choice {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #0d1117;
+    border: 1px solid var(--line-solid);
+    border-radius: 8px;
+    padding: 10px 12px;
+    cursor: pointer;
+    color: var(--text);
+    font-size: 14px;
+}
+
+.unit-choice:has(input:checked) {
+    border-color: var(--accent);
+    outline: 1px solid var(--accent);
+}
+
+.unit-choice input {
+    margin: 0;
+}
+
 .form-row {
     display: flex;
     flex-wrap: wrap;
