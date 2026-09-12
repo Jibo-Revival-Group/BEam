@@ -1,7 +1,7 @@
 {
   "viewConfig": {
     "type": "View",
-    "id": "deafenConfirm",
+    "id": "privacyOnConfirm",
     "category": "display",
     "ignoreSwipeDown": true
   },
@@ -28,7 +28,7 @@
     {
       "id": "text",
       "type": "Label",
-      "text": "Jibo won't respond to \"Hey Jibo\" if you enable this.\nYou can disable it in Settings to let him understand\nyou again in the future.",
+      "text": "Jibo won't hear you, see you, or feel your touch\nif you enable this. Tap him later to turn Privacy off.",
       "style": {
         "fontSize": 45,
         "fontFamily": "Proxima Nova Light",

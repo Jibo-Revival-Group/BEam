@@ -543,17 +543,17 @@ const WipeSkill_1 = require("./subskills/WipeSkill");
 const Analytics_1 = require("./analytics/Analytics");
 const PowerAnalytics_1 = require("./analytics/PowerAnalytics");
 const SubSkill_1 = require("./subskills/SubSkill");
-const DEAFEN_PULSE_LENGTH = 2;
-const DEAFEN_MIN_BRIGHTNESS = 0.2;
-const DEAFEN_MAX_BRIGHTNESS = 1;
-class DeafenController {
+const PRIVACY_PULSE_LENGTH = 2;
+const PRIVACY_MIN_BRIGHTNESS = 0.2;
+const PRIVACY_MAX_BRIGHTNESS = 1;
+class PrivacyController {
     constructor(log) {
-        this.log = log.createChild('deafen');
+        this.log = log.createChild('privacy');
         this.enabled = false;
         this.hjToken = null;
         this.attentionHandler = null;
         this.indicator = null;
-        this.brightness = DEAFEN_MIN_BRIGHTNESS;
+        this.brightness = PRIVACY_MIN_BRIGHTNESS;
         this.fadingUp = true;
         this.updateIndicator = this.updateIndicator.bind(this);
     }
@@ -562,7 +562,7 @@ class DeafenController {
             return Promise.resolve();
         }
         this.enabled = true;
-        jibo.deafenController = this;
+        jibo.privacyController = this;
         this.hjToken = jibo.jetstream.setHotwordMode(jibo.jetstream.types.HotwordListenMode.Disabled);
         this.startIndicator();
         if (jibo.remote && jibo.remote.setRemoteDisabled) {
@@ -580,15 +580,15 @@ class DeafenController {
             jibo.tts.stop();
         }
         catch (err) {
-            this.log.warn('Failed to stop speech while deafening', err);
+            this.log.warn('Failed to stop speech while enabling privacy', err);
         }
         try {
             actions.push(Promise.resolve(jibo.embodied.listen.exitActiveMode()).catch((err) => {
-                this.log.warn('Failed to stop listening while deafening', err);
+                this.log.warn('Failed to stop listening while enabling privacy', err);
             }));
         }
         catch (err) {
-            this.log.warn('Failed to stop listening while deafening', err);
+            this.log.warn('Failed to stop listening while enabling privacy', err);
         }
         try {
             actions.push(Promise.resolve(jibo.jetstream.cancelAnyTurn()).catch((err) => {
@@ -598,16 +598,34 @@ class DeafenController {
         catch (err) {
             this.log.warn('Failed to cancel the active listening turn', err);
         }
+        try {
+            if (jibo.media && jibo.media.setViewfinder) {
+                actions.push(Promise.resolve(jibo.media.setViewfinder(false)).catch((err) => {
+                    this.log.warn('Failed to disable viewfinder while enabling privacy', err);
+                }));
+            }
+        }
+        catch (err) {
+            this.log.warn('Failed to disable viewfinder while enabling privacy', err);
+        }
         return Promise.all(actions).then(() => {
-            if (this.enabled && jibo.expression.pushAttentionMode) {
+            if (!this.enabled || !jibo.expression) {
+                return;
+            }
+            const setOff = jibo.expression.setAttentionMode
+                ? Promise.resolve(jibo.expression.setAttentionMode(jibo.expression.AttentionMode.OFF))
+                : Promise.resolve();
+            return setOff.then(() => {
+                if (!this.enabled || !jibo.expression.pushAttentionMode) {
+                    return;
+                }
                 return Promise.resolve(jibo.expression.pushAttentionMode(jibo.expression.AttentionMode.OFF))
                     .then((handler) => {
                     this.attentionHandler = handler;
-                })
-                    .catch((err) => {
-                    this.log.warn('Failed to suppress attention while deafening', err);
                 });
-            }
+            }).catch((err) => {
+                this.log.warn('Failed to suppress attention while enabling privacy', err);
+            });
         });
     }
     disable() {
@@ -625,18 +643,28 @@ class DeafenController {
         if (jibo.remote && jibo.remote.setRemoteDisabled) {
             jibo.remote.setRemoteDisabled(false);
         }
-        if (!token) {
+        const restoreAttention = () => {
+            if (jibo.expression && jibo.expression.setAttentionMode) {
+                return Promise.resolve(jibo.expression.setAttentionMode(jibo.expression.AttentionMode.IDLE))
+                    .catch((err) => {
+                    this.log.warn('Failed to restore attention after disabling privacy', err);
+                });
+            }
             return Promise.resolve();
+        };
+        if (!token) {
+            return restoreAttention();
         }
         return token.release().catch((err) => {
             this.log.warn('Failed to re-enable Hey Jibo', err);
-        });
+        }).then(restoreAttention);
     }
     startIndicator() {
         if (this.indicator) {
+            this.ensureIndicatorVisible();
             return;
         }
-        this.brightness = DEAFEN_MIN_BRIGHTNESS;
+        this.brightness = PRIVACY_MIN_BRIGHTNESS;
         this.fadingUp = true;
         const graphic = new PIXI.Graphics();
         graphic.beginFill(0xFF0000);
@@ -647,15 +675,34 @@ class DeafenController {
         icon.x = jibo.face.width - 45;
         icon.y = jibo.face.height - 45;
         icon.addChild(graphic);
-        jibo.face.views.addWatermark(icon);
         this.indicator = icon;
+        this.ensureIndicatorVisible();
         jibo.timer.on('update', this.updateIndicator);
-        jibo.expression.setLEDColor([DEAFEN_MIN_BRIGHTNESS, 0, 0]);
+        jibo.expression.setLEDColor([PRIVACY_MIN_BRIGHTNESS, 0, 0]);
+    }
+    ensureIndicatorVisible() {
+        if (!this.enabled || !this.indicator) {
+            return;
+        }
+        if (this.indicator.parent) {
+            return;
+        }
+        try {
+            jibo.face.views.addWatermark(this.indicator);
+        }
+        catch (err) {
+            this.log.warn('Failed to re-add privacy indicator', err);
+        }
     }
     stopIndicator() {
         jibo.timer.off('update', this.updateIndicator);
         if (this.indicator) {
-            jibo.face.views.removeWatermark();
+            try {
+                jibo.face.views.removeWatermark();
+            }
+            catch (err) {
+                this.log.warn('Failed to remove privacy indicator', err);
+            }
             this.indicator = null;
         }
         jibo.expression.setLEDColor([0, 0, 0]);
@@ -664,19 +711,20 @@ class DeafenController {
         if (!this.indicator || !this.enabled) {
             return;
         }
-        const delta = (elapsed / 1000) * (1 / DEAFEN_PULSE_LENGTH) *
-            (DEAFEN_MAX_BRIGHTNESS - DEAFEN_MIN_BRIGHTNESS);
+        this.ensureIndicatorVisible();
+        const delta = (elapsed / 1000) * (1 / PRIVACY_PULSE_LENGTH) *
+            (PRIVACY_MAX_BRIGHTNESS - PRIVACY_MIN_BRIGHTNESS);
         if (this.fadingUp) {
             this.brightness += delta;
-            if (this.brightness >= DEAFEN_MAX_BRIGHTNESS) {
-                this.brightness = DEAFEN_MAX_BRIGHTNESS;
+            if (this.brightness >= PRIVACY_MAX_BRIGHTNESS) {
+                this.brightness = PRIVACY_MAX_BRIGHTNESS;
                 this.fadingUp = false;
             }
         }
         else {
             this.brightness -= delta;
-            if (this.brightness <= DEAFEN_MIN_BRIGHTNESS) {
-                this.brightness = DEAFEN_MIN_BRIGHTNESS;
+            if (this.brightness <= PRIVACY_MIN_BRIGHTNESS) {
+                this.brightness = PRIVACY_MIN_BRIGHTNESS;
                 this.fadingUp = true;
             }
         }
@@ -690,20 +738,20 @@ class DeafenController {
         else {
             this.stopIndicator();
         }
-        if (jibo.deafenController === this) {
-            jibo.deafenController = null;
+        if (jibo.privacyController === this) {
+            jibo.privacyController = null;
         }
     }
 }
-class DeafenSkill extends SubSkill_1.default {
+class PrivacySkill extends SubSkill_1.default {
     constructor(skill, intent, onClose) {
         super(skill, intent, onClose);
         this.view = null;
         this.isApplying = false;
         this.onPressed = this.onPressed.bind(this);
-        const viewPath = skill.deafenController.enabled
-            ? 'assets/deafen/undeafenConfirm.json'
-            : 'assets/deafen/deafenConfirm.json';
+        const viewPath = skill.privacyController.enabled
+            ? 'assets/privacy/privacyOffConfirm.json'
+            : 'assets/privacy/privacyOnConfirm.json';
         jibo.face.views.changeView({
             addView: viewPath
         }, (view) => {
@@ -719,18 +767,25 @@ class DeafenSkill extends SubSkill_1.default {
         }
         this.isApplying = true;
         this.view.removeListener(jibo.face.views.CLOSED, this.destroyThenClose);
-        const action = this.skill.deafenController.enabled
-            ? this.skill.deafenController.disable()
-            : this.skill.deafenController.enable();
+        const wasEnabled = this.skill.privacyController.enabled;
+        const action = wasEnabled
+            ? this.skill.privacyController.disable()
+            : this.skill.privacyController.enable();
         Promise.resolve(action).then(() => {
             if (!this.view) {
                 return;
             }
-            jibo.face.views.changeView({ remove: true }, () => {
-                this.destroyThenClose();
-            }, () => {
-                this.destroyThenClose();
-            });
+            const finish = () => {
+                if (wasEnabled) {
+                    this.destroyThenClose();
+                }
+                else {
+                    const skill = this.skill;
+                    this.destroy();
+                    skill.exit2Idle();
+                }
+            };
+            jibo.face.views.changeView({ remove: true }, finish, finish);
         });
     }
     stopAndDestroy(done) {
@@ -743,7 +798,7 @@ class DeafenSkill extends SubSkill_1.default {
             done();
         }, () => {
             this.destroy();
-            done('deafen confirmation view close failed');
+            done('privacy confirmation view close failed');
         });
     }
     destroy() {
@@ -760,7 +815,7 @@ class Settings extends be_framework_1.BeSkill {
         this.SUB_SKILLZ = {
             about: { Class: AboutSkill_1.default },
             battery: { Class: BatterySkill_1.default },
-            deafen: { Class: DeafenSkill },
+            privacy: { Class: PrivacySkill },
             error: { Class: ErrorSkill_1.default, uninterruptible: true, refreshable: true },
             menu: { Class: MenuSkill_1.default },
             shutDown: { Class: ShutdownSkill_1.default },
@@ -780,8 +835,8 @@ class Settings extends be_framework_1.BeSkill {
         this._globalIgnoreState = false;
         this.globalDoNothing = this.globalDoNothing.bind(this);
         this._analytics = new Analytics_1.default(this);
-        this.deafenController = new DeafenController(this.log);
-        jibo.deafenController = this.deafenController;
+        this.privacyController = new PrivacyController(this.log);
+        jibo.privacyController = this.privacyController;
         PowerAnalytics_1.default.init();
     }
     postInit(callback) {
@@ -862,7 +917,7 @@ class Settings extends be_framework_1.BeSkill {
         this.cleanupSubSkill(done);
     }
     destroy(done) {
-        this.deafenController.destroy();
+        this.privacyController.destroy();
         done();
     }
     goBack() {

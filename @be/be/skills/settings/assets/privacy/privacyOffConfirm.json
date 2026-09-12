@@ -1,7 +1,7 @@
 {
   "viewConfig": {
     "type": "View",
-    "id": "undeafenConfirm",
+    "id": "privacyOffConfirm",
     "category": "display",
     "ignoreSwipeDown": true
   },
@@ -28,7 +28,7 @@
     {
       "id": "text",
       "type": "Label",
-      "text": "Jibo will understand you and respond to\n\"Hey Jibo\" again if you disable Deafen.",
+      "text": "Jibo will hear, see, and feel your touch again\nif you disable Privacy.",
       "style": {
         "fontSize": 45,
         "fontFamily": "Proxima Nova Light",

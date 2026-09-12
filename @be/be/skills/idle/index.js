@@ -1330,6 +1330,10 @@ class OpenMenuElement {
     }
     promiseGenerator() {
         return __awaiter(this, void 0, void 0, function* () {
+            if (jibo.privacyController && jibo.privacyController.enabled) {
+                this.parent.parent.parent.redirect('@be/settings', { nlu: { intent: 'privacy' } });
+                return;
+            }
             this.parent.parent.parent.redirect('@be/main-menu', { intent: 'tap' });
         });
     }
@@ -1988,19 +1992,22 @@ class CircadianManager {
     }
     pushAttentionMode(attentionMode) {
         this.atnModeQueue.add(() => __awaiter(this, void 0, void 0, function* () {
+            const mode = (jibo.privacyController && jibo.privacyController.enabled)
+                ? jibo.expression.AttentionMode.OFF
+                : attentionMode;
             if (this.attentionHandle) {
                 try {
                     yield this.attentionHandle.release();
                 }
                 catch (error) {
-                    this.parent.log.error(`Failed to release attention handle while pushing mode:${attentionMode} with error: `, error);
+                    this.parent.log.error(`Failed to release attention handle while pushing mode:${mode} with error: `, error);
                 }
             }
             try {
-                this.attentionHandle = yield jibo.expression.pushAttentionMode(attentionMode);
+                this.attentionHandle = yield jibo.expression.pushAttentionMode(mode);
             }
             catch (error) {
-                this.parent.log.error(`Failed to push new attention mode: ${attentionMode} with error: `, error);
+                this.parent.log.error(`Failed to push new attention mode: ${mode} with error: `, error);
             }
         }));
     }
@@ -2033,6 +2040,10 @@ class CircadianManager {
     }
     headTouchHandler(data) {
         this.parent.log.debug("headTouchHandler");
+        if (jibo.privacyController && jibo.privacyController.enabled) {
+            this.parent.redirect('@be/settings', { nlu: { intent: 'privacy' } });
+            return;
+        }
         const now = Date.now();
         if (this.getCurrentCircadianState() !== jibo_common_types_1.CircadianState.ALERT) {
             this.circadianSM.events.headTouch.emit();
@@ -2077,6 +2088,9 @@ class CircadianManager {
         }
     }
     faceHandler() {
+        if (jibo.privacyController && jibo.privacyController.enabled) {
+            return;
+        }
         if (this.wakeWithFace) {
             this.parent.log.debug("face handler");
             if (this.wakeEventFusion) {
@@ -2315,7 +2329,7 @@ class EntryState extends sm.State {
         this.addInternalTransition(hjNoMatch, this.mainSM.hjNoMatch);
     }
     resumeGlobalListen() {
-        if (jibo.deafenController && jibo.deafenController.enabled) {
+        if (jibo.privacyController && jibo.privacyController.enabled) {
             return Promise.resolve();
         }
         return jibo.jetstream.resetHotwordMode()
@@ -2605,6 +2619,10 @@ class Idle extends be_framework_2.BeSkill {
         });
     }
     onTouch() {
+        if (jibo.privacyController && jibo.privacyController.enabled) {
+            this.redirect('@be/settings', { nlu: { intent: 'privacy' } });
+            return;
+        }
         if (this.circadianManager.getCurrentCircadianState() === jibo_common_types_1.CircadianState.ALERT ||
             this.circadianManager.getCurrentCircadianState() === jibo_common_types_1.CircadianState.RELAXED) {
             this.redirect('@be/main-menu', { intent: 'tap' });

@@ -4297,7 +4297,7 @@ class Introductions extends be_framework_1.BeSkill {
         this._blackboard = null;
         let reenableGL = () => {
             jibo.action.configure({ orientToHJ: true });
-            if (jibo.deafenController && jibo.deafenController.enabled) {
+            if (jibo.privacyController && jibo.privacyController.enabled) {
                 done();
                 return;
             }
