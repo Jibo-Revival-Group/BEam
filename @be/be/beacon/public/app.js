@@ -149,13 +149,14 @@
     function loadStatus () {
         return api('GET', '/api/status').then(function (data) {
             setLive(true);
-            $('#brand-version').textContent = 'BEam ' + (data.host.version || '?');
+            var versionEl = $('#brand-version');
+            if (versionEl) { versionEl.textContent = 'BEam ' + (data.host.version || '?'); }
 
             var cards = $('#status-cards');
             cards.innerHTML = '';
             cards.appendChild(stat('Version', data.host.name + ' ' + (data.host.version || '')));
             cards.appendChild(stat('This Jibo', data.robot ? data.hostname : 'Development (' + data.hostname + ')'));
-            cards.appendChild(stat('BEacon uptime', duration(data.uptimeSeconds)));
+            cards.appendChild(stat('Uptime', duration(data.uptimeSeconds)));
             cards.appendChild(stat('Custom eye', data.eye && data.eye.custom
                 ? (data.eye.applied ? 'On' : 'Saved — tap Apply')
                 : 'Off'));
@@ -870,6 +871,36 @@
 
     /* --------------------------------------------------------------- wire */
 
+    var panelMeta = {
+        status: {
+            title: 'Status',
+            actions: [{ action: 'refresh-status', label: 'Refresh' }]
+        },
+        jukebox: {
+            title: 'Music',
+            actions: [
+                { action: 'new-album', label: 'New' },
+                { action: 'refresh-jukebox', label: 'Refresh' }
+            ]
+        },
+        photos: {
+            title: 'Photos',
+            actions: [{ action: 'refresh-photos', label: 'Refresh' }]
+        },
+        eye: {
+            title: "Jibo's eye",
+            actions: [{ action: 'refresh-eye', label: 'Apply' }]
+        },
+        skills: {
+            title: 'Skills',
+            actions: [{ action: 'refresh-skills', label: 'Refresh' }]
+        },
+        etc: {
+            title: 'More',
+            actions: [{ action: 'refresh-etc', label: 'Refresh' }]
+        }
+    };
+
     var loaders = {
         status: loadStatus,
         jukebox: loadJukebox,
@@ -878,6 +909,18 @@
         skills: loadSkills,
         etc: loadEtc
     };
+
+    function renderToolbar (name) {
+        var meta = panelMeta[name] || panelMeta.status;
+        $('#toolbar-title').textContent = meta.title;
+        var actions = $('#toolbar-actions');
+        actions.innerHTML = '';
+        (meta.actions || []).forEach(function (item) {
+            var button = el('button', 'toolbar-action', item.label);
+            button.setAttribute('data-action', item.action);
+            actions.appendChild(button);
+        });
+    }
 
     function refreshPanel (name) {
         var loader = loaders[name];
@@ -888,6 +931,7 @@
     function showPanel (name) {
         if (!loaders[name]) { name = 'status'; }
         state.panel = name;
+        renderToolbar(name);
         var tabs = document.querySelectorAll('.tab');
         for (var i = 0; i < tabs.length; i++) {
             tabs[i].classList.toggle('is-active', tabs[i].getAttribute('data-panel') === name);
@@ -930,7 +974,14 @@
 
     document.addEventListener('change', function (event) {
         if (event.target && event.target.name === 'temperature-unit') {
-            renderUnits();
+            // Update highlight only — do not reset radios from saved state.
+            var inputs = document.querySelectorAll('input[name="temperature-unit"]');
+            for (var i = 0; i < inputs.length; i++) {
+                var label = inputs[i].parentNode;
+                if (label && label.classList) {
+                    label.classList.toggle('is-selected', inputs[i].checked);
+                }
+            }
         }
     });
 

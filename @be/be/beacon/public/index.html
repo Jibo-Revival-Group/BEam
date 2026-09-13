@@ -2,92 +2,56 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#00d4f0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="BEacon">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="application-name" content="BEacon">
 <title>BEacon</title>
-<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="icon" href="favicon.png" type="image/png" sizes="192x192">
+<link rel="icon" href="favicon-32.png" type="image/png" sizes="32x32">
+<link rel="apple-touch-icon" href="apple-touch-icon.png" sizes="180x180">
+<link rel="manifest" href="manifest.webmanifest">
 <link rel="stylesheet" href="app.css">
 </head>
 <body>
 
-<header class="topbar">
-    <div class="brand">
-        <span class="dot" id="live-dot" title="Connection"></span>
-        <h1>BEacon</h1>
-        <span class="tag" id="brand-version">BEam</span>
+<header class="toolbar">
+    <div class="toolbar-start">
+        <span class="live-dot" id="live-dot" title="Connection"></span>
+        <h1 class="toolbar-title" id="toolbar-title">Status</h1>
     </div>
-    <nav class="tabs" id="tabs">
-        <button class="tab is-active" data-panel="status">
-            <img src="icons/about.svg" alt="" width="28" height="28">
-            Status
-        </button>
-        <button class="tab" data-panel="jukebox">
-            <img src="icons/music.svg" alt="" width="28" height="28">
-            Music
-        </button>
-        <button class="tab" data-panel="photos">
-            <img src="icons/photos.svg" alt="" width="28" height="28">
-            Photos
-        </button>
-        <button class="tab" data-panel="eye">
-            <img src="icons/eye.svg" alt="" width="28" height="28">
-            Eye
-        </button>
-        <button class="tab" data-panel="skills">
-            <img src="icons/skills.svg" alt="" width="28" height="28">
-            Skills
-        </button>
-        <button class="tab" data-panel="etc">
-            <img src="icons/settings.svg" alt="" width="28" height="28">
-            More
-        </button>
-    </nav>
+    <div class="toolbar-actions" id="toolbar-actions"></div>
 </header>
 
 <main>
 
 <section class="panel is-active" id="panel-status">
-    <div class="panel-head">
-        <h2>Status</h2>
-        <button class="btn" data-action="refresh-status">Refresh</button>
-    </div>
+    <p class="section-header">About</p>
     <div class="cards" id="status-cards"></div>
     <details class="advanced" id="status-advanced">
         <summary>Advanced</summary>
         <div class="card">
-            <h3>Folders</h3>
+            <p class="section-header" style="margin-top:10px;">Folders</p>
             <dl class="kv" id="status-paths"></dl>
         </div>
     </details>
 </section>
 
 <section class="panel" id="panel-jukebox">
-    <div class="panel-head">
-        <h2>Music</h2>
-        <div class="panel-actions">
-            <button class="btn btn-primary" data-action="new-album">New album</button>
-            <button class="btn" data-action="refresh-jukebox">Refresh</button>
-        </div>
-    </div>
     <p class="hint" id="jukebox-dir"></p>
     <div id="jukebox-albums" class="albums"></div>
     <div id="jukebox-skipped"></div>
 </section>
 
 <section class="panel" id="panel-photos">
-    <div class="panel-head">
-        <h2>Photos</h2>
-        <button class="btn" data-action="refresh-photos">Refresh</button>
-    </div>
     <p class="hint" id="photos-summary"></p>
     <div id="photos-grid" class="photos-grid"></div>
 </section>
 
 <section class="panel" id="panel-eye">
-    <div class="panel-head">
-        <h2>Jibo&rsquo;s eye</h2>
-        <button class="btn btn-primary" data-action="refresh-eye">Apply</button>
-    </div>
     <p class="hint">
         Choose a picture for Jibo&rsquo;s eye. Tap Apply to show it on his face.
     </p>
@@ -101,7 +65,7 @@
             <img id="eye-original" alt="Original eye">
         </figure>
         <div class="eye-card eye-drop" id="eye-drop">
-            <p><strong>Drop a picture here</strong></p>
+            <p class="setting-title">Drop a picture here</p>
             <p class="hint">or</p>
             <button class="btn btn-primary" data-action="pick-eye">Choose a file</button>
             <p class="hint">PNG, JPG, GIF or WebP</p>
@@ -109,44 +73,33 @@
         </div>
     </div>
     <div class="eye-controls">
-        <button class="btn btn-danger" data-action="revert-eye">Restore original eye</button>
+        <button class="btn btn-flat-danger" data-action="revert-eye">Restore original eye</button>
     </div>
     <details class="advanced">
         <summary>Advanced</summary>
         <div class="card">
-            <h3>On the face</h3>
+            <p class="section-header" style="margin-top:10px;">On the face</p>
             <ul class="list" id="eye-textures"></ul>
         </div>
     </details>
 </section>
 
 <section class="panel" id="panel-skills">
-    <div class="panel-head">
-        <h2>Skills</h2>
-        <button class="btn" data-action="refresh-skills">Refresh</button>
-    </div>
     <p class="hint" id="skills-summary"></p>
+    <p class="section-header">Your Jibo skills</p>
     <div id="skills-list" class="skill-grid"></div>
 </section>
 
 <section class="panel" id="panel-etc">
-    <div class="panel-head">
-        <h2>More</h2>
-        <div class="panel-actions">
-            <button class="btn" data-action="detect-location">Find my location</button>
-            <button class="btn" data-action="refresh-etc">Refresh</button>
+    <p class="section-header">Weather</p>
+    <div class="setting-row">
+        <span class="icon icon-weather" aria-hidden="true"></span>
+        <div class="setting-body">
+            <div class="setting-title">Temperature units</div>
+            <div class="setting-sub">Change the unit Jibo uses when saying the weather.</div>
         </div>
     </div>
-
-    <p class="section-header">Weather</p>
     <div class="setting-block">
-        <div class="setting-intro">
-            <img class="setting-icon" src="icons/weather.svg" alt="" width="40" height="40">
-            <div class="setting-body">
-                <div class="setting-title">Temperature units</div>
-                <div class="setting-sub">Change the unit Jibo uses when saying the weather.</div>
-            </div>
-        </div>
         <div class="unit-choices" id="units-choices">
             <label class="unit-choice">
                 <input type="radio" name="temperature-unit" value="fahrenheit">
@@ -157,8 +110,8 @@
                 <span>Celsius (&deg;C)</span>
             </label>
         </div>
-        <div class="form-row">
-            <button class="btn btn-primary" data-action="save-units">Save</button>
+        <div class="form-row form-row-centered">
+            <button class="btn btn-primary btn-cta" data-action="save-units">Save</button>
         </div>
     </div>
 
@@ -166,24 +119,22 @@
     <p class="hint">
         Set where Jibo thinks home is, so weather and local info match your area.
     </p>
-    <div class="setting-block">
-        <div class="setting-intro">
-            <img class="setting-icon" src="icons/location.svg" alt="" width="40" height="40">
-            <div class="setting-body">
-                <div class="setting-title">Current home</div>
-                <div class="setting-sub" id="location-current-summary">No location set</div>
-            </div>
+    <div class="setting-row">
+        <span class="icon icon-location" aria-hidden="true"></span>
+        <div class="setting-body">
+            <div class="setting-title">Current home</div>
+            <div class="setting-sub" id="location-current-summary">No location set</div>
         </div>
+    </div>
+    <div class="setting-block">
         <dl class="kv" id="location-current"></dl>
+        <div class="form-row form-row-centered">
+            <button class="btn btn-primary btn-cta" data-action="detect-location">Find my location</button>
+        </div>
     </div>
     <div class="setting-block location-detected" id="location-detected-card" hidden>
         <div class="location-card-head">
-            <div class="setting-intro" style="padding-bottom:0;margin:0;">
-                <img class="setting-icon" src="icons/location.svg" alt="" width="40" height="40">
-                <div class="setting-body">
-                    <div class="setting-title">Suggested location</div>
-                </div>
-            </div>
+            <div class="setting-title">Suggested location</div>
             <button class="btn btn-primary" id="location-apply" data-action="apply-location" disabled>
                 Use this location
             </button>
@@ -195,6 +146,33 @@
 
 </main>
 
+<nav class="bottom-nav" id="tabs">
+    <button class="tab is-active" data-panel="status">
+        <span class="icon icon-sm icon-about" aria-hidden="true"></span>
+        <span>Status</span>
+    </button>
+    <button class="tab" data-panel="jukebox">
+        <span class="icon icon-sm icon-music" aria-hidden="true"></span>
+        <span>Music</span>
+    </button>
+    <button class="tab" data-panel="photos">
+        <span class="icon icon-sm icon-photos" aria-hidden="true"></span>
+        <span>Photos</span>
+    </button>
+    <button class="tab" data-panel="eye">
+        <span class="icon icon-sm icon-eye" aria-hidden="true"></span>
+        <span>Eye</span>
+    </button>
+    <button class="tab" data-panel="skills">
+        <span class="icon icon-sm icon-skills" aria-hidden="true"></span>
+        <span>Skills</span>
+    </button>
+    <button class="tab" data-panel="etc">
+        <span class="icon icon-sm icon-settings" aria-hidden="true"></span>
+        <span>More</span>
+    </button>
+</nav>
+
 <div class="toasts" id="toasts"></div>
 
 <div class="modal" id="modal" hidden>
@@ -204,7 +182,7 @@
         <input type="text" id="modal-input" autocomplete="off">
         <input type="text" id="modal-input-2" autocomplete="off" hidden>
         <div class="modal-actions">
-            <button class="btn" id="modal-cancel">Cancel</button>
+            <button class="btn btn-flat" id="modal-cancel">Cancel</button>
             <button class="btn btn-primary" id="modal-ok">OK</button>
         </div>
     </div>
