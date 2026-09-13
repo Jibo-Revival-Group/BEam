@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#0d1117">
+<meta name="theme-color" content="#00d4f0">
 <title>BEacon</title>
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="app.css">
@@ -17,12 +17,30 @@
         <span class="tag" id="brand-version">BEam</span>
     </div>
     <nav class="tabs" id="tabs">
-        <button class="tab is-active" data-panel="status">Status</button>
-        <button class="tab" data-panel="jukebox">Jukebox</button>
-        <button class="tab" data-panel="photos">Photos</button>
-        <button class="tab" data-panel="eye">Jibo eye</button>
-        <button class="tab" data-panel="skills">Skills</button>
-        <button class="tab" data-panel="etc">Etc</button>
+        <button class="tab is-active" data-panel="status">
+            <img src="icons/about.svg" alt="" width="28" height="28">
+            Status
+        </button>
+        <button class="tab" data-panel="jukebox">
+            <img src="icons/music.svg" alt="" width="28" height="28">
+            Music
+        </button>
+        <button class="tab" data-panel="photos">
+            <img src="icons/photos.svg" alt="" width="28" height="28">
+            Photos
+        </button>
+        <button class="tab" data-panel="eye">
+            <img src="icons/eye.svg" alt="" width="28" height="28">
+            Eye
+        </button>
+        <button class="tab" data-panel="skills">
+            <img src="icons/skills.svg" alt="" width="28" height="28">
+            Skills
+        </button>
+        <button class="tab" data-panel="etc">
+            <img src="icons/settings.svg" alt="" width="28" height="28">
+            More
+        </button>
     </nav>
 </header>
 
@@ -34,17 +52,20 @@
         <button class="btn" data-action="refresh-status">Refresh</button>
     </div>
     <div class="cards" id="status-cards"></div>
-    <div class="card">
-        <h3>Paths</h3>
-        <dl class="kv" id="status-paths"></dl>
-    </div>
+    <details class="advanced" id="status-advanced">
+        <summary>Advanced</summary>
+        <div class="card">
+            <h3>Folders</h3>
+            <dl class="kv" id="status-paths"></dl>
+        </div>
+    </details>
 </section>
 
 <section class="panel" id="panel-jukebox">
     <div class="panel-head">
-        <h2>Jukebox library</h2>
+        <h2>Music</h2>
         <div class="panel-actions">
-            <button class="btn" data-action="new-album">New album</button>
+            <button class="btn btn-primary" data-action="new-album">New album</button>
             <button class="btn" data-action="refresh-jukebox">Refresh</button>
         </div>
     </div>
@@ -64,25 +85,23 @@
 
 <section class="panel" id="panel-eye">
     <div class="panel-head">
-        <h2>Jibo eye</h2>
-        <button class="btn" data-action="refresh-eye">Apply to face</button>
+        <h2>Jibo&rsquo;s eye</h2>
+        <button class="btn btn-primary" data-action="refresh-eye">Apply</button>
     </div>
     <p class="hint">
-        Drop in any image and BEacon converts it to the 720&times;720 PNG the face
-        renderer expects. <strong>Apply to face</strong> rewrites the textures and
-        reloads them live — no Be restart needed in most cases.
+        Choose a picture for Jibo&rsquo;s eye. Tap Apply to show it on his face.
     </p>
     <div class="eye-grid">
         <figure class="eye-card">
             <figcaption>Current</figcaption>
-            <img id="eye-current" alt="Current eye texture">
+            <img id="eye-current" alt="Current eye">
         </figure>
         <figure class="eye-card">
             <figcaption>Original</figcaption>
-            <img id="eye-original" alt="Original eye texture">
+            <img id="eye-original" alt="Original eye">
         </figure>
         <div class="eye-card eye-drop" id="eye-drop">
-            <p><strong>Drop an image here</strong></p>
+            <p><strong>Drop a picture here</strong></p>
             <p class="hint">or</p>
             <button class="btn btn-primary" data-action="pick-eye">Choose a file</button>
             <p class="hint">PNG, JPG, GIF or WebP</p>
@@ -90,13 +109,15 @@
         </div>
     </div>
     <div class="eye-controls">
-        <button class="btn btn-danger" data-action="revert-eye">Revert to original eye</button>
+        <button class="btn btn-danger" data-action="revert-eye">Restore original eye</button>
     </div>
-    <div class="card">
-        <h3>Textures</h3>
-        <p class="hint">Every stock default-eye PNG is written together — including White_Eye.png that petting and other animations restore to.</p>
-        <ul class="list" id="eye-textures"></ul>
-    </div>
+    <details class="advanced">
+        <summary>Advanced</summary>
+        <div class="card">
+            <h3>On the face</h3>
+            <ul class="list" id="eye-textures"></ul>
+        </div>
+    </details>
 </section>
 
 <section class="panel" id="panel-skills">
@@ -110,18 +131,22 @@
 
 <section class="panel" id="panel-etc">
     <div class="panel-head">
-        <h2>Etc</h2>
+        <h2>More</h2>
         <div class="panel-actions">
-            <button class="btn" data-action="detect-location">Detect via IP</button>
+            <button class="btn" data-action="detect-location">Find my location</button>
             <button class="btn" data-action="refresh-etc">Refresh</button>
         </div>
     </div>
-    <div class="card">
-        <h3>Temperature units</h3>
-        <p class="hint">
-            Weather from the cloud still arrives in Fahrenheit. When Celsius is
-            selected, Nimbus converts spoken and on-face temperatures locally.
-        </p>
+
+    <p class="section-header">Weather</p>
+    <div class="setting-block">
+        <div class="setting-intro">
+            <img class="setting-icon" src="icons/weather.svg" alt="" width="40" height="40">
+            <div class="setting-body">
+                <div class="setting-title">Temperature units</div>
+                <div class="setting-sub">Change the unit Jibo uses when saying the weather.</div>
+            </div>
+        </div>
         <div class="unit-choices" id="units-choices">
             <label class="unit-choice">
                 <input type="radio" name="temperature-unit" value="fahrenheit">
@@ -133,22 +158,34 @@
             </label>
         </div>
         <div class="form-row">
-            <button class="btn btn-primary" data-action="save-units">Save units</button>
+            <button class="btn btn-primary" data-action="save-units">Save</button>
         </div>
     </div>
+
+    <p class="section-header">Location</p>
     <p class="hint">
-        Set the robot&rsquo;s local home location from the internet connection&rsquo;s
-        approximate IP geolocation. This does not use a Loop server.
+        Set where Jibo thinks home is, so weather and local info match your area.
     </p>
-    <div class="card">
-        <h3>Current robot location</h3>
+    <div class="setting-block">
+        <div class="setting-intro">
+            <img class="setting-icon" src="icons/location.svg" alt="" width="40" height="40">
+            <div class="setting-body">
+                <div class="setting-title">Current home</div>
+                <div class="setting-sub" id="location-current-summary">No location set</div>
+            </div>
+        </div>
         <dl class="kv" id="location-current"></dl>
     </div>
-    <div class="card location-detected" id="location-detected-card" hidden>
+    <div class="setting-block location-detected" id="location-detected-card" hidden>
         <div class="location-card-head">
-            <h3>Detected location</h3>
+            <div class="setting-intro" style="padding-bottom:0;margin:0;">
+                <img class="setting-icon" src="icons/location.svg" alt="" width="40" height="40">
+                <div class="setting-body">
+                    <div class="setting-title">Suggested location</div>
+                </div>
+            </div>
             <button class="btn btn-primary" id="location-apply" data-action="apply-location" disabled>
-                Apply locally
+                Use this location
             </button>
         </div>
         <dl class="kv" id="location-detected"></dl>

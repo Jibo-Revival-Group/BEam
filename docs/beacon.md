@@ -14,14 +14,14 @@ way the Skills Service Manager on port 8779 is already open.
 
 | Panel | Status |
 |-------|--------|
-| Status | Version, LAN addresses, resolved paths, uptime |
-| Jukebox | Full library management: albums, uploads, covers, rename, delete |
+| Status | Version, network address, uptime; Advanced for folders |
+| Music | Full library management: albums, uploads, covers, rename, delete |
 | Photos | View saved robot photos, download originals, delete local copies |
-| Jibo eye | Replace the eye texture with your own image, revert to the original |
-| Skills | Lists what Be loads and what is on disk; installing is a placeholder |
-| Etc | Detect the robot's approximate IP location and save its local home location |
-| Server | Edit jetstream hub and OTA credentials endpoint |
-| Update | Check / download / apply `@be/be` via jibo OTA tools |
+| Eye | Replace Jibo's eye with your own image, revert to the original |
+| Skills | Lists skills ready on Jibo |
+| More | Weather units and home location |
+| Server | Edit jetstream hub and OTA credentials endpoint (API only; UI removed) |
+| Update | Check / download / apply `@be/be` via jibo OTA tools (API only; UI removed) |
 
 ## How it starts
 

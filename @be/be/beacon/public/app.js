@@ -153,10 +153,12 @@
 
             var cards = $('#status-cards');
             cards.innerHTML = '';
-            cards.appendChild(stat('Host', data.host.name + ' ' + (data.host.version || '')));
-            cards.appendChild(stat('Running on', data.robot ? 'Jibo (' + data.hostname + ')' : 'Development (' + data.hostname + ')'));
+            cards.appendChild(stat('Version', data.host.name + ' ' + (data.host.version || '')));
+            cards.appendChild(stat('This Jibo', data.robot ? data.hostname : 'Development (' + data.hostname + ')'));
             cards.appendChild(stat('BEacon uptime', duration(data.uptimeSeconds)));
-            cards.appendChild(stat('Custom eye', data.eye && data.eye.custom ? (data.eye.applied ? 'Yes' : 'Saved — Apply to face') : 'No'));
+            cards.appendChild(stat('Custom eye', data.eye && data.eye.custom
+                ? (data.eye.applied ? 'On' : 'Saved — tap Apply')
+                : 'Off'));
 
             var links = el('div');
             (data.addresses || []).forEach(function (addr) {
@@ -165,20 +167,18 @@
                 links.appendChild(a);
                 links.appendChild(document.createElement('br'));
             });
-            if (!links.childNodes.length) { links.textContent = 'No LAN address found'; }
-            cards.appendChild(stat('Reachable at', links, true));
+            if (!links.childNodes.length) { links.textContent = 'No address found on this network'; }
+            cards.appendChild(stat('Open BEacon at', links, true));
 
             var dl = $('#status-paths');
             dl.innerHTML = '';
             var rows = [
-                ['Be root', data.paths.beRoot],
-                ['Skills', data.paths.skillsRoot],
-                ['Music', data.paths.musicDir + (data.paths.musicDirExists ? '' : '  (missing)')],
-                ['Photos', data.paths.photosDir + (data.paths.photosDirExists ? '' : '  (missing)')],
-                ['Eye textures', data.paths.texturesDir],
-                ['BEacon data', data.paths.dataDir],
-                ['Jetstream', data.paths.jetstreamConfig || '—'],
-                ['Credentials', data.paths.credentialsPath || '—']
+                ['App folder', data.paths.beRoot],
+                ['Skills folder', data.paths.skillsRoot],
+                ['Music folder', data.paths.musicDir + (data.paths.musicDirExists ? '' : '  (missing)')],
+                ['Photos folder', data.paths.photosDir + (data.paths.photosDirExists ? '' : '  (missing)')],
+                ['Eye images', data.paths.texturesDir],
+                ['BEacon data', data.paths.dataDir]
             ];
             rows.forEach(function (row) {
                 dl.appendChild(el('dt', null, row[0]));
@@ -229,7 +229,7 @@
         });
         var rejected = list.length - accepted.length;
         if (rejected) {
-            toast(rejected + ' file(s) skipped — only .mp3/.opus/.ogg audio and .png/.jpg covers are accepted', 'error');
+            toast(rejected + ' file(s) skipped — use audio (.mp3/.opus/.ogg) or cover images (.png/.jpg)', 'error');
         }
         if (!accepted.length) { return Promise.resolve(); }
 
@@ -252,7 +252,7 @@
         }
 
         return next().then(function () {
-            toast('Uploaded ' + accepted.length + ' file(s) to ' + albumRel, 'ok');
+            toast('Added ' + accepted.length + ' file' + (accepted.length === 1 ? '' : 's') + '.', 'ok');
             return loadJukebox();
         }).catch(function (err) {
             reportError(err);
@@ -272,7 +272,7 @@
         }
         if (state.audio) { state.audio.pause(); }
         var audio = new Audio('/api/jukebox/audio?path=' + encodeURIComponent(rel));
-        audio.play().catch(function (err) { toast('Cannot play that track: ' + err.message, 'error'); });
+        audio.play().catch(function (err) { toast('Could not play that track.', 'error'); });
         audio.onended = function () {
             state.audio = null;
             state.playing = null;
@@ -284,13 +284,14 @@
     }
 
     function deleteAlbum (album) {
+        var label = album.albumTitle || album.rel;
         var message = album.tracks.length
-            ? 'Delete "' + album.rel + '" and its ' + album.tracks.length +
+            ? 'Delete "' + label + '" and its ' + album.tracks.length +
                 ' track' + (album.tracks.length === 1 ? '' : 's') + '?'
-            : 'Delete the empty album "' + album.rel + '"?';
+            : 'Delete the empty album "' + label + '"?';
         if (!confirm(message)) { return; }
         api('DELETE', '/api/jukebox/album?path=' + encodeURIComponent(album.rel))
-            .then(function () { toast('Deleted ' + album.rel, 'ok'); return loadJukebox(); })
+            .then(function () { toast('Album deleted.', 'ok'); return loadJukebox(); })
             .catch(reportError);
     }
 
@@ -328,7 +329,7 @@
         if (!album.tracks.length) {
             var empty = el('li', 'track-empty');
             var emptyMain = el('div', 'track-main');
-            emptyMain.appendChild(el('span', 'track-title', 'No tracks yet — drop audio here or use Add files'));
+            emptyMain.appendChild(el('span', 'track-title', 'No songs yet — drop audio here or tap Add files'));
             empty.appendChild(emptyMain);
             var emptyActions = el('div', 'track-actions');
             var emptyDelete = el('button', 'btn btn-icon btn-danger', 'Delete album');
@@ -352,22 +353,22 @@
             var rename = el('button', 'btn btn-icon', 'Rename');
             rename.onclick = function () {
                 prompt2({
-                    title: 'Rename track',
-                    hint: 'Keep the file extension.',
+                    title: 'Rename song',
+                    hint: 'Keep the file extension (for example .mp3).',
                     value: track.file
                 }).then(function (name) {
                     if (!name) { return null; }
                     return api('POST', '/api/jukebox/rename', { type: 'track', path: track.rel, name: name })
-                        .then(function () { toast('Renamed', 'ok'); return loadJukebox(); });
+                        .then(function () { toast('Renamed.', 'ok'); return loadJukebox(); });
                 }).catch(reportError);
             };
             row.appendChild(rename);
 
             var del = el('button', 'btn btn-icon btn-danger', 'Delete');
             del.onclick = function () {
-                if (!confirm('Delete "' + track.file + '"?')) { return; }
+                if (!confirm('Delete "' + track.title + '"?')) { return; }
                 api('DELETE', '/api/jukebox/track?path=' + encodeURIComponent(track.rel))
-                    .then(function () { toast('Deleted ' + track.file, 'ok'); return loadJukebox(); })
+                    .then(function () { toast('Song deleted.', 'ok'); return loadJukebox(); })
                     .catch(reportError);
             };
             row.appendChild(del);
@@ -406,13 +407,13 @@
         var renameAlbum = el('button', 'btn btn-icon', 'Rename');
         renameAlbum.onclick = function () {
             prompt2({
-                title: 'Rename album folder',
-                hint: 'Underscores show up as spaces on the robot.',
+                title: 'Rename album',
+                hint: 'Underscores become spaces when Jibo shows the name.',
                 value: album.rel.split('/').pop()
             }).then(function (name) {
                 if (!name) { return null; }
                 return api('POST', '/api/jukebox/rename', { type: 'album', path: album.rel, name: name })
-                    .then(function () { toast('Renamed', 'ok'); return loadJukebox(); });
+                    .then(function () { toast('Renamed.', 'ok'); return loadJukebox(); });
             }).catch(reportError);
         };
         foot.appendChild(renameAlbum);
@@ -443,8 +444,8 @@
         if (!data) { return; }
 
         $('#jukebox-dir').textContent = data.albums.length
-            ? data.albums.length + ' album(s) in ' + data.dir
-            : 'Library folder: ' + data.dir;
+            ? data.albums.length + ' album' + (data.albums.length === 1 ? '' : 's')
+            : 'No albums yet';
 
         var list = $('#jukebox-albums');
         list.innerHTML = '';
@@ -453,7 +454,7 @@
             list.appendChild(problem);
         } else if (!data.albums.length) {
             list.appendChild(el('div', 'empty',
-                'No albums yet. Create one with "New album", then drop .mp3/.opus files onto it.'));
+                'No albums yet. Tap New album, then add songs.'));
         } else {
             data.albums.forEach(function (album) { list.appendChild(albumCard(album)); });
         }
@@ -461,12 +462,14 @@
         var skipped = $('#jukebox-skipped');
         skipped.innerHTML = '';
         if (data.skipped && data.skipped.length) {
+            var wrap = el('details', 'advanced');
+            wrap.appendChild(el('summary', null, 'Skipped folders'));
             var card = el('div', 'card');
-            card.appendChild(el('h3', null, 'Folders the jukebox ignores'));
             var ul = el('ul', 'list');
             data.skipped.forEach(function (line) { ul.appendChild(el('li', null, line)); });
             card.appendChild(ul);
-            skipped.appendChild(card);
+            wrap.appendChild(card);
+            skipped.appendChild(wrap);
         }
     }
 
@@ -481,14 +484,14 @@
     function newAlbum () {
         prompt2({
             title: 'New album',
-            hint: 'An artist is optional — with one you get music/Artist/Album/.',
+            hint: 'Artist is optional.',
             placeholder: 'Album name',
             placeholder2: 'Artist (optional)'
         }).then(function (values) {
             if (!values) { return null; }
             return api('POST', '/api/jukebox/album', { album: values[0], artist: values[1] })
-                .then(function (result) {
-                    toast('Created ' + result.rel, 'ok');
+                .then(function () {
+                    toast('Album created.', 'ok');
                     return loadJukebox();
                 });
         }).catch(reportError);
@@ -508,10 +511,10 @@
     }
 
     function deletePhoto (photo) {
-        if (!confirm('Delete this photo from the robot?')) { return; }
+        if (!confirm('Delete this photo?')) { return; }
         api('DELETE', '/api/photos?id=' + encodeURIComponent(photo.id))
             .then(function () {
-                toast('Deleted photo', 'ok');
+                toast('Photo deleted.', 'ok');
                 return loadPhotos();
             })
             .catch(reportError);
@@ -532,7 +535,7 @@
             link.appendChild(img);
             media.appendChild(link);
         } else {
-            media.appendChild(el('div', 'photo-missing', 'Photo file is not on the robot'));
+            media.appendChild(el('div', 'photo-missing', 'This photo is not available'));
         }
         card.appendChild(media);
 
@@ -561,19 +564,18 @@
 
         var summary = $('#photos-summary');
         if (!data.available) {
-            summary.textContent = data.error || 'Photo library unavailable';
+            summary.textContent = data.error || 'Photos are unavailable right now';
         } else {
-            summary.textContent = data.count + ' photo' + (data.count === 1 ? '' : 's') +
-                ' in ' + data.dir;
+            summary.textContent = data.count + ' photo' + (data.count === 1 ? '' : 's');
         }
 
         var grid = $('#photos-grid');
         grid.innerHTML = '';
         if (!data.available) {
-            grid.appendChild(el('div', 'empty', data.error || 'Photo library unavailable'));
+            grid.appendChild(el('div', 'empty', data.error || 'Photos are unavailable right now'));
         } else if (!data.photos.length) {
             grid.appendChild(el('div', 'empty',
-                'No saved photos yet. Take a photo with Jibo and save it to the gallery.'));
+                'No saved photos yet. Ask Jibo to take a picture and save it.'));
         } else {
             data.photos.forEach(function (photo) { grid.appendChild(photoCard(photo)); });
         }
@@ -589,7 +591,7 @@
 
     /* ---------------------------------------------------------------- eye */
 
-    /** Centre-crop to a square and redraw at the texture size the face wants. */
+    /** Centre-crop to a square and redraw at the size Jibo's eye uses. */
     function toEyePng (file) {
         return new Promise(function (resolve, reject) {
             var url = URL.createObjectURL(file);
@@ -620,10 +622,10 @@
 
     function applyEye (file) {
         if (!IMAGE_RE.test(file.name) && file.type.indexOf('image/') !== 0) {
-            toast('Pick an image file', 'error');
+            toast('Pick a picture file', 'error');
             return;
         }
-        toast('Converting ' + file.name + '…');
+        toast('Preparing picture…');
         toEyePng(file).then(function (blob) {
             return fetch('/api/eye?name=' + encodeURIComponent(file.name), {
                 method: 'PUT',
@@ -636,28 +638,23 @@
                 });
             });
         }).then(function (data) {
-            var n = (data.written && data.written.length) || 0;
             if (data.live) {
-                toast('New eye on the face (' + n + ' textures).', 'ok');
+                toast('Eye updated.', 'ok');
             } else {
-                toast('Eye saved to ' + n + ' texture' + (n === 1 ? '' : 's') +
-                    '. Tap Apply to face if it still looks old.', 'ok');
+                toast('Eye saved. Tap Apply if it still looks old.', 'ok');
             }
             return loadEye();
         }).catch(reportError);
     }
 
     function refreshEye () {
-        toast('Applying eye to the face…');
+        toast('Updating Jibo\'s eye…');
         return api('POST', '/api/eye/refresh')
             .then(function (data) {
-                var n = (data.written && data.written.length) || 0;
                 if (data.live) {
-                    toast('Eye refreshed on the face (' + n + ' textures).', 'ok');
+                    toast('Eye updated.', 'ok');
                 } else {
-                    toast('Textures rewritten (' + n + '). Live reload failed' +
-                        (data.liveReason ? ': ' + data.liveReason : '') +
-                        '.', 'error');
+                    toast('Could not refresh the eye on his face right now.', 'error');
                 }
                 return loadEye();
             })
@@ -674,18 +671,15 @@
             list.innerHTML = '';
             data.textures.forEach(function (texture) {
                 var li = el('li');
-                var mark = texture.matchesCustom ? 'custom' : (texture.matchesOriginal ? 'original' : 'unknown');
+                var mark = texture.matchesCustom ? 'custom' : (texture.matchesOriginal ? 'original' : 'other');
                 li.appendChild(el('span', 'chip' + (texture.matchesCustom ? ' is-role' : ' is-on'), mark));
                 li.appendChild(el('span', null, texture.name));
-                if (!texture.writable) { li.appendChild(el('span', 'chip', 'read-only')); }
+                if (!texture.writable) { li.appendChild(el('span', 'chip', 'locked')); }
                 list.appendChild(li);
             });
 
             if (data.pending) {
-                var matched = data.textures.filter(function (t) { return t.matchesCustom; }).length;
-                list.appendChild(el('li', null,
-                    'Custom eye on ' + matched + '/' + data.textures.length +
-                    ' textures — tap Apply to face to finish.'));
+                list.appendChild(el('li', null, 'Tap Apply to finish showing the new eye.'));
             }
             return data;
         });
@@ -695,10 +689,10 @@
 
     function loadSkills () {
         return api('GET', '/api/skills').then(function (data) {
-            $('#skills-summary').textContent = data.counts.registered + ' registered with ' +
-                data.host.name +
-                ' (' + (data.counts.eager || 0) + ' eager, ' + (data.counts.lazy || 0) + ' lazy), ' +
-                data.counts.onDisk + ' on disk under ' + data.skillsRoot;
+            var ready = data.counts.registered || 0;
+            $('#skills-summary').textContent = ready === 1
+                ? '1 skill ready on Jibo'
+                : ready + ' skills ready on Jibo';
 
             var list = $('#skills-list');
             list.innerHTML = '';
@@ -711,13 +705,10 @@
 
                 var chips = el('div', 'chips');
                 chips.appendChild(el('span', 'chip' + (skill.registered ? ' is-on' : ''),
-                    skill.registered ? 'registered' : 'not registered'));
-                if (skill.load) {
-                    chips.appendChild(el('span', 'chip' + (skill.load === 'eager' ? ' is-role' : ' is-on'),
-                        skill.load));
-                }
-                if (!skill.installed) { chips.appendChild(el('span', 'chip', 'missing on disk')); }
-                if (skill.hasLaunchRule) { chips.appendChild(el('span', 'chip', 'voice')); }
+                    skill.registered ? 'On' : 'Off'));
+                if (!skill.installed) { chips.appendChild(el('span', 'chip', 'Missing')); }
+                else if (!skill.registered) { chips.appendChild(el('span', 'chip', 'On disk')); }
+                if (skill.hasLaunchRule) { chips.appendChild(el('span', 'chip is-role', 'Voice')); }
                 (skill.roles || []).forEach(function (role) {
                     chips.appendChild(el('span', 'chip is-role', role));
                 });
@@ -730,26 +721,26 @@
 
     /* ------------------------------------------------------------ location */
 
-    function locationOffset (offsetUTC) {
-        if (typeof offsetUTC !== 'number' || !isFinite(offsetUTC)) { return '—'; }
-        var minutes = Math.round(offsetUTC / 60000);
-        var sign = minutes < 0 ? '-' : '+';
-        minutes = Math.abs(minutes);
-        var hours = Math.floor(minutes / 60);
-        var rest = minutes % 60;
-        return 'UTC' + sign + (hours < 10 ? '0' : '') + hours + ':' +
-            (rest < 10 ? '0' : '') + rest;
-    }
-
     function locationValue (value) {
         return value === undefined || value === null || value === '' ? '—' : String(value);
+    }
+
+    function locationSummary (location) {
+        if (!location) { return 'No location set'; }
+        var parts = [];
+        if (location.city) { parts.push(location.city); }
+        if (location.state || location.stateAbbr) { parts.push(location.state || location.stateAbbr); }
+        if (location.country || location.countryCode) {
+            parts.push(location.country || location.countryCode);
+        }
+        return parts.length ? parts.join(', ') : 'Location set';
     }
 
     function renderLocationList (selector, location) {
         var list = $(selector);
         list.innerHTML = '';
         if (!location) {
-            list.appendChild(el('dd', null, 'Location unavailable'));
+            list.appendChild(el('dd', null, 'No location set'));
             return;
         }
 
@@ -758,11 +749,7 @@
             ['City', location.city],
             ['State / region', location.state || location.stateAbbr],
             ['Country', location.country || location.countryCode],
-            ['Coordinates', typeof location.lat === 'number' && typeof location.lng === 'number'
-                ? location.lat.toFixed(4) + ', ' + location.lng.toFixed(4)
-                : null],
-            ['Timezone', timezone.id],
-            ['UTC offset', locationOffset(timezone.offsetUTC)]
+            ['Timezone', timezone.id]
         ];
         rows.forEach(function (row) {
             list.appendChild(el('dt', null, row[0]));
@@ -774,13 +761,16 @@
         renderLocationList('#location-current', state.location.current);
         renderLocationList('#location-detected', state.location.detected);
 
+        var summary = $('#location-current-summary');
+        if (summary) { summary.textContent = locationSummary(state.location.current); }
+
         var card = $('#location-detected-card');
         var apply = $('#location-apply');
         var hasDetected = !!state.location.detected;
         card.hidden = !hasDetected;
         apply.disabled = !hasDetected;
         $('#location-note').textContent = hasDetected
-            ? 'IP geolocation is approximate and identifies the network connection, not the robot itself.'
+            ? 'This is based on your network and may not be exact.'
             : '';
     }
 
@@ -795,11 +785,11 @@
     function detectLocation () {
         var button = $('[data-action="detect-location"]');
         if (button) { button.disabled = true; }
-        toast('Looking up the robot connection…');
+        toast('Looking up your area…');
         return api('POST', '/api/location/detect').then(function (data) {
             state.location.detected = data.location || null;
             renderLocation();
-            toast('Location detected. Review it before applying.', 'ok');
+            toast('Location found. Review it before saving.', 'ok');
             return data;
         }).catch(function (err) {
             renderLocation();
@@ -812,7 +802,7 @@
 
     function applyLocation () {
         if (!state.location.detected) { return null; }
-        if (!confirm('Save this location to the robot locally?')) { return null; }
+        if (!confirm('Use this as Jibo\'s home location?')) { return null; }
         var button = $('#location-apply');
         button.disabled = true;
         return api('POST', '/api/location', { location: state.location.detected })
@@ -820,7 +810,7 @@
                 state.location.current = data.location || state.location.detected;
                 state.location.detected = null;
                 renderLocation();
-                toast('Location saved locally. Restart Be if needed.', 'ok');
+                toast('Location saved.', 'ok');
                 return data;
             }).catch(function (err) {
                 renderLocation();
@@ -835,6 +825,10 @@
         var inputs = document.querySelectorAll('input[name="temperature-unit"]');
         for (var i = 0; i < inputs.length; i++) {
             inputs[i].checked = inputs[i].value === value;
+            var label = inputs[i].parentNode;
+            if (label && label.classList) {
+                label.classList.toggle('is-selected', inputs[i].checked);
+            }
         }
     }
 
@@ -859,7 +853,7 @@
             .then(function (data) {
                 state.units.temperature = data.temperature === 'celsius' ? 'celsius' : 'fahrenheit';
                 renderUnits();
-                toast('Temperature units saved.', 'ok');
+                toast('Weather units saved.', 'ok');
                 return data;
             }).catch(function (err) {
                 renderUnits();
@@ -920,19 +914,25 @@
         'new-album': newAlbum,
         'pick-eye': function () { $('#eye-file').click(); },
         'revert-eye': function () {
-            if (!confirm('Put the original Jibo eye back?')) { return; }
+            if (!confirm('Put Jibo\'s original eye back?')) { return; }
             api('POST', '/api/eye/revert')
                 .then(function (data) {
                     if (data.live) {
-                        toast('Original eye restored on the face.', 'ok');
+                        toast('Original eye restored.', 'ok');
                     } else {
-                        toast('Original eye restored on disk. Tap Apply to face if needed.', 'ok');
+                        toast('Original eye restored. Tap Apply if needed.', 'ok');
                     }
                     return loadEye();
                 })
                 .catch(reportError);
         }
     };
+
+    document.addEventListener('change', function (event) {
+        if (event.target && event.target.name === 'temperature-unit') {
+            renderUnits();
+        }
+    });
 
     document.addEventListener('click', function (event) {
         var target = event.target.closest ? event.target.closest('[data-action]') : null;
