@@ -1327,11 +1327,11 @@ class WhoAmI extends be_framework_1.BeSkill {
                         intent: 'enrollment',
                         entities: {
                             enrollmentType: this.blackboard.enrollmentType,
-                            recipient: this.blackboard.flow.loopMember.id
+                            loopMemberReferent: this.blackboard.flow.loopMember.id
                         }
                     }
                 };
-                this.log.info(`redirect to enrollment. enrollmentType: ${this.blackboard.enrollmentType}. recipient: ${this.blackboard.flow.loopMember.id}`);
+                this.log.info(`redirect to enrollment. enrollmentType: ${this.blackboard.enrollmentType}. loopMemberReferent: ${this.blackboard.flow.loopMember.id}`);
                 this.redirect('@be/introductions', redirectParams);
             }
             else {

@@ -254,6 +254,11 @@ main {
     padding: 12px 16px;
 }
 
+#people-sync.error {
+    color: var(--danger, #b00020);
+    font-weight: 600;
+}
+
 .section-header {
     color: var(--steel);
     font-size: 15px;
@@ -957,6 +962,67 @@ details.advanced[open] > summary::after { transform: rotate(-90deg); }
     margin-top: 20px;
 }
 .modal-actions > * + * { margin-left: 8px; }
+
+.people-list {
+    display: grid;
+    gap: 12px;
+}
+
+.people-card-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.people-avatar {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex: 0 0 auto;
+}
+
+.people-avatar-fallback {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--jibo-blue);
+    color: #fff;
+    font-weight: 700;
+    font-size: 1.25rem;
+}
+
+.people-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+}
+
+.people-badges .badge {
+    opacity: 0.55;
+}
+
+.people-badges .badge.success {
+    opacity: 1;
+}
+
+.people-card .setting-row {
+    margin-top: 12px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.people-phonetic {
+    flex: 1;
+    background: var(--pearl);
+    border: 1px solid var(--light-grey);
+    border-radius: 2px;
+    color: var(--black);
+    font: inherit;
+    padding: 8px 10px;
+}
 
 @media (max-width: 420px) {
     .photo-card { width: 100%; border-right: 0; }

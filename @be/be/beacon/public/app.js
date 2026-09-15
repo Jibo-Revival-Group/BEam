@@ -869,6 +869,107 @@
         return Promise.all([loadLocation(), loadUnits()]);
     }
 
+    function renderPeople (data) {
+        var sync = $('#people-sync');
+        var list = $('#people-list');
+        if (!data) {
+            sync.textContent = 'Loop roster unavailable.';
+            list.innerHTML = '';
+            return;
+        }
+        var parts = [];
+        if (data.lastFullSyncTimestamp) {
+            parts.push('Last cloud sync: ' + new Date(data.lastFullSyncTimestamp).toLocaleString());
+        } else {
+            parts.push('No successful cloud loop sync yet (lastFullSyncTimestamp is empty).');
+        }
+        if (data.lastSyncAttemptTimestamp) {
+            parts.push('Last attempt: ' + new Date(data.lastSyncAttemptTimestamp).toLocaleString());
+        }
+        if (typeof data.lastCloudMemberCount === 'number') {
+            parts.push('Cloud members: ' + data.lastCloudMemberCount);
+        }
+        if (data.lastSyncErrorMessage) {
+            parts.push('Error: ' + data.lastSyncErrorMessage);
+        }
+        if (data.loopId) {
+            parts.push('Loop ' + data.loopId);
+        }
+        sync.textContent = parts.join(' · ');
+        if (data.lastSyncErrorMessage) {
+            sync.classList.add('error');
+        } else {
+            sync.classList.remove('error');
+        }
+
+        var members = data.members || [];
+        if (!members.length) {
+            var hint = data.lastSyncErrorMessage
+                ? ('No people in the local loop yet. Sync error: ' + data.lastSyncErrorMessage)
+                : 'No people in the local loop yet. Once BEefy ListLoops returns members (including the robot), Jibo will sync the household here.';
+            list.innerHTML = '<p class="hint">' + hint + '</p>';
+            return;
+        }
+
+        list.innerHTML = '';
+        members.forEach(function (member) {
+            var card = el('div', 'card people-card');
+            var header = el('div', 'people-card-header');
+            if (member.photoUrl) {
+                var img = el('img', 'people-avatar');
+                img.src = member.photoUrl + '&t=' + Date.now();
+                img.alt = member.writtenName || '';
+                header.appendChild(img);
+            } else {
+                var initials = el('div', 'people-avatar people-avatar-fallback');
+                initials.textContent = (member.writtenName || '?').charAt(0).toUpperCase();
+                header.appendChild(initials);
+            }
+            var meta = el('div', 'people-meta');
+            meta.appendChild(el('p', 'setting-title', member.writtenName || member.id));
+            meta.appendChild(el('p', 'hint',
+                (member.isJibo ? 'Robot' : (member.type || 'member')) +
+                (member.id ? (' · ' + member.id) : '')));
+            header.appendChild(meta);
+            card.appendChild(header);
+
+            var badges = el('div', 'people-badges');
+            badges.appendChild(el('span', 'badge ' + (member.enrolled && member.enrolled.face ? 'success' : ''),
+                member.enrolled && member.enrolled.face ? 'Face enrolled' : 'Face not enrolled'));
+            badges.appendChild(el('span', 'badge ' + (member.enrolled && member.enrolled.voice ? 'success' : ''),
+                member.enrolled && member.enrolled.voice ? 'Voice enrolled' : 'Voice not enrolled'));
+            card.appendChild(badges);
+
+            if (!member.isJibo) {
+                var row = el('div', 'setting-row');
+                var input = document.createElement('input');
+                input.type = 'text';
+                input.className = 'people-phonetic';
+                input.placeholder = 'Phonetic name (spoken)';
+                input.value = member.phoneticName || '';
+                input.setAttribute('data-member-id', member.id);
+                var save = el('button', 'btn btn-primary', 'Save name');
+                save.setAttribute('data-action', 'save-phonetic');
+                save.setAttribute('data-member-id', member.id);
+                row.appendChild(input);
+                row.appendChild(save);
+                card.appendChild(row);
+            }
+
+            list.appendChild(card);
+        });
+    }
+
+    function loadPeople () {
+        return api('GET', '/api/people').then(function (data) {
+            renderPeople(data);
+            return data;
+        }).catch(function (err) {
+            renderPeople(null);
+            throw err;
+        });
+    }
+
     /* --------------------------------------------------------------- wire */
 
     var panelMeta = {
@@ -886,6 +987,10 @@
         photos: {
             title: 'Photos',
             actions: [{ action: 'refresh-photos', label: 'Refresh' }]
+        },
+        people: {
+            title: 'People',
+            actions: [{ action: 'refresh-people', label: 'Refresh' }]
         },
         eye: {
             title: "Jibo's eye",
@@ -905,6 +1010,7 @@
         status: loadStatus,
         jukebox: loadJukebox,
         photos: loadPhotos,
+        people: loadPeople,
         eye: loadEye,
         skills: loadSkills,
         etc: loadEtc
@@ -948,6 +1054,7 @@
         'refresh-status': loadStatus,
         'refresh-jukebox': loadJukebox,
         'refresh-photos': loadPhotos,
+        'refresh-people': loadPeople,
         'refresh-eye': refreshEye,
         'refresh-skills': loadSkills,
         'refresh-location': loadEtc,
@@ -956,6 +1063,18 @@
         'apply-location': applyLocation,
         'save-units': saveUnits,
         'new-album': newAlbum,
+        'save-phonetic': function (button) {
+            var memberId = button && button.getAttribute('data-member-id');
+            if (!memberId) { return; }
+            var input = document.querySelector('.people-phonetic[data-member-id="' + memberId + '"]');
+            var phoneticName = input ? input.value : '';
+            api('POST', '/api/people/phonetic-name', { id: memberId, phoneticName: phoneticName })
+                .then(function (data) {
+                    toast('Phonetic name saved.', 'ok');
+                    renderPeople(data);
+                })
+                .catch(reportError);
+        },
         'pick-eye': function () { $('#eye-file').click(); },
         'revert-eye': function () {
             if (!confirm('Put Jibo\'s original eye back?')) { return; }
@@ -990,7 +1109,7 @@
         if (!target) { return; }
         var action = actions[target.getAttribute('data-action')];
         if (!action) { return; }
-        var result = action();
+        var result = action(target);
         if (result && result.catch) { result.catch(reportError); }
     });
 

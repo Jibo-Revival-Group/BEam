@@ -22,6 +22,7 @@ const system = require('./lib/system');
 const ota = require('./lib/ota');
 const location = require('./lib/location');
 const units = require('./lib/units');
+const people = require('./lib/people');
 
 const MAX_UPLOAD = 256 * 1024 * 1024;
 const MAX_IMAGE = 16 * 1024 * 1024;
@@ -238,6 +239,23 @@ const routes = {
                 } catch (writeErr) { /* client gone */ }
                 try { res.end(); } catch (endErr) { /* already closed */ }
             });
+        });
+    }),
+
+    'GET /api/people': guard((req, res) => {
+        return people.list().then((data) => u.sendJson(res, 200, data));
+    }),
+
+    'GET /api/people/photo': guard((req, res, query) => {
+        return people.resolvePhotoFile(query.id).then((filePath) => {
+            u.serveFile(req, res, filePath);
+        });
+    }),
+
+    'POST /api/people/phonetic-name': guard((req, res) => {
+        return u.readJson(req).then((body) => {
+            return people.setPhoneticName(body && body.id, body && body.phoneticName)
+                .then((data) => u.sendJson(res, 200, data));
         });
     })
 };
