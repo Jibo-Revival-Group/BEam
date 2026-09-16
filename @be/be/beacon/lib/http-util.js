@@ -154,6 +154,16 @@ function safeName (name) {
     return value;
 }
 
+function sendBuffer (res, status, buf, contentType) {
+    const body = buf || Buffer.alloc(0);
+    noCache(res);
+    res.writeHead(status, {
+        'Content-Type': contentType || 'application/octet-stream',
+        'Content-Length': body.length
+    });
+    res.end(body);
+}
+
 function serveFile (req, res, abs, options) {
     const opts = options || {};
     fs.stat(abs, (err, stat) => {
@@ -186,6 +196,7 @@ module.exports = {
     noCache: noCache,
     sendJson: sendJson,
     sendText: sendText,
+    sendBuffer: sendBuffer,
     sendError: sendError,
     errorMessage: errorMessage,
     readBody: readBody,

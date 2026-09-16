@@ -1,15 +1,18 @@
 'use strict';
 
 /**
- * Loop / People panel — reads the robot's local Knowledge Base loop roster.
+ * Loop / People panel — local Knowledge Base loop roster management.
  *
- * Profile photos are read-only here (already synced by LoopManager._syncLoopPhotos).
- * Nickname / phonetic-name edits go through jibo.kb.loop.setPhoneticName which
- * writes through to cloud UpdatePhoneticName.
+ * BEacon owns household CRUD (add / rename / remove / profile photo).
+ * Phonetic-name edits still go through jibo.kb.loop.setPhoneticName so SSM
+ * keeps cloud enrollment in sync. BEefy recognizes people from
+ * runtime.loop.users on each speech turn, not from portal CRUD.
  */
 
 const fs = require('fs');
 const paths = require('./paths');
+
+const PHOTO_MAX_BYTES = 2 * 1024 * 1024;
 
 function fail (message, status) {
     const err = new Error(message);
@@ -59,18 +62,38 @@ function photoPathFor (looper) {
     }
 }
 
+function isRobotMember (looper) {
+    const data = looper.data || {};
+    return !!looper.isJibo || !data.firstName || data.type === 'robot';
+}
+
+function isOwnerMember (looper) {
+    const data = looper.data || {};
+    return data.type === 'owner';
+}
+
+function canEditMember (looper) {
+    return !isRobotMember(looper);
+}
+
+function canRemoveMember (looper) {
+    return !isRobotMember(looper) && !isOwnerMember(looper);
+}
+
 function mapMember (looper) {
     const data = looper.data || {};
     const enrolled = data.enrolled || {};
     const photo = photoPathFor(looper);
+    const id = looper.id || looper._id;
     return {
-        id: looper.id || looper._id,
+        id: id,
         firstName: data.firstName || null,
         lastName: data.lastName || null,
+        gender: data.gender || null,
         nickName: data.nickName || data.nickname || null,
         phoneticName: data.phoneticName || null,
         writtenName: typeof looper.getWrittenName === 'function' ? looper.getWrittenName() : (data.nickName || data.firstName || 'Unknown'),
-        isJibo: !!looper.isJibo || !data.firstName,
+        isJibo: isRobotMember(looper),
         type: data.type || null,
         status: data.status || null,
         accountId: data.accountId || null,
@@ -79,17 +102,23 @@ function mapMember (looper) {
             voice: !!(enrolled.voice)
         },
         hasPhoto: !!photo,
-        photoUrl: photo ? ('/api/people/photo?id=' + encodeURIComponent(looper.id || looper._id)) : null
+        photoUrl: photo ? ('/api/people/photo?id=' + encodeURIComponent(id)) : null,
+        canEdit: canEditMember(looper),
+        canRemove: canRemoveMember(looper)
     };
+}
+
+function loadRootAndLoop (jibo) {
+    return Promise.all([
+        asPromise((cb) => jibo.kb.loop.loadRoot(cb)),
+        asPromise((cb) => jibo.kb.loop.loadLoop(cb))
+    ]);
 }
 
 function list () {
     const jibo = ensureRobot();
     return jibo.kb.onInit().then(() => {
-        return Promise.all([
-            asPromise((cb) => jibo.kb.loop.loadRoot(cb)),
-            asPromise((cb) => jibo.kb.loop.loadLoop(cb))
-        ]).then((results) => {
+        return loadRootAndLoop(jibo).then((results) => {
             const root = results[0];
             const loop = results[1] || [];
             const rootData = (root && root.data) || {};
@@ -121,6 +150,135 @@ function findMember (memberId) {
     });
 }
 
+function getUserNode (jibo, memberId) {
+    return asPromise((cb) => jibo.kb.loop.getUserNodeById(memberId, cb)).then((looper) => {
+        if (!looper) throw fail('Loop member not found.', 404);
+        return looper;
+    });
+}
+
+function normalizeName (value) {
+    if (value == null) return null;
+    const trimmed = String(value).trim();
+    return trimmed.length ? trimmed : null;
+}
+
+function normalizeGender (value) {
+    if (value == null || value === '') return 'unknown';
+    const gender = String(value).trim().toLowerCase();
+    if (gender === 'male' || gender === 'female' || gender === 'unknown' || gender === 'other') {
+        return gender;
+    }
+    return 'unknown';
+}
+
+function addMember (fields) {
+    const firstName = normalizeName(fields && fields.firstName);
+    if (!firstName) throw fail('firstName is required.', 400);
+    const lastName = normalizeName(fields && fields.lastName);
+    const gender = normalizeGender(fields && fields.gender);
+    const phoneticName = normalizeName(fields && fields.phoneticName);
+
+    const jibo = ensureRobot();
+    return jibo.kb.onInit().then(() => {
+        return asPromise((cb) => jibo.kb.loop.loadRoot(cb)).then((root) => {
+            if (!root) throw fail('Loop root is unavailable.', 503);
+            // UserNode.createNode('user', data) treats data as nodeType; create then assign.
+            const node = jibo.kb.loop.createNode('user');
+            node.type = 'user';
+            node.data = {
+                firstName: firstName,
+                lastName: lastName,
+                gender: gender,
+                type: 'member',
+                status: 'accepted',
+                enrolled: { face: false, voice: false }
+            };
+            if (phoneticName) {
+                node.data.phoneticName = phoneticName;
+            }
+            root.addEdges(node, 'user');
+            return asPromise((cb) => node.save(cb)).then(() => {
+                return asPromise((cb) => root.save(cb));
+            }).then(() => list());
+        });
+    });
+}
+
+function updateMember (memberId, fields) {
+    if (!memberId) throw fail('memberId is required.', 400);
+    const jibo = ensureRobot();
+    return jibo.kb.onInit().then(() => {
+        return getUserNode(jibo, memberId).then((looper) => {
+            if (!canEditMember(looper)) {
+                throw fail('The robot member cannot be edited here.', 400);
+            }
+            const data = looper.data || (looper.data = {});
+            if (fields && Object.prototype.hasOwnProperty.call(fields, 'firstName')) {
+                const firstName = normalizeName(fields.firstName);
+                if (!firstName) throw fail('firstName cannot be blank.', 400);
+                data.firstName = firstName;
+            }
+            if (fields && Object.prototype.hasOwnProperty.call(fields, 'lastName')) {
+                data.lastName = normalizeName(fields.lastName);
+            }
+            if (fields && Object.prototype.hasOwnProperty.call(fields, 'gender')) {
+                data.gender = normalizeGender(fields.gender);
+            }
+            if (fields && Object.prototype.hasOwnProperty.call(fields, 'phoneticName')) {
+                data.phoneticName = normalizeName(fields.phoneticName) || '';
+            }
+            return asPromise((cb) => looper.save(cb)).then(() => {
+                // Mirror phonetic edits through SSM so cloud enrollment stays aligned.
+                if (fields && Object.prototype.hasOwnProperty.call(fields, 'phoneticName')) {
+                    return asPromise((cb) => {
+                        jibo.kb.loop.setPhoneticName(memberId, data.phoneticName || '', cb);
+                    }).catch(() => null);
+                }
+                return null;
+            }).then(() => list());
+        });
+    });
+}
+
+function removePhotoAssets (looper) {
+    const assets = (looper.getAssets && looper.getAssets('photo')) || [];
+    if (!assets.length) {
+        return Promise.resolve();
+    }
+    let chain = Promise.resolve();
+    assets.forEach((asset) => {
+        chain = chain.then(() => asPromise((cb) => looper.removeAsset(asset, cb)));
+    });
+    return chain;
+}
+
+function removeMember (memberId) {
+    if (!memberId) throw fail('memberId is required.', 400);
+    const jibo = ensureRobot();
+    return jibo.kb.onInit().then(() => {
+        return Promise.all([
+            asPromise((cb) => jibo.kb.loop.loadRoot(cb)),
+            getUserNode(jibo, memberId)
+        ]).then((results) => {
+            const root = results[0];
+            const looper = results[1];
+            if (!root) throw fail('Loop root is unavailable.', 503);
+            if (!canRemoveMember(looper)) {
+                throw fail('Owner and robot members cannot be removed.', 400);
+            }
+            looper.data = looper.data || {};
+            looper.data.status = 'removed';
+            return removePhotoAssets(looper).then(() => {
+                return asPromise((cb) => looper.save(cb));
+            }).then(() => {
+                root.removeEdges(looper, 'user');
+                return asPromise((cb) => root.save(cb));
+            }).then(() => list());
+        });
+    });
+}
+
 function setPhoneticName (memberId, phoneticName) {
     if (!memberId) throw fail('memberId is required.', 400);
     const value = phoneticName == null ? '' : String(phoneticName);
@@ -133,21 +291,70 @@ function setPhoneticName (memberId, phoneticName) {
 function resolvePhotoFile (memberId) {
     const jibo = ensureRobot();
     return jibo.kb.onInit().then(() => {
-        return asPromise((cb) => jibo.kb.loop.getUserNodeById(memberId, cb));
-    }).then((looper) => {
-        if (!looper) throw fail('Loop member not found.', 404);
-        const filePath = photoPathFor(looper);
-        if (!filePath) throw fail('No photo for this member.', 404);
-        if (!paths.isFile(filePath) && !fs.existsSync(filePath)) {
-            throw fail('Photo file is missing on disk.', 404);
-        }
-        return filePath;
+        return getUserNode(jibo, memberId).then((looper) => {
+            const filePath = photoPathFor(looper);
+            if (!filePath) throw fail('No photo for this member.', 404);
+            if (!paths.isFile(filePath) && !fs.existsSync(filePath)) {
+                throw fail('Photo file is missing on disk.', 404);
+            }
+            return filePath;
+        });
+    });
+}
+
+function setPhoto (memberId, buffer) {
+    if (!memberId) throw fail('memberId is required.', 400);
+    if (!buffer || !buffer.length) throw fail('Photo body is required.', 400);
+    if (buffer.length > PHOTO_MAX_BYTES) {
+        throw fail('Photo is larger than the 2 MB limit.', 413);
+    }
+    const jibo = ensureRobot();
+    return jibo.kb.onInit().then(() => {
+        return getUserNode(jibo, memberId).then((looper) => {
+            if (!canEditMember(looper)) {
+                throw fail('The robot member cannot have a photo set here.', 400);
+            }
+            return removePhotoAssets(looper).then(() => {
+                // Local file only — do not set data.photoUrl (LoopManager would HTTP-fetch it).
+                if (looper.data && looper.data.photoUrl) {
+                    delete looper.data.photoUrl;
+                }
+                const asset = looper.createAsset('photo', 'jpg');
+                return asPromise((cb) => asset.save(buffer, cb)).then(() => {
+                    return asPromise((cb) => looper.save(cb));
+                });
+            }).then(() => list());
+        });
+    });
+}
+
+function clearPhoto (memberId) {
+    if (!memberId) throw fail('memberId is required.', 400);
+    const jibo = ensureRobot();
+    return jibo.kb.onInit().then(() => {
+        return getUserNode(jibo, memberId).then((looper) => {
+            if (!canEditMember(looper)) {
+                throw fail('The robot member photo cannot be cleared here.', 400);
+            }
+            return removePhotoAssets(looper).then(() => {
+                if (looper.data && looper.data.photoUrl) {
+                    delete looper.data.photoUrl;
+                }
+                return asPromise((cb) => looper.save(cb));
+            }).then(() => list());
+        });
     });
 }
 
 module.exports = {
     list,
     findMember,
+    addMember,
+    updateMember,
+    removeMember,
     setPhoneticName,
-    resolvePhotoFile
+    resolvePhotoFile,
+    setPhoto,
+    clearPhoto,
+    PHOTO_MAX_BYTES
 };

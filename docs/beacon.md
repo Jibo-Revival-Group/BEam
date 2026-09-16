@@ -15,8 +15,10 @@ way the Skills Service Manager on port 8779 is already open.
 | Panel | Status |
 |-------|--------|
 | Status | Version, network address, uptime; Advanced for folders |
+| Screen | Live view of Jibo's 1280×720 face; tap/drag to touch; swipe down to leave a skill |
 | Music | Full library management: albums, uploads, covers, rename, delete |
 | Photos | View saved robot photos, download originals, delete local copies |
+| People | Manage the household Loop: add, rename, remove, profile photos; enrollment badges |
 | Eye | Replace Jibo's eye with your own image, revert to the original |
 | Skills | Lists skills ready on Jibo |
 | More | Weather units and home location |
@@ -40,6 +42,20 @@ images are resized in the browser on a `<canvas>`.
 
 If port 8123 is already taken, BEacon retries once and then gives up quietly;
 Be itself is never blocked by it. Set `BEACON_PORT` to use a different port.
+
+## Screen
+
+The **Screen** panel shows Jibo's face in the browser and lets you touch it
+from another device on the LAN. Open BEacon while Be is running on the robot
+(standalone `node @be/be/beacon/server.js` cannot see the face).
+
+The live picture is copied from Jibo's face renderer after each paint, then
+sent as a 640×360 JPEG a few dozen times per second while the Screen tab is
+open and the browser tab is visible.
+
+Tap or drag the picture to send mouse/touch events at 1280×720 face coordinates.
+A flick is also recognized as a swipe (including swipe-down to leave a skill).
+**Swipe down** fires the same `swipedown` gesture skills use to go back.
 
 ## Jukebox
 
@@ -89,6 +105,18 @@ Generated thumbnails are omitted from the list. **Download** retrieves the
 original JPEG. **Delete** uses the same behavior as the robot Gallery:
 `jibo.media.deletePhoto()` removes the local media and its Knowledge Base
 entry; BEacon does not request cloud deletion.
+
+## People
+
+The **People** panel manages the robot's local Loop roster in
+`/opt/jibo/Knowledge/jibo/loop`. Add, rename, or remove household members and
+upload a 384×384 JPEG profile photo (centre-cropped in the browser). Owner and
+robot members cannot be removed; the robot row is hidden from editors.
+
+Face and voice enrollment still happen on-device (Introductions / Who am I).
+BEefy recognizes people from `runtime.loop.users` on each speech turn — it no
+longer owns household CRUD. Phonetic-name edits still go through SSM so cloud
+enrollment stays aligned.
 
 ## Jibo eye
 
@@ -212,6 +240,10 @@ rather than failing.
 | GET | `/api/photos` | List saved full-size robot photos |
 | GET | `/api/photos/file?id=` | Serve a photo JPEG; `download=1` downloads it |
 | DELETE | `/api/photos?id=` | Delete a photo from the local robot gallery |
+| GET | `/api/screen` | `{available, width, height, method, control}` |
+| GET | `/api/screen.jpg` | Latest JPEG of the face (`?q=` 20–90) |
+| GET | `/api/screen/stream` | MJPEG stream of the face |
+| POST | `/api/screen/input` | `{type: pointer\|tap\|swipe, phase?, x?, y?, direction?}` |
 | GET | `/api/eye` | Custom-eye state and texture hashes |
 | GET | `/api/eye/current.png`, `/api/eye/original.png` | Previews |
 | PUT | `/api/eye?name=` | Raw PNG body, applies the eye + live reload |
@@ -227,6 +259,14 @@ rather than failing.
 | GET | `/api/ota` | Discovered Skills-root packs, tool availability |
 | POST | `/api/ota/check` | `{subsystem?}` or all — offers / up-to-date / errors |
 | POST | `/api/ota/apply` | `{offer}` — NDJSON progress of download + apply |
+| GET | `/api/people` | Local loop roster + sync diagnostics |
+| POST | `/api/people` | `{firstName, lastName?, gender?}` — add a member |
+| PUT | `/api/people` | `{id, firstName?, lastName?, gender?, phoneticName?}` — update |
+| DELETE | `/api/people?id=` | Remove a member (not owner/robot) |
+| GET | `/api/people/photo?id=` | Serve a local profile photo |
+| PUT | `/api/people/photo?id=` | Raw JPEG body — set profile photo |
+| DELETE | `/api/people/photo?id=` | Clear profile photo |
+| POST | `/api/people/phonetic-name` | `{id, phoneticName}` — spoken name via SSM |
 
 ## Layout
 
@@ -238,6 +278,8 @@ rather than failing.
   lib/http-util.js        JSON, raw bodies, static files, traversal guard
   lib/jukebox.js          library operations
   lib/photos.js           saved robot photo listing and deletion
+  lib/people.js           local loop roster CRUD and profile photos
+  lib/screen.js           remote face view and touch input
   lib/eye.js              apply, revert, self-heal
   lib/skills.js           skill inventory
   lib/location.js         local home location, ip-api detection, timezone persistence

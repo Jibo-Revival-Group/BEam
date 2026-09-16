@@ -3,6 +3,12 @@
     'use strict';
 
     var EYE_SIZE = 720;
+    var PEOPLE_PHOTO_SIZE = 384;
+    var SCREEN_W = 1280;
+    var SCREEN_H = 720;
+    var SCREEN_MOVE_MS = 16;
+    var SCREEN_FLICK_DIST = 120;
+    var SCREEN_FLICK_MS = 900;
     var AUDIO_RE = /\.(mp3|opus|ogg|oga)$/i;
     var IMAGE_RE = /\.(png|jpe?g|gif|webp|bmp)$/i;
 
@@ -18,7 +24,18 @@
             temperature: 'fahrenheit'
         },
         audio: null,
-        playing: null
+        playing: null,
+        screen: {
+            live: false,
+            pulling: false,
+            timer: null,
+            objectUrl: null,
+            pointer: null,
+            pointerStart: null,
+            lastMove: 0,
+            queue: [],
+            flushTimer: null
+        }
     };
 
     /* ------------------------------------------------------------ helpers */
@@ -887,7 +904,7 @@
             parts.push('Last attempt: ' + new Date(data.lastSyncAttemptTimestamp).toLocaleString());
         }
         if (typeof data.lastCloudMemberCount === 'number') {
-            parts.push('Cloud members: ' + data.lastCloudMemberCount);
+            parts.push('Cloud seed members: ' + data.lastCloudMemberCount);
         }
         if (data.lastSyncErrorMessage) {
             parts.push('Error: ' + data.lastSyncErrorMessage);
@@ -902,18 +919,22 @@
             sync.classList.remove('error');
         }
 
-        var members = data.members || [];
+        var members = (data.members || []).filter(function (member) {
+            return !member.isJibo;
+        });
+        list.innerHTML = '';
         if (!members.length) {
             var hint = data.lastSyncErrorMessage
-                ? ('No people in the local loop yet. Sync error: ' + data.lastSyncErrorMessage)
-                : 'No people in the local loop yet. Once BEefy ListLoops returns members (including the robot), Jibo will sync the household here.';
-            list.innerHTML = '<p class="hint">' + hint + '</p>';
+                ? ('No people yet. Sync error: ' + data.lastSyncErrorMessage)
+                : 'No people yet. Add someone above, then enroll face and voice from Introductions on Jibo.';
+            list.appendChild(el('p', 'hint', hint));
             return;
         }
 
-        list.innerHTML = '';
         members.forEach(function (member) {
             var card = el('div', 'card people-card');
+            card.setAttribute('data-member-id', member.id);
+
             var header = el('div', 'people-card-header');
             if (member.photoUrl) {
                 var img = el('img', 'people-avatar');
@@ -928,8 +949,7 @@
             var meta = el('div', 'people-meta');
             meta.appendChild(el('p', 'setting-title', member.writtenName || member.id));
             meta.appendChild(el('p', 'hint',
-                (member.isJibo ? 'Robot' : (member.type || 'member')) +
-                (member.id ? (' · ' + member.id) : '')));
+                (member.type || 'member') + (member.id ? (' · ' + member.id) : '')));
             header.appendChild(meta);
             card.appendChild(header);
 
@@ -940,20 +960,70 @@
                 member.enrolled && member.enrolled.voice ? 'Voice enrolled' : 'Voice not enrolled'));
             card.appendChild(badges);
 
-            if (!member.isJibo) {
-                var row = el('div', 'setting-row');
-                var input = document.createElement('input');
-                input.type = 'text';
-                input.className = 'people-phonetic';
-                input.placeholder = 'Phonetic name (spoken)';
-                input.value = member.phoneticName || '';
-                input.setAttribute('data-member-id', member.id);
-                var save = el('button', 'btn btn-primary', 'Save name');
-                save.setAttribute('data-action', 'save-phonetic');
+            if (member.canEdit) {
+                var nameRow = el('div', 'setting-row people-edit-row');
+                var first = document.createElement('input');
+                first.type = 'text';
+                first.className = 'people-first';
+                first.placeholder = 'First name';
+                first.value = member.firstName || '';
+                first.setAttribute('data-member-id', member.id);
+                var last = document.createElement('input');
+                last.type = 'text';
+                last.className = 'people-last';
+                last.placeholder = 'Last name';
+                last.value = member.lastName || '';
+                last.setAttribute('data-member-id', member.id);
+                var gender = document.createElement('select');
+                gender.className = 'people-gender';
+                gender.setAttribute('data-member-id', member.id);
+                [['unknown', 'Unspecified'], ['male', 'Male'], ['female', 'Female'], ['other', 'Other']].forEach(function (opt) {
+                    var option = document.createElement('option');
+                    option.value = opt[0];
+                    option.textContent = opt[1];
+                    if ((member.gender || 'unknown') === opt[0]) { option.selected = true; }
+                    gender.appendChild(option);
+                });
+                nameRow.appendChild(first);
+                nameRow.appendChild(last);
+                nameRow.appendChild(gender);
+                card.appendChild(nameRow);
+
+                var phoneticRow = el('div', 'setting-row');
+                var phonetic = document.createElement('input');
+                phonetic.type = 'text';
+                phonetic.className = 'people-phonetic';
+                phonetic.placeholder = 'Phonetic name (spoken)';
+                phonetic.value = member.phoneticName || '';
+                phonetic.setAttribute('data-member-id', member.id);
+                phoneticRow.appendChild(phonetic);
+                card.appendChild(phoneticRow);
+
+                var actionsRow = el('div', 'setting-row people-actions-row');
+                var save = el('button', 'btn btn-primary', 'Save');
+                save.setAttribute('data-action', 'save-person');
                 save.setAttribute('data-member-id', member.id);
-                row.appendChild(input);
-                row.appendChild(save);
-                card.appendChild(row);
+                actionsRow.appendChild(save);
+
+                var photoBtn = el('button', 'btn', 'Photo');
+                photoBtn.setAttribute('data-action', 'pick-person-photo');
+                photoBtn.setAttribute('data-member-id', member.id);
+                actionsRow.appendChild(photoBtn);
+
+                if (member.hasPhoto) {
+                    var clearPhoto = el('button', 'btn', 'Clear photo');
+                    clearPhoto.setAttribute('data-action', 'clear-person-photo');
+                    clearPhoto.setAttribute('data-member-id', member.id);
+                    actionsRow.appendChild(clearPhoto);
+                }
+
+                if (member.canRemove) {
+                    var remove = el('button', 'btn btn-danger', 'Remove');
+                    remove.setAttribute('data-action', 'remove-person');
+                    remove.setAttribute('data-member-id', member.id);
+                    actionsRow.appendChild(remove);
+                }
+                card.appendChild(actionsRow);
             }
 
             list.appendChild(card);
@@ -970,12 +1040,279 @@
         });
     }
 
+    function toPeopleJpeg (file) {
+        return new Promise(function (resolve, reject) {
+            var url = URL.createObjectURL(file);
+            var image = new Image();
+            image.onload = function () {
+                URL.revokeObjectURL(url);
+                var side = Math.min(image.width, image.height);
+                var canvas = document.createElement('canvas');
+                canvas.width = PEOPLE_PHOTO_SIZE;
+                canvas.height = PEOPLE_PHOTO_SIZE;
+                var ctx = canvas.getContext('2d');
+                ctx.drawImage(
+                    image,
+                    (image.width - side) / 2, (image.height - side) / 2, side, side,
+                    0, 0, PEOPLE_PHOTO_SIZE, PEOPLE_PHOTO_SIZE
+                );
+                canvas.toBlob(function (blob) {
+                    if (blob) { resolve(blob); } else { reject(new Error('Could not convert that image')); }
+                }, 'image/jpeg', 0.9);
+            };
+            image.onerror = function () {
+                URL.revokeObjectURL(url);
+                reject(new Error('That file could not be read as an image'));
+            };
+            image.src = url;
+        });
+    }
+
+    function uploadPersonPhoto (memberId, file) {
+        if (!IMAGE_RE.test(file.name) && file.type.indexOf('image/') !== 0) {
+            toast('Pick a picture file', 'error');
+            return;
+        }
+        toast('Preparing picture…');
+        toPeopleJpeg(file).then(function (blob) {
+            return fetch('/api/people/photo?id=' + encodeURIComponent(memberId), {
+                method: 'PUT',
+                headers: { 'Content-Type': 'image/jpeg' },
+                body: blob
+            }).then(function (res) {
+                return res.json().then(function (data) {
+                    if (!res.ok) { throw new Error(data.error || 'Upload failed'); }
+                    return data;
+                });
+            });
+        }).then(function (data) {
+            toast('Profile photo updated.', 'ok');
+            renderPeople(data);
+        }).catch(reportError);
+    }
+
+    /* -------------------------------------------------------------- screen */
+
+    function setScreenMessage (text, isError) {
+        var placeholder = $('#screen-placeholder');
+        var hint = $('#screen-hint');
+        if (placeholder) { placeholder.textContent = text; }
+        if (hint) {
+            hint.textContent = isError
+                ? text
+                : 'Watch Jibo\u2019s face here. Tap or drag the picture to touch the screen.';
+        }
+        $('#screen-stage').classList.toggle('is-down', !!isError);
+    }
+
+    function stopScreen () {
+        state.screen.live = false;
+        state.screen.pulling = false;
+        state.screen.pointer = null;
+        state.screen.pointerStart = null;
+        state.screen.queue = [];
+        if (state.screen.flushTimer) {
+            clearTimeout(state.screen.flushTimer);
+            state.screen.flushTimer = null;
+        }
+        if (state.screen.timer) {
+            clearTimeout(state.screen.timer);
+            state.screen.timer = null;
+        }
+        var img = $('#screen-view');
+        if (img) {
+            img.onload = null;
+            img.onerror = null;
+        }
+        if (state.screen.objectUrl) {
+            URL.revokeObjectURL(state.screen.objectUrl);
+            state.screen.objectUrl = null;
+        }
+        $('#screen-hit').hidden = true;
+        $('#screen-stage').classList.remove('is-live');
+    }
+
+    function scheduleScreen (delay) {
+        if (!state.screen.live || state.panel !== 'screen') { return; }
+        if (state.screen.timer) { clearTimeout(state.screen.timer); }
+        state.screen.timer = setTimeout(pullScreen, delay || 0);
+    }
+
+    function pullScreen () {
+        if (!state.screen.live || state.panel !== 'screen' || state.screen.pulling) { return; }
+        state.screen.pulling = true;
+        var img = $('#screen-view');
+        img.onload = function () {
+            state.screen.pulling = false;
+            if (!state.screen.live || state.panel !== 'screen') { return; }
+            $('#screen-stage').classList.add('is-live');
+            $('#screen-hit').hidden = false;
+            setScreenMessage('Live');
+            scheduleScreen(0);
+        };
+        img.onerror = function () {
+            state.screen.pulling = false;
+            if (!state.screen.live || state.panel !== 'screen') { return; }
+            if (!$('#screen-stage').classList.contains('is-live')) {
+                $('#screen-hit').hidden = true;
+                setScreenMessage('Could not read Jibo\u2019s screen.', true);
+            }
+            scheduleScreen(400);
+        };
+        img.src = '/api/screen.jpg?t=' + Date.now();
+    }
+
+    function loadScreen () {
+        state.screen.live = true;
+        setScreenMessage('Connecting to Jibo\u2019s screen\u2026');
+        return api('GET', '/api/screen').then(function (data) {
+            if (!data.available) {
+                stopScreen();
+                setScreenMessage('Open this page against a running Jibo. Screen view only works while Be is up.', true);
+                return data;
+            }
+            pullScreen();
+            return data;
+        }).catch(function (err) {
+            stopScreen();
+            setScreenMessage(err.message || 'Could not reach Jibo\u2019s screen.', true);
+            throw err;
+        });
+    }
+
+    function screenPoint (event) {
+        var stage = $('#screen-stage');
+        var rect = stage.getBoundingClientRect();
+        var src = event.changedTouches && event.changedTouches[0]
+            ? event.changedTouches[0]
+            : (event.touches && event.touches[0] ? event.touches[0] : event);
+        var x = ((src.clientX - rect.left) / rect.width) * SCREEN_W;
+        var y = ((src.clientY - rect.top) / rect.height) * SCREEN_H;
+        if (x < 0) { x = 0; }
+        if (y < 0) { y = 0; }
+        if (x > SCREEN_W - 1) { x = SCREEN_W - 1; }
+        if (y > SCREEN_H - 1) { y = SCREEN_H - 1; }
+        return { x: Math.round(x), y: Math.round(y) };
+    }
+
+    function sendScreenInput (body) {
+        return fetch('/api/screen/input', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        }).then(function (res) {
+            if (!res.ok) {
+                return res.text().then(function (text) {
+                    var message = 'Touch failed';
+                    try {
+                        var data = JSON.parse(text);
+                        if (data && data.error) { message = data.error; }
+                    } catch (err) { /* default */ }
+                    throw new Error(message);
+                });
+            }
+            return res.json();
+        });
+    }
+
+    function flushScreenQueue () {
+        if (state.screen.flushTimer) {
+            clearTimeout(state.screen.flushTimer);
+            state.screen.flushTimer = null;
+        }
+        if (!state.screen.queue.length) { return; }
+        var events = state.screen.queue;
+        state.screen.queue = [];
+        sendScreenInput({ type: 'batch', events: events }).catch(function (err) {
+            if (events[0] && events[0].phase === 'down') { reportError(err); }
+        });
+    }
+
+    function queueScreenPointer (phase, x, y) {
+        state.screen.queue.push({ phase: phase, x: x, y: y });
+        if (state.screen.queue.length > 32) {
+            state.screen.queue = state.screen.queue.slice(-24);
+        }
+        if (phase === 'down' || phase === 'up') {
+            flushScreenQueue();
+            return;
+        }
+        if (!state.screen.flushTimer) {
+            state.screen.flushTimer = setTimeout(flushScreenQueue, SCREEN_MOVE_MS);
+        }
+    }
+
+    function flickDirection (start, end) {
+        if (!start || !end) { return null; }
+        var dx = end.x - start.x;
+        var dy = end.y - start.y;
+        var adx = Math.abs(dx);
+        var ady = Math.abs(dy);
+        var dt = Date.now() - (start.at || 0);
+        if (dt > SCREEN_FLICK_MS || (adx < SCREEN_FLICK_DIST && ady < SCREEN_FLICK_DIST)) {
+            return null;
+        }
+        if (ady > adx) { return dy > 0 ? 'down' : 'up'; }
+        return dx > 0 ? 'right' : 'left';
+    }
+
+    function onScreenPointerDown (event) {
+        event.preventDefault();
+        var point = screenPoint(event);
+        state.screen.pointer = point;
+        state.screen.pointerStart = { x: point.x, y: point.y, at: Date.now() };
+        state.screen.lastMove = Date.now();
+        queueScreenPointer('down', point.x, point.y);
+    }
+
+    function onScreenPointerMove (event) {
+        if (!state.screen.pointer) { return; }
+        event.preventDefault();
+        var now = Date.now();
+        if (now - state.screen.lastMove < SCREEN_MOVE_MS) { return; }
+        state.screen.lastMove = now;
+        var point = screenPoint(event);
+        state.screen.pointer = point;
+        queueScreenPointer('move', point.x, point.y);
+    }
+
+    function onScreenPointerUp (event) {
+        if (!state.screen.pointer) { return; }
+        event.preventDefault();
+        var point = screenPoint(event);
+        var start = state.screen.pointerStart;
+        state.screen.pointer = null;
+        state.screen.pointerStart = null;
+        queueScreenPointer('up', point.x, point.y);
+        var dir = flickDirection(start, point);
+        if (dir) {
+            sendScreenInput({ type: 'swipe', direction: dir }).catch(function () {});
+        }
+    }
+
+    function bindScreenInput () {
+        var hit = $('#screen-hit');
+        hit.addEventListener('mousedown', onScreenPointerDown);
+        hit.addEventListener('mousemove', onScreenPointerMove);
+        hit.addEventListener('mouseup', onScreenPointerUp);
+        hit.addEventListener('mouseleave', onScreenPointerUp);
+        hit.addEventListener('touchstart', onScreenPointerDown, { passive: false });
+        hit.addEventListener('touchmove', onScreenPointerMove, { passive: false });
+        hit.addEventListener('touchend', onScreenPointerUp);
+        hit.addEventListener('touchcancel', onScreenPointerUp);
+        hit.addEventListener('contextmenu', function (event) { event.preventDefault(); });
+    }
+
     /* --------------------------------------------------------------- wire */
 
     var panelMeta = {
         status: {
             title: 'Status',
             actions: [{ action: 'refresh-status', label: 'Refresh' }]
+        },
+        screen: {
+            title: 'Screen',
+            actions: [{ action: 'screen-refresh', label: 'Refresh' }]
         },
         jukebox: {
             title: 'Music',
@@ -1008,6 +1345,7 @@
 
     var loaders = {
         status: loadStatus,
+        screen: loadScreen,
         jukebox: loadJukebox,
         photos: loadPhotos,
         people: loadPeople,
@@ -1036,6 +1374,7 @@
 
     function showPanel (name) {
         if (!loaders[name]) { name = 'status'; }
+        if (name !== 'screen') { stopScreen(); }
         state.panel = name;
         renderToolbar(name);
         var tabs = document.querySelectorAll('.tab');
@@ -1052,6 +1391,11 @@
 
     var actions = {
         'refresh-status': loadStatus,
+        'screen-refresh': loadScreen,
+        'screen-swipe-down': function () {
+            return sendScreenInput({ type: 'swipe', direction: 'down' })
+                .then(function () { toast('Swipe down sent.', 'ok'); });
+        },
         'refresh-jukebox': loadJukebox,
         'refresh-photos': loadPhotos,
         'refresh-people': loadPeople,
@@ -1063,6 +1407,76 @@
         'apply-location': applyLocation,
         'save-units': saveUnits,
         'new-album': newAlbum,
+        'add-person': function () {
+            var first = $('#people-new-first');
+            var last = $('#people-new-last');
+            var gender = $('#people-new-gender');
+            var firstName = first ? first.value.trim() : '';
+            if (!firstName) {
+                toast('First name is required.', 'error');
+                return;
+            }
+            return api('POST', '/api/people', {
+                firstName: firstName,
+                lastName: last ? last.value.trim() : '',
+                gender: gender ? gender.value : 'unknown'
+            }).then(function (data) {
+                if (first) { first.value = ''; }
+                if (last) { last.value = ''; }
+                if (gender) { gender.value = 'unknown'; }
+                toast('Person added.', 'ok');
+                renderPeople(data);
+            });
+        },
+        'save-person': function (button) {
+            var memberId = button && button.getAttribute('data-member-id');
+            if (!memberId) { return; }
+            var first = document.querySelector('.people-first[data-member-id="' + memberId + '"]');
+            var last = document.querySelector('.people-last[data-member-id="' + memberId + '"]');
+            var gender = document.querySelector('.people-gender[data-member-id="' + memberId + '"]');
+            var phonetic = document.querySelector('.people-phonetic[data-member-id="' + memberId + '"]');
+            var firstName = first ? first.value.trim() : '';
+            if (!firstName) {
+                toast('First name is required.', 'error');
+                return;
+            }
+            return api('PUT', '/api/people', {
+                id: memberId,
+                firstName: firstName,
+                lastName: last ? last.value.trim() : '',
+                gender: gender ? gender.value : 'unknown',
+                phoneticName: phonetic ? phonetic.value : ''
+            }).then(function (data) {
+                toast('Person updated.', 'ok');
+                renderPeople(data);
+            });
+        },
+        'remove-person': function (button) {
+            var memberId = button && button.getAttribute('data-member-id');
+            if (!memberId) { return; }
+            if (!confirm('Remove this person from the Loop?')) { return; }
+            return api('DELETE', '/api/people?id=' + encodeURIComponent(memberId))
+                .then(function (data) {
+                    toast('Person removed.', 'ok');
+                    renderPeople(data);
+                });
+        },
+        'pick-person-photo': function (button) {
+            var memberId = button && button.getAttribute('data-member-id');
+            if (!memberId) { return; }
+            var input = $('#people-photo-file');
+            input.setAttribute('data-member-id', memberId);
+            input.click();
+        },
+        'clear-person-photo': function (button) {
+            var memberId = button && button.getAttribute('data-member-id');
+            if (!memberId) { return; }
+            return api('DELETE', '/api/people/photo?id=' + encodeURIComponent(memberId))
+                .then(function (data) {
+                    toast('Profile photo cleared.', 'ok');
+                    renderPeople(data);
+                });
+        },
         'save-phonetic': function (button) {
             var memberId = button && button.getAttribute('data-member-id');
             if (!memberId) { return; }
@@ -1123,6 +1537,15 @@
         event.target.value = '';
     });
 
+    $('#people-photo-file').addEventListener('change', function (event) {
+        var memberId = event.target.getAttribute('data-member-id');
+        if (memberId && event.target.files.length) {
+            uploadPersonPhoto(memberId, event.target.files[0]);
+        }
+        event.target.value = '';
+        event.target.removeAttribute('data-member-id');
+    });
+
     var drop = $('#eye-drop');
     drop.addEventListener('dragover', function (event) {
         event.preventDefault();
@@ -1147,6 +1570,17 @@
     setInterval(function () {
         api('GET', '/api/status').then(function () { setLive(true); }).catch(function () { setLive(false); });
     }, 15000);
+
+    bindScreenInput();
+
+    document.addEventListener('visibilitychange', function () {
+        if (state.panel !== 'screen') { return; }
+        if (document.hidden) {
+            stopScreen();
+        } else {
+            loadScreen().catch(reportError);
+        }
+    });
 
     showPanel(loaders[location.hash.slice(1)] ? location.hash.slice(1) : 'status');
 }());

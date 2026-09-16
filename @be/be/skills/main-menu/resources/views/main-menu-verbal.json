@@ -26,23 +26,6 @@
                 }
             },
             {
-                "id": "who-am-i",
-                "label": "Who am I",
-                "colors": ["0xA78BFA", "0x5B21B6"],
-                "iconSrc": "resources/icons/introduction.png",
-                "action": {
-                    "type": "utterance",
-                    "data":{
-                        "utterance": {
-                            "intent": "loadMenu",
-                            "entities": {
-                                "destination": "who-am-i"
-                            }
-                        }
-                    }
-                }
-            },
-            {
                 "id": "thingsToDo",
                 "label": "Things to do",
                 "colors": ["0xFF892F", "0xAF4123"],

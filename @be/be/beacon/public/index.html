@@ -28,6 +28,23 @@
 
 <main>
 
+<section class="panel" id="panel-screen">
+    <p class="hint" id="screen-hint">
+        Watch Jibo&rsquo;s face here. Tap or drag the picture to touch the screen.
+    </p>
+    <div class="screen-frame" id="screen-frame">
+        <div class="screen-stage" id="screen-stage">
+            <img id="screen-view" alt="Jibo's screen" draggable="false">
+            <div class="screen-hit" id="screen-hit" hidden></div>
+            <div class="screen-placeholder" id="screen-placeholder">Connecting to Jibo&rsquo;s screen&hellip;</div>
+        </div>
+    </div>
+    <div class="screen-controls">
+        <button class="btn btn-primary" data-action="screen-swipe-down">Swipe down</button>
+        <button class="btn" data-action="screen-refresh">Refresh</button>
+    </div>
+</section>
+
 <section class="panel is-active" id="panel-status">
     <p class="section-header">About</p>
     <div class="cards" id="status-cards"></div>
@@ -53,7 +70,22 @@
 
 <section class="panel" id="panel-people">
     <p class="hint" id="people-sync"></p>
+    <div class="people-add card">
+        <p class="setting-title">Add a person</p>
+        <div class="people-add-row">
+            <input id="people-new-first" type="text" placeholder="First name" autocomplete="off">
+            <input id="people-new-last" type="text" placeholder="Last name (optional)" autocomplete="off">
+            <select id="people-new-gender">
+                <option value="unknown">Unspecified</option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+                <option value="other">Other</option>
+            </select>
+            <button class="btn btn-primary" type="button" data-action="add-person">Add</button>
+        </div>
+    </div>
     <div id="people-list" class="people-list"></div>
+    <input id="people-photo-file" type="file" accept="image/*" hidden>
 </section>
 
 <section class="panel" id="panel-eye">
@@ -155,6 +187,10 @@
     <button class="tab is-active" data-panel="status">
         <span class="icon icon-sm icon-about" aria-hidden="true"></span>
         <span>Status</span>
+    </button>
+    <button class="tab" data-panel="screen">
+        <span class="icon icon-sm icon-screen" aria-hidden="true"></span>
+        <span>Screen</span>
     </button>
     <button class="tab" data-panel="jukebox">
         <span class="icon icon-sm icon-music" aria-hidden="true"></span>

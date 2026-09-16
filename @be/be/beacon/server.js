@@ -23,6 +23,7 @@ const ota = require('./lib/ota');
 const location = require('./lib/location');
 const units = require('./lib/units');
 const people = require('./lib/people');
+const screen = require('./lib/screen');
 
 const MAX_UPLOAD = 256 * 1024 * 1024;
 const MAX_IMAGE = 16 * 1024 * 1024;
@@ -246,16 +247,67 @@ const routes = {
         return people.list().then((data) => u.sendJson(res, 200, data));
     }),
 
+    'POST /api/people': guard((req, res) => {
+        return u.readJson(req).then((body) => {
+            return people.addMember(body).then((data) => u.sendJson(res, 200, data));
+        });
+    }),
+
+    'PUT /api/people': guard((req, res) => {
+        return u.readJson(req).then((body) => {
+            return people.updateMember(body && body.id, body)
+                .then((data) => u.sendJson(res, 200, data));
+        });
+    }),
+
+    'DELETE /api/people': guard((req, res, query) => {
+        return people.removeMember(query && query.id)
+            .then((data) => u.sendJson(res, 200, data));
+    }),
+
     'GET /api/people/photo': guard((req, res, query) => {
         return people.resolvePhotoFile(query.id).then((filePath) => {
             u.serveFile(req, res, filePath);
         });
     }),
 
+    'PUT /api/people/photo': guard((req, res, query) => {
+        return u.readBody(req, people.PHOTO_MAX_BYTES).then((buf) => {
+            return people.setPhoto(query && query.id, buf)
+                .then((data) => u.sendJson(res, 200, data));
+        });
+    }),
+
+    'DELETE /api/people/photo': guard((req, res, query) => {
+        return people.clearPhoto(query && query.id)
+            .then((data) => u.sendJson(res, 200, data));
+    }),
+
     'POST /api/people/phonetic-name': guard((req, res) => {
         return u.readJson(req).then((body) => {
             return people.setPhoneticName(body && body.id, body && body.phoneticName)
                 .then((data) => u.sendJson(res, 200, data));
+        });
+    }),
+
+    'GET /api/screen': guard((req, res) => {
+        u.sendJson(res, 200, screen.state());
+    }),
+
+    'GET /api/screen.jpg': guard((req, res, query) => {
+        const quality = query && query.q ? Number(query.q) : undefined;
+        return screen.capture(quality).then((buf) => {
+            u.sendBuffer(res, 200, buf, 'image/jpeg');
+        });
+    }),
+
+    'GET /api/screen/stream': guard((req, res) => {
+        screen.stream(req, res);
+    }),
+
+    'POST /api/screen/input': guard((req, res) => {
+        return u.readJson(req).then((body) => {
+            return screen.input(body).then((result) => u.sendJson(res, 200, result));
         });
     })
 };
