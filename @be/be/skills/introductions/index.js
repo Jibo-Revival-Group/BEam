@@ -376,6 +376,10 @@ exports.default = VoiceEnroller;
 
 },{"jibo":undefined,"jibo-cai-utils":undefined}],5:[function(require,module,exports){
 'use strict';
+function isRobotLooper(looper) {
+    var d = (looper && looper.data) || {};
+    return !!(looper && (looper.isJibo || !d.firstName || d.type === 'robot'));
+}
 module.exports = function (blackboard, notepad, result, emitter) {
     return {
         'meta': {
@@ -1067,7 +1071,7 @@ module.exports = function (blackboard, notepad, result, emitter) {
                                 }
                                 let enrollees = [];
                                 for (let looper of loop) {
-                                    if (looper.data.enrolled && looper.data.enrolled.face && looper._id != notepad.params.looper._id) {
+                                    if (!isRobotLooper(looper) && looper.data.enrolled && looper.data.enrolled.face && looper._id != notepad.params.looper._id) {
                                         enrollees.push(looper);
                                     }
                                 }
@@ -2513,6 +2517,10 @@ module.exports = function (blackboard, notepad, result, emitter) {
 };
 },{}],7:[function(require,module,exports){
 'use strict';
+function isRobotLooper(looper) {
+    var d = (looper && looper.data) || {};
+    return !!(looper && (looper.isJibo || !d.firstName || d.type === 'robot'));
+}
 module.exports = function (blackboard, notepad, result, emitter) {
     return {
         'meta': {
@@ -2955,7 +2963,7 @@ module.exports = function (blackboard, notepad, result, emitter) {
                             }
                             let enrollees = [];
                             for (let looper of loop) {
-                                if (looper.data.enrolled && looper.data.enrolled.voice && looper._id != notepad.params.looper._id) {
+                                if (!isRobotLooper(looper) && looper.data.enrolled && looper.data.enrolled.voice && looper._id != notepad.params.looper._id) {
                                     enrollees.push(looper);
                                 }
                             }
@@ -3163,6 +3171,10 @@ module.exports = function (blackboard, notepad, result, emitter) {
 };
 },{"../../assets/enrollment/sounds/soundNames.json":1}],8:[function(require,module,exports){
 'use strict';
+function isRobotLooper(looper) {
+    var d = (looper && looper.data) || {};
+    return !!(looper && (looper.isJibo || !d.firstName || d.type === 'robot'));
+}
 module.exports = function (blackboard, notepad, result, emitter) {
     return {
         'meta': {
@@ -3455,6 +3467,11 @@ module.exports = function (blackboard, notepad, result, emitter) {
                     },
                     {
                         'frm': '3f7c248b-9d89-4eaa-8152-f7e170dbf57f',
+                        'to': '625af560-2443-4851-a2aa-de215c1990bb',
+                        'value': 'menu'
+                    },
+                    {
+                        'frm': '3f7c248b-9d89-4eaa-8152-f7e170dbf57f',
                         'to': '15ec1b9c-5750-43bb-bfd5-f3f66ca7b988',
                         'value': ''
                     }
@@ -3464,12 +3481,22 @@ module.exports = function (blackboard, notepad, result, emitter) {
                 'options': {
                     'exec': done => {
                         jibo.kb.loop.loadLoop((err, loop) => {
+                            let found = null;
                             for (let looper of loop) {
                                 if (notepad.looper == looper._id) {
-                                    notepad.looper = looper;
+                                    found = looper;
                                     break;
                                 }
                             }
+                            if (!found || isRobotLooper(found)) {
+                                // Robot or unknown id — show the people picker instead.
+                                notepad.looper = null;
+                                notepad.params.looper = null;
+                                notepad.looperProvided = false;
+                                done('menu');
+                                return;
+                            }
+                            notepad.looper = found;
                             let enrolled = notepad.looper.data.enrolled;
                             let intent = notepad.params.enrollmentType;
                             notepad.params.enrollmentType = null;
@@ -3566,7 +3593,7 @@ module.exports = function (blackboard, notepad, result, emitter) {
                             }
                             let anyUnenrolled = false;
                             for (let looper of loop) {
-                                if (!looper.isJibo && (!looper.data.enrolled || !looper.data.enrolled.voice || !looper.data.enrolled.face)) {
+                                if (!isRobotLooper(looper) && (!looper.data.enrolled || !looper.data.enrolled.voice || !looper.data.enrolled.face)) {
                                     anyUnenrolled = true;
                                     break;
                                 }
@@ -4252,25 +4279,47 @@ class Introductions extends be_framework_1.BeSkill {
                 name_initial_success: false
             }
         };
-        this.flow = jibo.flow.run(require('./flows/VoiceFaceTraining'), {
-            params: {
-                looper: loopah,
-                voiceEnroller: this.voiceEnroller,
-                faceEnroller: this.faceEnroller,
-                nameEnroller: this.nameEnroller,
-                enrolledBefore: enrolledBefore,
-                embodiedListen: jibo.embodied.listen,
-                root: this.root,
-                enrollmentType: enrollmentType,
-                log: this.log.createChild('Enrollment')
-            },
-            enableLogging: true,
-            assetPack: this.assetPack,
-            blackboard: this._blackboard
-        }, (err, status) => {
-            if (status !== jibo.bt.Status.INTERRUPTED) {
-                this.exit();
+        const startFlow = (looperId) => {
+            this.flow = jibo.flow.run(require('./flows/VoiceFaceTraining'), {
+                params: {
+                    looper: looperId,
+                    voiceEnroller: this.voiceEnroller,
+                    faceEnroller: this.faceEnroller,
+                    nameEnroller: this.nameEnroller,
+                    enrolledBefore: enrolledBefore,
+                    embodiedListen: jibo.embodied.listen,
+                    root: this.root,
+                    enrollmentType: enrollmentType,
+                    log: this.log.createChild('Enrollment')
+                },
+                enableLogging: true,
+                assetPack: this.assetPack,
+                blackboard: this._blackboard
+            }, (err, status) => {
+                if (status !== jibo.bt.Status.INTERRUPTED) {
+                    this.exit();
+                }
+            });
+        };
+        if (!loopah) {
+            startFlow(null);
+            return;
+        }
+        // Reject robot loop members from NLU (isJibo alone misses named robot rows).
+        jibo.kb.loop.loadLoop((err, loop) => {
+            if (!err && loop) {
+                for (let i = 0; i < loop.length; i++) {
+                    const looper = loop[i];
+                    if (looper._id == loopah) {
+                        const data = looper.data || {};
+                        if (looper.isJibo || !data.firstName || data.type === 'robot') {
+                            loopah = null;
+                        }
+                        break;
+                    }
+                }
             }
+            startFlow(loopah);
         });
     }
     close(done) {

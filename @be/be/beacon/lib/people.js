@@ -80,6 +80,10 @@ function canRemoveMember (looper) {
     return !isRobotMember(looper) && !isOwnerMember(looper);
 }
 
+function canSetOwner (looper) {
+    return !isRobotMember(looper) && !isOwnerMember(looper);
+}
+
 function mapMember (looper) {
     const data = looper.data || {};
     const enrolled = data.enrolled || {};
@@ -104,7 +108,8 @@ function mapMember (looper) {
         hasPhoto: !!photo,
         photoUrl: photo ? ('/api/people/photo?id=' + encodeURIComponent(id)) : null,
         canEdit: canEditMember(looper),
-        canRemove: canRemoveMember(looper)
+        canRemove: canRemoveMember(looper),
+        canSetOwner: canSetOwner(looper)
     };
 }
 
@@ -279,6 +284,66 @@ function removeMember (memberId) {
     });
 }
 
+function setOwner (memberId) {
+    if (!memberId) throw fail('memberId is required.', 400);
+    const jibo = ensureRobot();
+    return jibo.kb.onInit().then(() => {
+        return Promise.all([
+            asPromise((cb) => jibo.kb.loop.loadRoot(cb)),
+            asPromise((cb) => jibo.kb.loop.loadLoop(cb)),
+            getUserNode(jibo, memberId)
+        ]).then((results) => {
+            const root = results[0];
+            const loop = results[1] || [];
+            const target = results[2];
+            if (!root) throw fail('Loop root is unavailable.', 503);
+            if (isRobotMember(target)) {
+                throw fail('The robot cannot be the loop owner.', 400);
+            }
+            const status = (target.data && target.data.status) || '';
+            if (status === 'removed' || status === 'declined') {
+                throw fail('That member is not an active loop member.', 400);
+            }
+            if (isOwnerMember(target)) {
+                return list();
+            }
+
+            const ownerEdgeIds = root.getEdges('owner') || [];
+            const demote = [];
+            loop.forEach((looper) => {
+                if (isOwnerMember(looper) || ownerEdgeIds.indexOf(looper.id || looper._id) !== -1) {
+                    if ((looper.id || looper._id) !== (target.id || target._id)) {
+                        demote.push(looper);
+                    }
+                }
+            });
+
+            demote.forEach((looper) => {
+                looper.data = looper.data || {};
+                looper.data.type = 'member';
+            });
+            target.data = target.data || {};
+            target.data.type = 'owner';
+
+            root.clearEdges('owner');
+            root.addEdges(target, 'owner');
+            if (target.data.accountId) {
+                root.data = root.data || {};
+                root.data.owner = target.data.accountId;
+            }
+
+            let chain = Promise.resolve();
+            demote.forEach((looper) => {
+                chain = chain.then(() => asPromise((cb) => looper.save(cb)));
+            });
+            return chain
+                .then(() => asPromise((cb) => target.save(cb)))
+                .then(() => asPromise((cb) => root.save(cb)))
+                .then(() => list());
+        });
+    });
+}
+
 function setPhoneticName (memberId, phoneticName) {
     if (!memberId) throw fail('memberId is required.', 400);
     const value = phoneticName == null ? '' : String(phoneticName);
@@ -352,6 +417,7 @@ module.exports = {
     addMember,
     updateMember,
     removeMember,
+    setOwner,
     setPhoneticName,
     resolvePhotoFile,
     setPhoto,

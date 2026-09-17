@@ -8,6 +8,9 @@
  */
 
 const http = require('http');
+const https = require('https');
+const querystring = require('querystring');
+const url = require('url');
 const spawnSync = require('child_process').spawnSync;
 
 const paths = require('./paths');
@@ -15,8 +18,36 @@ const paths = require('./paths');
 const IP_API_URL = process.env.BEACON_IP_API_URL ||
     'http://ip-api.com/json/?fields=status,message,country,countryCode,region,' +
     'regionName,city,zip,lat,lon,timezone,offset,query';
+const GEOCODE_URL = process.env.BEACON_GEOCODE_URL ||
+    'https://geocoding-api.open-meteo.com/v1/search';
 const MAX_RESPONSE = 64 * 1024;
 const REQUEST_TIMEOUT = 10000;
+const SEARCH_COUNT = 8;
+const SEARCH_MIN_LENGTH = 2;
+const SEARCH_MAX_LENGTH = 80;
+
+// Open-Meteo returns full admin1 names; abbreviate for US/CA dropdown labels.
+const US_STATE_ABBR = {
+    Alabama: 'AL', Alaska: 'AK', Arizona: 'AZ', Arkansas: 'AR', California: 'CA',
+    Colorado: 'CO', Connecticut: 'CT', Delaware: 'DE', Florida: 'FL', Georgia: 'GA',
+    Hawaii: 'HI', Idaho: 'ID', Illinois: 'IL', Indiana: 'IN', Iowa: 'IA',
+    Kansas: 'KS', Kentucky: 'KY', Louisiana: 'LA', Maine: 'ME', Maryland: 'MD',
+    Massachusetts: 'MA', Michigan: 'MI', Minnesota: 'MN', Mississippi: 'MS',
+    Missouri: 'MO', Montana: 'MT', Nebraska: 'NE', Nevada: 'NV',
+    'New Hampshire': 'NH', 'New Jersey': 'NJ', 'New Mexico': 'NM', 'New York': 'NY',
+    'North Carolina': 'NC', 'North Dakota': 'ND', Ohio: 'OH', Oklahoma: 'OK',
+    Oregon: 'OR', Pennsylvania: 'PA', 'Rhode Island': 'RI', 'South Carolina': 'SC',
+    'South Dakota': 'SD', Tennessee: 'TN', Texas: 'TX', Utah: 'UT', Vermont: 'VT',
+    Virginia: 'VA', Washington: 'WA', 'West Virginia': 'WV', Wisconsin: 'WI',
+    Wyoming: 'WY', 'District of Columbia': 'DC'
+};
+const CA_PROVINCE_ABBR = {
+    Alberta: 'AB', 'British Columbia': 'BC', Manitoba: 'MB',
+    'New Brunswick': 'NB', 'Newfoundland and Labrador': 'NL',
+    'Northwest Territories': 'NT', 'Nova Scotia': 'NS', Nunavut: 'NU',
+    Ontario: 'ON', 'Prince Edward Island': 'PE', Quebec: 'QC',
+    Saskatchewan: 'SK', Yukon: 'YT'
+};
 
 function fail (message, status) {
     const err = new Error(message);
@@ -36,9 +67,21 @@ function numberValue (value, min, max) {
     return isFinite(result) && result >= min && result <= max ? result : null;
 }
 
-function requestJson (url) {
+function requestJson (requestUrl) {
     return new Promise((resolve, reject) => {
-        const req = http.get(url, (res) => {
+        // Node 6 (robot Electron) only accepts a single options object for
+        // http(s).get — no (url, options, cb) overload.
+        const parsed = url.parse(requestUrl);
+        const isHttps = parsed.protocol === 'https:';
+        const client = isHttps ? https : http;
+        const options = {
+            protocol: parsed.protocol,
+            hostname: parsed.hostname,
+            port: parsed.port,
+            path: parsed.path,
+            headers: { 'User-Agent': 'BEacon/BEam' }
+        };
+        const req = client.get(options, (res) => {
             let size = 0;
             let body = '';
 
@@ -156,10 +199,18 @@ function normalizeForSave (input) {
 
     const timezone = input.timezone || {};
     const id = stringValue(timezone.id, 100);
-    const offsetUTC = numberValue(timezone.offsetUTC, -24 * 60 * 60 * 1000,
-        24 * 60 * 60 * 1000);
-    if (!id || !/^[A-Za-z0-9_+./-]+$/.test(id) || offsetUTC === null) {
+    if (!id || !/^[A-Za-z0-9_+./-]+$/.test(id)) {
         throw fail('A valid timezone id and offsetUTC are required', 400);
+    }
+
+    let offsetUTC = numberValue(timezone.offsetUTC, -24 * 60 * 60 * 1000,
+        24 * 60 * 60 * 1000);
+    if (offsetUTC === null) {
+        const offsetSeconds = offsetFromTimezone(id);
+        if (offsetSeconds === null) {
+            throw fail('A valid timezone id and offsetUTC are required', 400);
+        }
+        offsetUTC = Math.round(offsetSeconds * 1000);
     }
 
     return {
@@ -179,6 +230,87 @@ function normalizeForSave (input) {
             id: id
         }
     };
+}
+
+function regionAbbr (countryCode, admin1) {
+    if (!admin1) { return null; }
+    if (countryCode === 'US') { return US_STATE_ABBR[admin1] || null; }
+    if (countryCode === 'CA') { return CA_PROVINCE_ABBR[admin1] || null; }
+    return null;
+}
+
+function countryLabel (countryCode) {
+    if (!countryCode) { return null; }
+    if (countryCode === 'GB') { return 'UK'; }
+    return countryCode;
+}
+
+function searchLabel (city, stateAbbr, state, countryCode) {
+    const place = city || 'Unknown';
+    if ((countryCode === 'US' || countryCode === 'CA') && (stateAbbr || state)) {
+        return place + ', ' + (stateAbbr || state);
+    }
+    const country = countryLabel(countryCode);
+    if (country) { return place + ', ' + country; }
+    if (stateAbbr || state) { return place + ', ' + (stateAbbr || state); }
+    return place;
+}
+
+function normalizeSearchHit (hit) {
+    if (!hit || typeof hit !== 'object') { return null; }
+
+    const lat = numberValue(hit.latitude, -90, 90);
+    const lng = numberValue(hit.longitude, -180, 180);
+    const timezoneId = stringValue(hit.timezone, 100);
+    if (lat === null || lng === null || !timezoneId) { return null; }
+
+    let timezone;
+    try {
+        timezone = timezoneRecord(timezoneId);
+    } catch (err) {
+        return null;
+    }
+
+    const city = stringValue(hit.name, 120);
+    const state = stringValue(hit.admin1, 120);
+    const countryCode = stringValue(hit.country_code, 10);
+    const stateAbbr = regionAbbr(countryCode, state);
+
+    return {
+        label: searchLabel(city, stateAbbr, state, countryCode),
+        city: city,
+        state: state,
+        stateAbbr: stateAbbr,
+        country: stringValue(hit.country, 120),
+        countryCode: countryCode,
+        lat: lat,
+        lng: lng,
+        timezone: timezone
+    };
+}
+
+function search (query) {
+    const q = stringValue(query, SEARCH_MAX_LENGTH);
+    if (!q || q.length < SEARCH_MIN_LENGTH) {
+        throw fail('Enter at least ' + SEARCH_MIN_LENGTH + ' characters to search', 400);
+    }
+
+    const url = GEOCODE_URL + '?' + querystring.stringify({
+        name: q,
+        count: SEARCH_COUNT,
+        language: 'en',
+        format: 'json'
+    });
+
+    return requestJson(url).then((data) => {
+        const raw = (data && data.results) || [];
+        const results = [];
+        for (let i = 0; i < raw.length; i++) {
+            const hit = normalizeSearchHit(raw[i]);
+            if (hit) { results.push(hit); }
+        }
+        return { query: q, results: results };
+    });
 }
 
 function ensureRobot () {
@@ -294,6 +426,7 @@ function apply (input) {
 module.exports = {
     current: current,
     detect: detect,
+    search: search,
     apply: apply,
     normalizeDetected: normalizeDetected,
     normalizeForSave: normalizeForSave,

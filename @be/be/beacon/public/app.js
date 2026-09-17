@@ -18,7 +18,12 @@
         photos: null,
         location: {
             current: null,
-            detected: null
+            detected: null,
+            source: null,
+            searchResults: [],
+            searchRequestId: 0,
+            searchHighlight: -1,
+            searchTimer: null
         },
         units: {
             temperature: 'fahrenheit'
@@ -787,9 +792,171 @@
         var hasDetected = !!state.location.detected;
         card.hidden = !hasDetected;
         apply.disabled = !hasDetected;
-        $('#location-note').textContent = hasDetected
-            ? 'This is based on your network and may not be exact.'
-            : '';
+        var note = '';
+        if (hasDetected) {
+            note = state.location.source === 'search'
+                ? 'Picked from search. Check it before saving.'
+                : 'This is based on your network and may not be exact.';
+        }
+        $('#location-note').textContent = note;
+    }
+
+    function hideLocationSearchResults () {
+        var list = $('#location-search-results');
+        var input = $('#location-search-input');
+        if (list) {
+            list.innerHTML = '';
+            list.hidden = true;
+        }
+        if (input) { input.setAttribute('aria-expanded', 'false'); }
+        state.location.searchResults = [];
+        state.location.searchHighlight = -1;
+    }
+
+    function renderLocationSearchResults (results, emptyMessage) {
+        var list = $('#location-search-results');
+        var input = $('#location-search-input');
+        if (!list || !input) { return; }
+
+        list.innerHTML = '';
+        state.location.searchResults = results || [];
+        state.location.searchHighlight = -1;
+
+        if (!results || !results.length) {
+            if (emptyMessage) {
+                var empty = el('li', 'location-search-empty', emptyMessage);
+                list.appendChild(empty);
+                list.hidden = false;
+                input.setAttribute('aria-expanded', 'true');
+            } else {
+                list.hidden = true;
+                input.setAttribute('aria-expanded', 'false');
+            }
+            return;
+        }
+
+        results.forEach(function (hit, index) {
+            var item = el('li');
+            item.setAttribute('role', 'option');
+            var button = el('button', null, hit.label || locationSummary(hit));
+            button.type = 'button';
+            button.setAttribute('data-search-index', String(index));
+            button.addEventListener('mousedown', function (event) {
+                // Prevent input blur from hiding the list before click lands.
+                event.preventDefault();
+            });
+            button.addEventListener('click', function () {
+                selectLocationSearchResult(index);
+            });
+            item.appendChild(button);
+            list.appendChild(item);
+        });
+        list.hidden = false;
+        input.setAttribute('aria-expanded', 'true');
+    }
+
+    function setLocationSearchHighlight (index) {
+        var list = $('#location-search-results');
+        if (!list) { return; }
+        var buttons = list.querySelectorAll('button[data-search-index]');
+        var next = index;
+        if (next < 0) { next = buttons.length - 1; }
+        if (next >= buttons.length) { next = 0; }
+        state.location.searchHighlight = buttons.length ? next : -1;
+        for (var i = 0; i < buttons.length; i++) {
+            buttons[i].classList.toggle('is-active', i === state.location.searchHighlight);
+        }
+        if (state.location.searchHighlight >= 0 && buttons[state.location.searchHighlight]) {
+            try {
+                buttons[state.location.searchHighlight].scrollIntoView(false);
+            } catch (err) { /* older browsers may lack scrollIntoView */ }
+        }
+    }
+
+    function selectLocationSearchResult (index) {
+        var hit = state.location.searchResults[index];
+        if (!hit) { return; }
+        state.location.detected = hit;
+        state.location.source = 'search';
+        hideLocationSearchResults();
+        var input = $('#location-search-input');
+        var hint = $('#location-search-hint');
+        if (input) { input.value = hit.label || locationSummary(hit); }
+        if (hint) { hint.textContent = ''; }
+        renderLocation();
+        toast('Location found. Review it before saving.', 'ok');
+    }
+
+    function runLocationSearch (query) {
+        var hint = $('#location-search-hint');
+        var trimmed = String(query || '').trim();
+        if (trimmed.length < 2) {
+            hideLocationSearchResults();
+            if (hint) {
+                hint.textContent = trimmed.length ? 'Type at least 2 characters.' : '';
+            }
+            return;
+        }
+
+        var requestId = ++state.location.searchRequestId;
+        if (hint) { hint.textContent = 'Searching…'; }
+        return api('GET', '/api/location/search?q=' + encodeURIComponent(trimmed))
+            .then(function (data) {
+                if (requestId !== state.location.searchRequestId) { return; }
+                var results = data && data.results ? data.results : [];
+                if (hint) { hint.textContent = ''; }
+                renderLocationSearchResults(
+                    results,
+                    results.length ? null : 'No matching towns found.'
+                );
+            })
+            .catch(function (err) {
+                if (requestId !== state.location.searchRequestId) { return; }
+                hideLocationSearchResults();
+                if (hint) { hint.textContent = ''; }
+                reportError(err);
+            });
+    }
+
+    function scheduleLocationSearch () {
+        var input = $('#location-search-input');
+        if (!input) { return; }
+        if (state.location.searchTimer) {
+            clearTimeout(state.location.searchTimer);
+        }
+        state.location.searchTimer = setTimeout(function () {
+            state.location.searchTimer = null;
+            runLocationSearch(input.value);
+        }, 300);
+    }
+
+    function bindLocationSearch () {
+        var input = $('#location-search-input');
+        if (!input || input.getAttribute('data-bound') === '1') { return; }
+        input.setAttribute('data-bound', '1');
+
+        input.addEventListener('input', function () {
+            scheduleLocationSearch();
+        });
+        input.addEventListener('keydown', function (event) {
+            var key = event.key || event.keyCode;
+            var results = state.location.searchResults;
+            if ((key === 'ArrowDown' || key === 40) && results.length) {
+                event.preventDefault();
+                setLocationSearchHighlight(state.location.searchHighlight + 1);
+            } else if ((key === 'ArrowUp' || key === 38) && results.length) {
+                event.preventDefault();
+                setLocationSearchHighlight(state.location.searchHighlight - 1);
+            } else if ((key === 'Enter' || key === 13) && state.location.searchHighlight >= 0) {
+                event.preventDefault();
+                selectLocationSearchResult(state.location.searchHighlight);
+            } else if (key === 'Escape' || key === 27) {
+                hideLocationSearchResults();
+            }
+        });
+        input.addEventListener('blur', function () {
+            setTimeout(hideLocationSearchResults, 150);
+        });
     }
 
     function loadLocation () {
@@ -806,6 +973,8 @@
         toast('Looking up your area…');
         return api('POST', '/api/location/detect').then(function (data) {
             state.location.detected = data.location || null;
+            state.location.source = 'ip';
+            hideLocationSearchResults();
             renderLocation();
             toast('Location found. Review it before saving.', 'ok');
             return data;
@@ -827,6 +996,10 @@
             .then(function (data) {
                 state.location.current = data.location || state.location.detected;
                 state.location.detected = null;
+                state.location.source = null;
+                var input = $('#location-search-input');
+                if (input) { input.value = ''; }
+                hideLocationSearchResults();
                 renderLocation();
                 toast('Location saved.', 'ok');
                 return data;
@@ -948,12 +1121,23 @@
             }
             var meta = el('div', 'people-meta');
             meta.appendChild(el('p', 'setting-title', member.writtenName || member.id));
-            meta.appendChild(el('p', 'hint',
-                (member.type || 'member') + (member.id ? (' · ' + member.id) : '')));
+            var hintParts = [];
+            if (member.type === 'owner') {
+                hintParts.push('Owner');
+            } else if (member.type) {
+                hintParts.push(member.type);
+            } else {
+                hintParts.push('member');
+            }
+            if (member.id) { hintParts.push(member.id); }
+            meta.appendChild(el('p', 'hint', hintParts.join(' · ')));
             header.appendChild(meta);
             card.appendChild(header);
 
             var badges = el('div', 'people-badges');
+            if (member.type === 'owner') {
+                badges.appendChild(el('span', 'badge success', 'Owner'));
+            }
             badges.appendChild(el('span', 'badge ' + (member.enrolled && member.enrolled.face ? 'success' : ''),
                 member.enrolled && member.enrolled.face ? 'Face enrolled' : 'Face not enrolled'));
             badges.appendChild(el('span', 'badge ' + (member.enrolled && member.enrolled.voice ? 'success' : ''),
@@ -1015,6 +1199,13 @@
                     clearPhoto.setAttribute('data-action', 'clear-person-photo');
                     clearPhoto.setAttribute('data-member-id', member.id);
                     actionsRow.appendChild(clearPhoto);
+                }
+
+                if (member.canSetOwner) {
+                    var makeOwner = el('button', 'btn', 'Make owner');
+                    makeOwner.setAttribute('data-action', 'make-owner');
+                    makeOwner.setAttribute('data-member-id', member.id);
+                    actionsRow.appendChild(makeOwner);
                 }
 
                 if (member.canRemove) {
@@ -1451,6 +1642,18 @@
                 renderPeople(data);
             });
         },
+        'make-owner': function (button) {
+            var memberId = button && button.getAttribute('data-member-id');
+            if (!memberId) { return; }
+            if (!confirm('Make this person the Loop owner? The previous owner becomes a regular member.')) {
+                return;
+            }
+            return api('POST', '/api/people/owner', { id: memberId })
+                .then(function (data) {
+                    toast('Owner updated. Restart Be if Who-am-I still names the old owner.', 'ok');
+                    renderPeople(data);
+                });
+        },
         'remove-person': function (button) {
             var memberId = button && button.getAttribute('data-member-id');
             if (!memberId) { return; }
@@ -1572,6 +1775,7 @@
     }, 15000);
 
     bindScreenInput();
+    bindLocationSearch();
 
     document.addEventListener('visibilitychange', function () {
         if (state.panel !== 'screen') { return; }

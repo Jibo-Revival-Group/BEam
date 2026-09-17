@@ -181,6 +181,10 @@ const routes = {
         return location.current().then((result) => u.sendJson(res, 200, result));
     }),
 
+    'GET /api/location/search': guard((req, res, query) => {
+        return location.search(query && query.q).then((result) => u.sendJson(res, 200, result));
+    }),
+
     'POST /api/location/detect': guard((req, res) => {
         return location.detect().then((result) => u.sendJson(res, 200, {
             available: true,
@@ -250,6 +254,12 @@ const routes = {
     'POST /api/people': guard((req, res) => {
         return u.readJson(req).then((body) => {
             return people.addMember(body).then((data) => u.sendJson(res, 200, data));
+        });
+    }),
+
+    'POST /api/people/owner': guard((req, res) => {
+        return u.readJson(req).then((body) => {
+            return people.setOwner(body && body.id).then((data) => u.sendJson(res, 200, data));
         });
     }),
 

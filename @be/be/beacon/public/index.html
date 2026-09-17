@@ -168,6 +168,19 @@
         <div class="form-row form-row-centered">
             <button class="btn btn-primary btn-cta" data-action="detect-location">Find my location</button>
         </div>
+        <div class="location-search">
+            <label class="location-search-label" for="location-search-input">
+                Or type a town or city
+            </label>
+            <div class="location-search-wrap">
+                <input id="location-search-input" type="text" placeholder="Town or city (e.g. Boston)"
+                    autocomplete="off" spellcheck="false" role="combobox"
+                    aria-autocomplete="list" aria-controls="location-search-results"
+                    aria-expanded="false">
+                <ul id="location-search-results" class="location-search-results" role="listbox" hidden></ul>
+            </div>
+            <p class="hint" id="location-search-hint"></p>
+        </div>
     </div>
     <div class="setting-block location-detected" id="location-detected-card" hidden>
         <div class="location-card-head">
