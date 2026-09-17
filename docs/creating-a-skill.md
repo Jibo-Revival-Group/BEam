@@ -162,7 +162,8 @@ Do **not** add the skill to Be’s npm `dependencies` — Be resolves packs via
 
 Redeploy **`@be/be/package.json`** with the skill folder, then restart Be once
 so the new id is known. After that, rebuild + leave + reopen the skill picks up
-code changes without another Be restart.
+code changes without another Be restart. After boot, Be warms lazy skills in
+the background, so the first user open is often already warm.
 
 ## 9. Main menu (optional)
 

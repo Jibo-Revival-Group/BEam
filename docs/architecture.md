@@ -7,19 +7,24 @@ How **Be** loads and runs skills in this repository.
 **Be** (`@be/be`) is the host application. At startup it installs a skills-root
 resolver, constructs only **eager** skills from `jibo.skills`, then
 [`skill-registry`](../@be/be/skill-registry.js) wraps redirect/voice paths so
-**lazy** skills from `jibo.lazySkills` load on demand (and re-load on each open).
+**lazy** skills from `jibo.lazySkills` load on demand. After the first skill
+opens, the registry also warms remaining lazy packs in the background so later
+opens reuse a warm instance (re-`require` only when `index.js` mtime changes).
 
 ```mermaid
 flowchart LR
   Install["skills-resolve.install"]
   Eager["jibo.skills eager require"]
   Registry["skill-registry.install"]
+  FirstOpen["first skill open"]
+  Warm["background lazy warmup"]
   Menu["main-menu / voice redirect"]
-  Prep["prepareForOpen lazy reload"]
+  Prep["prepareForOpen"]
   Open["skill.open()"]
 
-  Install --> Eager --> Registry
+  Install --> Eager --> Registry --> FirstOpen --> Warm
   Menu --> Prep --> Open
+  Warm -.->|"warm instance"| Prep
 ```
 
 ## Skill identity
@@ -68,7 +73,7 @@ Skills are registered in **`@be/be/package.json`** under two lists:
 | List | When loaded | Reload |
 |------|-------------|--------|
 | `jibo.skills` | At Be boot (eager) | Be restart |
-| `jibo.lazySkills` | On first open | Every leave → reopen (fresh `require`) |
+| `jibo.lazySkills` | On first open, or via background warmup after first skill opens | When `index.js` mtime changes (leave → reopen) |
 
 Eager set is reserved for boot/background correctness: idle, first-contact,
 restore, surprises, settings, and clock (alarm `postInit`).
@@ -110,8 +115,9 @@ missing or unreadable, `require('@be/...')` fails at load time (logged).
    under [`@be/be/lib/`](../@be/be/lib/) (`Be.js`, `SkillSwitchScheduler.js`, …);
    [`index.js`](../@be/be/index.js) is a thin re-export so parallel edits do not
    collide in one file.
-4. `skill-registry.install(be)` — wraps `skillRedirect` / voice switch; bootstraps
-   Element-of-Surprise packs for `eosSkill.supplyCategories`.
+4. `skill-registry.install(be)` — wraps `skillRedirect` / voice switch; after
+   the first skill opens, starts sequential background warmup of
+   `jibo.lazySkills` (EoS packs first, then main-menu, then the rest).
 5. `be.init()` — jibo init, postInit for eager skills, launch first skill.
 
 Load failures are logged. Common causes:
@@ -122,10 +128,14 @@ Load failures are logged. Common causes:
 ## Lazy reload workflow
 
 1. Edit and rebuild a lazy skill’s `index.js` (TypeScript skills must be rebuilt).
-2. Leave the skill (back to idle / menu) — on close, Be unloads the instance and
-   purges `require.cache`, Module path caches, and browserify UMD globals.
-3. Open it again — `prepareForOpen` re-`require`s from disk and builds a new
-   `SkillSwitchData` with that instance (voice / menu / `skillRedirect` alike).
+2. Leave the skill (back to idle / menu) — the instance stays warm; asset caches
+   are cleared on close, but the skill object remains in `be.skills`.
+3. Open it again — if `index.js` mtime changed, `prepareForOpen` unloads,
+   re-`require`s from disk, and builds a new instance; otherwise the warm
+   instance is reused (voice / menu / `skillRedirect` alike).
+
+Background warmup after first open may already have constructed the skill, so
+the first user open after boot is often a warm reuse with no cold `require()`.
 
 Same-skill **refresh** (without leaving) does **not** re-require. Core/eager
 skill code changes still need a full Be restart.

@@ -78,7 +78,9 @@ For broad updates, `update-beam.sh` uses `chmod 777 -R` on the whole Skills tree
 ### Restart Be
 
 **Lazy feature skills** (`jibo.lazySkills`): after rebuilding `index.js`, leave
-the skill and open it again. Be re-`require`s the pack — no process restart.
+the skill and open it again. Be re-`require`s the pack when `index.js` mtime
+changed — no process restart. After boot, a background warmer may already have
+constructed the skill, so the first open is often warm.
 
 **Eager / role skills** (`jibo.skills`) or **new skill ids** added to
 `package.json`: Be must restart so the host re-reads config and constructs

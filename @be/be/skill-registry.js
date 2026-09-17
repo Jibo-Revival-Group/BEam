@@ -5,7 +5,9 @@
  *
  * Be's constructor only constructs jibo.skills (eager/core). Feature skills listed
  * in jibo.lazySkills are require()'d on first open and kept warm for fast reopen.
- * On open, prepareForOpen reloads from disk only when index.js mtime changed.
+ * After the first skill opens, a background warmer sequentially constructs the
+ * remaining lazy packs so user launches hit a warm instance. On open,
+ * prepareForOpen reloads from disk only when index.js mtime changed.
  *
  * Async postInit is tracked via skill._beamPostInitPromise; open waits for it
  * before preload (skills like word-of-the-day need KB roots before open).
@@ -25,6 +27,17 @@ const EOS_BOOTSTRAP = [
     '@be/surprises-date',
     '@be/surprises-ota'
 ];
+
+/** Prefer early warmup — usual next hop from idle. */
+const WARM_PRIORITY = [
+    '@be/main-menu'
+];
+
+/** Yield between sync require()/construct so idle and face keep running. */
+const WARM_YIELD_MS = 100;
+
+/** Retry delay when a user switch is in flight. */
+const WARM_PAUSE_MS = 250;
 
 /** Prevent prepareForOpen from unloading a skill mid-redirect stack. */
 let preparingId = null;
@@ -377,25 +390,120 @@ function skillSwitchData (be, skill, options) {
     return new Ctor(skill, options);
 }
 
-function bootstrapEosCategories (be) {
-    if (be._beamEosBootstrapped) {
-        return;
+function hasPendingSwitch (be) {
+    try {
+        const sched = be._skillSwitchScheduler;
+        return !!(sched && sched._pendingSkillLifecycle);
+    } catch (err) {
+        return false;
     }
-    be._beamEosBootstrapped = true;
-    log(be).info('Deferred EoS bootstrap starting');
-    EOS_BOOTSTRAP.forEach((id) => {
-        if (lazyIds(be).indexOf(id) === -1 && eagerIds(be).indexOf(id) === -1) {
+}
+
+/**
+ * Ordered queue: EoS packs first (surprise categories), then main-menu, then
+ * remaining lazySkills in package.json order. Skip ids already constructed.
+ */
+function buildWarmQueue (be) {
+    const lazy = lazyIds(be);
+    const eager = eagerIds(be);
+    const known = {};
+    lazy.forEach((id) => { known[id] = true; });
+    eager.forEach((id) => { known[id] = true; });
+
+    const seen = {};
+    const queue = [];
+    const push = (id) => {
+        if (!id || seen[id] || !known[id] || be.skills[id]) {
             return;
         }
-        try {
-            if (!be.skills[id]) {
-                loadSkill(be, id);
-            }
-        } catch (err) {
-            log(be).error('EoS bootstrap failed for ' + id + ':', err);
+        seen[id] = true;
+        queue.push(id);
+    };
+
+    EOS_BOOTSTRAP.forEach(push);
+    WARM_PRIORITY.forEach(push);
+    lazy.forEach(push);
+    return queue;
+}
+
+function scheduleWarmNext (be, delayMs) {
+    if (!be._beamWarmQueue || be._beamWarmQueue.length === 0) {
+        if (be._beamWarmRunning) {
+            be._beamWarmRunning = false;
+            log(be).info('lazy-skill warmup complete');
         }
+        return;
+    }
+    setTimeout(() => {
+        warmNext(be);
+    }, delayMs);
+}
+
+/**
+ * Load one lazy skill, wait for its postInit, then yield before the next.
+ * Pauses when the user is switching skills so require() does not hitch open.
+ */
+function warmNext (be) {
+    if (!be._beamWarmQueue || be._beamWarmQueue.length === 0) {
+        be._beamWarmRunning = false;
+        log(be).info('lazy-skill warmup complete');
+        return;
+    }
+
+    if (preparingId || hasPendingSwitch(be)) {
+        scheduleWarmNext(be, WARM_PAUSE_MS);
+        return;
+    }
+
+    const id = be._beamWarmQueue.shift();
+    if (be.skills[id]) {
+        scheduleWarmNext(be, 0);
+        return;
+    }
+
+    log(be).info('lazy-skill warmup loading', id,
+        '(' + be._beamWarmQueue.length + ' remaining)');
+    let skill = null;
+    try {
+        skill = loadSkill(be, id);
+    } catch (err) {
+        log(be).error('lazy-skill warmup failed for ' + id + ':', err);
+        scheduleWarmNext(be, WARM_YIELD_MS);
+        return;
+    }
+
+    const postInit = skill && skill._beamPostInitPromise
+        ? skill._beamPostInitPromise
+        : Promise.resolve();
+    postInit.then(() => {
+        scheduleWarmNext(be, WARM_YIELD_MS);
+    }, () => {
+        scheduleWarmNext(be, WARM_YIELD_MS);
     });
-    refreshEosCategories(be);
+}
+
+/**
+ * Start sequential background warmup of jibo.lazySkills after first skill open.
+ * Folded EoS bootstrap: EoS packs are first in the queue.
+ */
+function startLazyWarmup (be) {
+    if (be._beamWarmStarted) {
+        return;
+    }
+    be._beamWarmStarted = true;
+    be._beamWarmQueue = buildWarmQueue(be);
+    be._beamWarmRunning = true;
+    log(be).info(
+        'lazy-skill warmup starting —',
+        be._beamWarmQueue.length,
+        'packs (EoS first, then main-menu, then rest)'
+    );
+    if (be._beamWarmQueue.length === 0) {
+        be._beamWarmRunning = false;
+        log(be).info('lazy-skill warmup complete (nothing to load)');
+        return;
+    }
+    scheduleWarmNext(be, 0);
 }
 
 function install (be) {
@@ -404,11 +512,10 @@ function install (be) {
     }
     be._beamSkillRegistryInstalled = true;
 
-    // EoS packs (word-of-the-day, surprises-date, surprises-ota) used to load
-    // sync here and delayed splash. Defer until after first skill opens.
+    // Defer lazy warmup until after first skill opens (keeps splash fast).
     // Fallback timeout covers error paths that never call enableSkillSwitching.
     setTimeout(() => {
-        bootstrapEosCategories(be);
+        startLazyWarmup(be);
     }, 15000);
 
     // Keep lazy skills warm after close for fast reopen. prepareForOpen reloads
@@ -499,9 +606,9 @@ function install (be) {
             });
         });
 
-        // First skill is open / splash is clearing — load EoS packs now.
+        // First skill is open / splash is clearing — warm lazy packs in background.
         setTimeout(() => {
-            bootstrapEosCategories(be);
+            startLazyWarmup(be);
         }, 0);
     };
 
@@ -529,7 +636,7 @@ function install (be) {
         eagerIds(be).length,
         'lazy:',
         lazyIds(be).length,
-            '(lazy skills stay warm; reload when index.js mtime changes)'
+            '(lazy skills warm in background after first open; reload when index.js mtime changes)'
     );
     return be;
 }
@@ -541,5 +648,6 @@ module.exports = {
     prepareForOpen: prepareForOpen,
     purgeSkillModules: purgeSkillModules,
     refreshEosCategories: refreshEosCategories,
+    startLazyWarmup: startLazyWarmup,
     EOS_BOOTSTRAP: EOS_BOOTSTRAP
 };
