@@ -181,10 +181,6 @@ const routes = {
         return location.current().then((result) => u.sendJson(res, 200, result));
     }),
 
-    'GET /api/location/search': guard((req, res, query) => {
-        return location.search(query && query.q).then((result) => u.sendJson(res, 200, result));
-    }),
-
     'POST /api/location/detect': guard((req, res) => {
         return location.detect().then((result) => u.sendJson(res, 200, {
             available: true,

@@ -197,20 +197,20 @@ The **Etc** panel (More → Location) can set Jibo's home location two ways:
 1. **Find my location** asks `http://ip-api.com/json/` for the public internet
    connection's approximate location. BEacon makes that request on the robot
    and shows the result before changing anything.
-2. **Town or city search** typeahead queries Open-Meteo's free geocoding API
-   (e.g. typing "Boston" lists Boston, MA / Boston, GA / Boston, UK). Choosing
-   a result fills the same review card as IP detect.
+2. **Town or city** is a plain text field that writes `home.city` into the
+   existing `/jibo/location` Knowledge Base slice. It does not look the name
+   up; coordinates and timezone stay as already saved (typically from IP
+   detect). If no coordinates exist yet, use Find my location first.
 
-**Use this location** writes the location and timezone into the existing
-`/jibo/location` Knowledge Base slice used by Jibo's runtime; it does not use
-a Loop server or cloud account.
+**Use this location** (after IP detect) writes the full location and timezone
+into `/jibo/location`; the town Save button only patches the city name. Neither
+path uses a Loop server or cloud account.
 
 IP geolocation is approximate: it identifies the network connection, not the
-robot's actual physical position. Use city search when the IP guess is wrong
-(VPN, CGNAT, wrong region). The free ip-api endpoint is HTTP-only and subject
-to its usage limits; geocoding uses HTTPS Open-Meteo (`BEACON_GEOCODE_URL` to
-override). Both need network access. A running skill may retain the old
-location until Be is restarted.
+robot's actual physical position. Edit the town name when the IP guess's city
+label is wrong (VPN, CGNAT, wrong region). The free ip-api endpoint is
+HTTP-only and subject to its usage limits (`BEACON_IP_API_URL` to override).
+A running skill may retain the old location until Be is restarted.
 
 ## Update (OTA)
 
@@ -275,9 +275,8 @@ rather than failing.
 | GET | `/api/credentials` | Credentials endpoint/region (keys never returned) |
 | POST | `/api/credentials` | `{endpoint}` only — preserve keys; force region `api` if needed |
 | GET | `/api/location` | Current local `/jibo/location` home and timezone |
-| GET | `/api/location/search?q=` | City/town autocomplete via Open-Meteo (`BEACON_GEOCODE_URL`) |
 | POST | `/api/location/detect` | Detect approximate location through ip-api |
-| POST | `/api/location` | `{location}` — save home and timezone locally |
+| POST | `/api/location` | `{location}` — save full home/timezone, or `{city}` only to patch the town name |
 | GET | `/api/ota` | Discovered Skills-root packs, tool availability |
 | POST | `/api/ota/check` | `{subsystem?}` or all — offers / up-to-date / errors |
 | POST | `/api/ota/apply` | `{offer}` — NDJSON progress of download + apply |

@@ -19,11 +19,7 @@
         location: {
             current: null,
             detected: null,
-            source: null,
-            searchResults: [],
-            searchRequestId: 0,
-            searchHighlight: -1,
-            searchTimer: null
+            source: null
         },
         units: {
             temperature: 'fahrenheit'
@@ -787,6 +783,13 @@
         var summary = $('#location-current-summary');
         if (summary) { summary.textContent = locationSummary(state.location.current); }
 
+        var cityInput = $('#location-city-input');
+        if (cityInput && document.activeElement !== cityInput) {
+            cityInput.value = state.location.current && state.location.current.city
+                ? state.location.current.city
+                : '';
+        }
+
         var card = $('#location-detected-card');
         var apply = $('#location-apply');
         var hasDetected = !!state.location.detected;
@@ -794,169 +797,9 @@
         apply.disabled = !hasDetected;
         var note = '';
         if (hasDetected) {
-            note = state.location.source === 'search'
-                ? 'Picked from search. Check it before saving.'
-                : 'This is based on your network and may not be exact.';
+            note = 'This is based on your network and may not be exact.';
         }
         $('#location-note').textContent = note;
-    }
-
-    function hideLocationSearchResults () {
-        var list = $('#location-search-results');
-        var input = $('#location-search-input');
-        if (list) {
-            list.innerHTML = '';
-            list.hidden = true;
-        }
-        if (input) { input.setAttribute('aria-expanded', 'false'); }
-        state.location.searchResults = [];
-        state.location.searchHighlight = -1;
-    }
-
-    function renderLocationSearchResults (results, emptyMessage) {
-        var list = $('#location-search-results');
-        var input = $('#location-search-input');
-        if (!list || !input) { return; }
-
-        list.innerHTML = '';
-        state.location.searchResults = results || [];
-        state.location.searchHighlight = -1;
-
-        if (!results || !results.length) {
-            if (emptyMessage) {
-                var empty = el('li', 'location-search-empty', emptyMessage);
-                list.appendChild(empty);
-                list.hidden = false;
-                input.setAttribute('aria-expanded', 'true');
-            } else {
-                list.hidden = true;
-                input.setAttribute('aria-expanded', 'false');
-            }
-            return;
-        }
-
-        results.forEach(function (hit, index) {
-            var item = el('li');
-            item.setAttribute('role', 'option');
-            var button = el('button', null, hit.label || locationSummary(hit));
-            button.type = 'button';
-            button.setAttribute('data-search-index', String(index));
-            button.addEventListener('mousedown', function (event) {
-                // Prevent input blur from hiding the list before click lands.
-                event.preventDefault();
-            });
-            button.addEventListener('click', function () {
-                selectLocationSearchResult(index);
-            });
-            item.appendChild(button);
-            list.appendChild(item);
-        });
-        list.hidden = false;
-        input.setAttribute('aria-expanded', 'true');
-    }
-
-    function setLocationSearchHighlight (index) {
-        var list = $('#location-search-results');
-        if (!list) { return; }
-        var buttons = list.querySelectorAll('button[data-search-index]');
-        var next = index;
-        if (next < 0) { next = buttons.length - 1; }
-        if (next >= buttons.length) { next = 0; }
-        state.location.searchHighlight = buttons.length ? next : -1;
-        for (var i = 0; i < buttons.length; i++) {
-            buttons[i].classList.toggle('is-active', i === state.location.searchHighlight);
-        }
-        if (state.location.searchHighlight >= 0 && buttons[state.location.searchHighlight]) {
-            try {
-                buttons[state.location.searchHighlight].scrollIntoView(false);
-            } catch (err) { /* older browsers may lack scrollIntoView */ }
-        }
-    }
-
-    function selectLocationSearchResult (index) {
-        var hit = state.location.searchResults[index];
-        if (!hit) { return; }
-        state.location.detected = hit;
-        state.location.source = 'search';
-        hideLocationSearchResults();
-        var input = $('#location-search-input');
-        var hint = $('#location-search-hint');
-        if (input) { input.value = hit.label || locationSummary(hit); }
-        if (hint) { hint.textContent = ''; }
-        renderLocation();
-        toast('Location found. Review it before saving.', 'ok');
-    }
-
-    function runLocationSearch (query) {
-        var hint = $('#location-search-hint');
-        var trimmed = String(query || '').trim();
-        if (trimmed.length < 2) {
-            hideLocationSearchResults();
-            if (hint) {
-                hint.textContent = trimmed.length ? 'Type at least 2 characters.' : '';
-            }
-            return;
-        }
-
-        var requestId = ++state.location.searchRequestId;
-        if (hint) { hint.textContent = 'Searching…'; }
-        return api('GET', '/api/location/search?q=' + encodeURIComponent(trimmed))
-            .then(function (data) {
-                if (requestId !== state.location.searchRequestId) { return; }
-                var results = data && data.results ? data.results : [];
-                if (hint) { hint.textContent = ''; }
-                renderLocationSearchResults(
-                    results,
-                    results.length ? null : 'No matching towns found.'
-                );
-            })
-            .catch(function (err) {
-                if (requestId !== state.location.searchRequestId) { return; }
-                hideLocationSearchResults();
-                if (hint) { hint.textContent = ''; }
-                reportError(err);
-            });
-    }
-
-    function scheduleLocationSearch () {
-        var input = $('#location-search-input');
-        if (!input) { return; }
-        if (state.location.searchTimer) {
-            clearTimeout(state.location.searchTimer);
-        }
-        state.location.searchTimer = setTimeout(function () {
-            state.location.searchTimer = null;
-            runLocationSearch(input.value);
-        }, 300);
-    }
-
-    function bindLocationSearch () {
-        var input = $('#location-search-input');
-        if (!input || input.getAttribute('data-bound') === '1') { return; }
-        input.setAttribute('data-bound', '1');
-
-        input.addEventListener('input', function () {
-            scheduleLocationSearch();
-        });
-        input.addEventListener('keydown', function (event) {
-            var key = event.key || event.keyCode;
-            var results = state.location.searchResults;
-            if ((key === 'ArrowDown' || key === 40) && results.length) {
-                event.preventDefault();
-                setLocationSearchHighlight(state.location.searchHighlight + 1);
-            } else if ((key === 'ArrowUp' || key === 38) && results.length) {
-                event.preventDefault();
-                setLocationSearchHighlight(state.location.searchHighlight - 1);
-            } else if ((key === 'Enter' || key === 13) && state.location.searchHighlight >= 0) {
-                event.preventDefault();
-                selectLocationSearchResult(state.location.searchHighlight);
-            } else if (key === 'Escape' || key === 27) {
-                hideLocationSearchResults();
-            }
-        });
-        input.addEventListener('blur', function () {
-            setTimeout(hideLocationSearchResults, 150);
-        });
     }
 
     function loadLocation () {
@@ -974,7 +817,6 @@
         return api('POST', '/api/location/detect').then(function (data) {
             state.location.detected = data.location || null;
             state.location.source = 'ip';
-            hideLocationSearchResults();
             renderLocation();
             toast('Location found. Review it before saving.', 'ok');
             return data;
@@ -997,15 +839,35 @@
                 state.location.current = data.location || state.location.detected;
                 state.location.detected = null;
                 state.location.source = null;
-                var input = $('#location-search-input');
-                if (input) { input.value = ''; }
-                hideLocationSearchResults();
                 renderLocation();
                 toast('Location saved.', 'ok');
                 return data;
             }).catch(function (err) {
                 renderLocation();
                 reportError(err);
+            });
+    }
+
+    function saveLocationCity () {
+        var input = $('#location-city-input');
+        var city = input ? String(input.value || '').trim() : '';
+        if (!city) {
+            toast('Enter a town or city name.', 'error');
+            return null;
+        }
+        var button = $('[data-action="save-location-city"]');
+        if (button) { button.disabled = true; }
+        return api('POST', '/api/location', { location: { city: city } })
+            .then(function (data) {
+                state.location.current = data.location || state.location.current;
+                renderLocation();
+                toast('Town saved.', 'ok');
+                return data;
+            }).catch(function (err) {
+                reportError(err);
+            }).then(function (data) {
+                if (button) { button.disabled = false; }
+                return data;
             });
     }
 
@@ -1596,6 +1458,7 @@
         'refresh-etc': loadEtc,
         'detect-location': detectLocation,
         'apply-location': applyLocation,
+        'save-location-city': saveLocationCity,
         'save-units': saveUnits,
         'new-album': newAlbum,
         'add-person': function () {
@@ -1775,7 +1638,17 @@
     }, 15000);
 
     bindScreenInput();
-    bindLocationSearch();
+
+    var cityInput = $('#location-city-input');
+    if (cityInput) {
+        cityInput.addEventListener('keydown', function (event) {
+            var key = event.key || event.keyCode;
+            if (key === 'Enter' || key === 13) {
+                event.preventDefault();
+                saveLocationCity();
+            }
+        });
+    }
 
     document.addEventListener('visibilitychange', function () {
         if (state.panel !== 'screen') { return; }
