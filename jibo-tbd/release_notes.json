@@ -1,4 +1,4 @@
 {
-    "spoken": "You can pick Celsius or Fahrenheit in my control panel now, so weather sounds right for you. Settings has Privacy instead of Deafen, when it's on, I won't hear, see, or feel touch. And Word of the Day has a bunch of new words to play with.",
+    "spoken": "The <pitch mult='1.2'>big</pitch> news is, my loop is back. You can add people to my household again from my control panel, so I can remember who's who. <break size='0.4'/>That control panel got a whole new look too. You can peek at my screen from another device, and type in your town if weather or location isn't quite right. <break size='0.3'/>And I got some behind-the-scenes upgrades so things load a little smoother.",
     "enableProactive": true
 }
