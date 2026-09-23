@@ -1358,6 +1358,38 @@
 
     /* --------------------------------------------------------------- wire */
 
+    function loadSetup () {
+        return api('GET', '/api/setup').then(function (data) {
+            var welcome = $('#setup-welcome');
+            var name = (data && data.robotName) || 'Jibo';
+            if (welcome) {
+                welcome.textContent = name +
+                    ' — use the address on his face. Hub ' + data.hub +
+                    '. Updates ' + data.endpoint + '.';
+            }
+            return api('GET', '/api/people').then(function (people) {
+                var label = $('#setup-people');
+                var members = (people && people.members) || [];
+                if (!label) { return data; }
+                if (!members.length) {
+                    label.textContent = 'No people yet.';
+                    return data;
+                }
+                label.textContent = members.map(function (member) {
+                    var written = member.writtenName || member.firstName || '';
+                    return written;
+                }).filter(Boolean).join(', ');
+                return data;
+            }).catch(function () {
+                var label = $('#setup-people');
+                if (label && !label.textContent) {
+                    label.textContent = 'People can be added once Be is running.';
+                }
+                return data;
+            });
+        });
+    }
+
     var panelMeta = {
         status: {
             title: 'Status',
@@ -1393,6 +1425,10 @@
         etc: {
             title: 'More',
             actions: [{ action: 'refresh-etc', label: 'Refresh' }]
+        },
+        setup: {
+            title: 'Setup',
+            actions: []
         }
     };
 
@@ -1404,7 +1440,8 @@
         people: loadPeople,
         eye: loadEye,
         skills: loadSkills,
-        etc: loadEtc
+        etc: loadEtc,
+        setup: loadSetup
     };
 
     function renderToolbar (name) {
@@ -1568,6 +1605,50 @@
                     return loadEye();
                 })
                 .catch(reportError);
+        },
+        'setup-add-person': function () {
+            var first = $('#setup-first');
+            var last = $('#setup-last');
+            return api('POST', '/api/people', {
+                firstName: first ? first.value : '',
+                lastName: last ? last.value : ''
+            }).then(function () {
+                if (first) { first.value = ''; }
+                if (last) { last.value = ''; }
+                toast('Added.', 'ok');
+                return loadSetup();
+            });
+        },
+        'setup-update': function () {
+            var log = $('#setup-update-log');
+            if (log) { log.textContent = 'Checking joap.5x1.com…'; }
+            return api('POST', '/api/setup/update', {}).then(function (data) {
+                var lines = [];
+                var checked = (data.checked && data.checked.results) || [];
+                checked.forEach(function (row) {
+                    if (row.upToDate) {
+                        lines.push(row.subsystem + ' is up to date (' + (row.currentVersion || '') + ')');
+                    } else if (row.offer) {
+                        lines.push(row.subsystem + ' offered ' + (row.offer.toVersion || ''));
+                    } else if (row.error) {
+                        lines.push(row.subsystem + ': ' + row.error);
+                    }
+                });
+                (data.applied || []).forEach(function (row) {
+                    lines.push(row.ok
+                        ? ('applied ' + row.subsystem + (row.toVersion ? ' → ' + row.toVersion : ''))
+                        : (row.subsystem + ' failed: ' + row.error));
+                });
+                if (!lines.length) { lines.push('No updates to install.'); }
+                if (log) { log.textContent = lines.join('\n'); }
+                toast('Update check finished.', 'ok');
+            });
+        },
+        'setup-finish': function () {
+            if (!confirm('Finish setup and reboot Jibo?')) { return; }
+            return api('POST', '/api/setup/finish', {}).then(function (data) {
+                toast(data.note || 'Setup finished.', 'ok');
+            });
         }
     };
 
@@ -1660,4 +1741,7 @@
     });
 
     showPanel(loaders[location.hash.slice(1)] ? location.hash.slice(1) : 'status');
+    api('GET', '/api/setup').then(function (data) {
+        if (data && data.pending && !location.hash) { showPanel('setup'); }
+    }).catch(function () {});
 }());

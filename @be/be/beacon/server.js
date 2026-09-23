@@ -24,6 +24,7 @@ const location = require('./lib/location');
 const units = require('./lib/units');
 const people = require('./lib/people');
 const screen = require('./lib/screen');
+const setup = require('./lib/setup');
 
 const MAX_UPLOAD = 256 * 1024 * 1024;
 const MAX_IMAGE = 16 * 1024 * 1024;
@@ -315,6 +316,24 @@ const routes = {
         return u.readJson(req).then((body) => {
             return screen.input(body).then((result) => u.sendJson(res, 200, result));
         });
+    }),
+
+    'GET /api/setup': guard((req, res) => {
+        u.sendJson(res, 200, setup.state());
+    }),
+
+    'POST /api/setup/update': guard((req, res) => {
+        setup.update((err, result) => {
+            if (err) {
+                handleError(res, err);
+                return;
+            }
+            u.sendJson(res, 200, result);
+        });
+    }),
+
+    'POST /api/setup/finish': guard((req, res) => {
+        u.sendJson(res, 200, setup.finish());
     })
 };
 

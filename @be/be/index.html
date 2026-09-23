@@ -28,6 +28,11 @@
           // Splash is already in the DOM — paint before heavy requires.
           require('./skills-resolve').install();
           console.log('[Be] loading - boot skills-resolve - ' + bootMs() + ' MS');
+          var setupScreen = require('./setup-screen');
+          if (setupScreen.isPending()) {
+            setupScreen.show();
+            console.log('[Be] loading - boot setup screen - ' + bootMs() + ' MS');
+          }
           const Be = require("./index");
           console.log('[Be] loading - boot require Be - ' + bootMs() + ' MS');
           const registry = require('./skill-registry');

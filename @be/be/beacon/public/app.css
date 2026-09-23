@@ -1168,3 +1168,8 @@ details.advanced[open] > summary::after { transform: rotate(-90deg); }
 }
 
 .screen-controls .btn { flex: 1 1 140px; }
+
+#setup-update-log {
+    white-space: pre-wrap;
+    min-height: 1.2em;
+}

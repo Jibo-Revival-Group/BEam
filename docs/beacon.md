@@ -21,16 +21,22 @@ way the Skills Service Manager on port 8779 is already open.
 | People | Manage the household Loop: add, rename, remove, profile photos; enrollment badges |
 | Eye | Replace Jibo's eye with your own image, revert to the original |
 | Skills | Lists skills ready on Jibo |
+| Setup | First-boot household and BEam/BEnch update after BEetle (only while setup is pending) |
 | More | Weather units and home location |
 | Server | Edit jetstream hub and OTA credentials endpoint (API only; UI removed) |
 | Update | Check / download / apply `@be/be` via jibo OTA tools (API only; UI removed) |
 
 ## How it starts
 
-`@be/be/index.html` starts it alongside Be, so BEacon is up whenever Be is:
+`@be/be/index.html` starts it alongside Be, so BEacon is up whenever Be is.
+If `/var/jibo/beetle-setup.json` has `pending: true`, the same page covers the eye
+and shows `Go to http://<lan-ip>:8123 to setup` until Finish reboots the robot.
 
 ```js
 require('./skills-resolve').install();
+if (require('./setup-screen').isPending()) {
+  require('./setup-screen').show();
+}
 require('./beacon').start();
 const Be = require("./index");
 ```
@@ -177,6 +183,17 @@ reloads `Default_Eye.png`, hooks `EyeContainer.getTexture` so stock eye paths
 always use the live custom texture (so petting/idles cannot snap back), and
 updates matching PIXI `BaseTexture`s. If live reload fails, relaunch Be from
 the robot (SSM / power cycle) so textures reload from disk.
+
+## Setup (BEetle first boot)
+
+After [BEetle](../../BEetle/README.md) writes an out-of-box robot, Be hides the eye
+and the face tells you to open BEacon. The **Setup** tab is the landing page
+while `/var/jibo/beetle-setup.json` is pending.
+
+1. Welcome shows the robot name. The hub is `api.5x1.com:443` and updates come from `http://joap.5x1.com:80`. There is no server picker.
+2. Household adds people through the same Loop APIs as the People tab.
+3. Update checks every Skills pack plus the BEnch `services` subsystem and applies whatever `joap.5x1.com` offers. A factory-old services version with no published offer is reported as-is. This path does not flash a separate OS or body-board package.
+4. Finish clears the pending marker and reboots. The next boot shows the normal eye.
 
 ## Server (jetstream + credentials)
 

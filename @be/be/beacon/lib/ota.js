@@ -277,12 +277,43 @@ function listPackages () {
         });
     });
 
+    if (paths.onRobot()) {
+        const services = servicesPackage();
+        if (services) { found.push(services); }
+    }
+
     found.sort((a, b) => {
         if (a.subsystem === '@be/be') { return -1; }
         if (b.subsystem === '@be/be') { return 1; }
         return a.subsystem < b.subsystem ? -1 : (a.subsystem > b.subsystem ? 1 : 0);
     });
     return found;
+}
+
+/** BEnch lives in /usr/local, not under Skills. Version comes from the robot binary. */
+function servicesPackage() {
+    const bin = '/usr/local/bin/jibo-service-version';
+    if (!fs.existsSync(bin)) { return null; }
+    const result = spawnSync(bin, [], {
+        encoding: 'utf8',
+        timeout: 8000,
+        env: spawnEnv()
+    });
+    const text = String((result && result.stdout) || '').trim() ||
+        String((result && result.stderr) || '').trim();
+    const first = text.split(/\r?\n/).filter(Boolean)[0] || '';
+    let version = first;
+    const release = first.match(/Release-[0-9][0-9A-Za-z._-]*/);
+    const dotted = first.match(/[0-9]+\.[0-9]+\.[0-9]+/);
+    if (release) { version = release[0]; }
+    else if (dotted) { version = dotted[0]; }
+    if (!version) { return null; }
+    return {
+        subsystem: 'services',
+        version: version,
+        destination: '/usr/local',
+        description: 'BEnch services'
+    };
 }
 
 function findPackage (subsystem) {
