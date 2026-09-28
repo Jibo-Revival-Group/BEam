@@ -25,6 +25,7 @@ const units = require('./lib/units');
 const people = require('./lib/people');
 const screen = require('./lib/screen');
 const setup = require('./lib/setup');
+const orchestra = require('./lib/orchestra');
 
 const MAX_UPLOAD = 256 * 1024 * 1024;
 const MAX_IMAGE = 16 * 1024 * 1024;
@@ -315,6 +316,18 @@ const routes = {
     'POST /api/screen/input': guard((req, res) => {
         return u.readJson(req).then((body) => {
             return screen.input(body).then((result) => u.sendJson(res, 200, result));
+        });
+    }),
+
+    'GET /api/orchestra': guard((req, res) => {
+        u.sendJson(res, 200, orchestra.clock());
+    }),
+
+    'POST /api/orchestra': guard((req, res) => {
+        return u.readBody(req, 4096).then((buf) => {
+            return orchestra.play(orchestra.commandFromBody(buf)).then((result) => {
+                u.sendJson(res, 200, result);
+            });
         });
     }),
 

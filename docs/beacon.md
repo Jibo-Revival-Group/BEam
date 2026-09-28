@@ -282,6 +282,8 @@ rather than failing.
 | GET | `/api/screen.jpg` | Latest JPEG of the face (`?q=` 20–90) |
 | GET | `/api/screen/stream` | MJPEG stream of the face |
 | POST | `/api/screen/input` | `{type: pointer\|tap\|swipe, phase?, x?, y?, direction?}` |
+| GET | `/api/orchestra` | `{now}` — this robot's clock, in unix milliseconds |
+| POST | `/api/orchestra` | Turn to global home (0 degrees), freeze attention, then play `assets/orchestra/Symphony.wav` with an oscilloscope. Attention is released when the clip ends. `{"prepare":true}` gets ready without starting; `{"startAt":<unix ms>}` on a ready robot is the shared downbeat. `{"stop":true}` stops playback, clears the oscilloscope, and releases the hold, including when nothing is playing. Replace that wav to use a different clip. |
 | GET | `/api/eye` | Custom-eye state and texture hashes |
 | GET | `/api/eye/current.png`, `/api/eye/original.png` | Previews |
 | PUT | `/api/eye?name=` | Raw PNG body, applies the eye + live reload |
@@ -324,6 +326,8 @@ rather than failing.
   lib/location.js         local home location, ip-api detection, timezone persistence
   lib/system.js           status, hub config, credentials
   lib/ota.js              jibo-get/download/apply-update
+  lib/orchestra.js        play the bundled wav and draw a face oscilloscope
   assets/eye-original/    pristine copy of the stock eye
+  assets/orchestra/       Symphony.wav placeholder; replace to change the clip
   public/                 the UI (no build step)
 ```
