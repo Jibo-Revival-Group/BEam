@@ -21,7 +21,7 @@ way the Skills Service Manager on port 8779 is already open.
 | People | Manage the household Loop: add, rename, remove, profile photos; enrollment badges |
 | Eye | Replace Jibo's eye with your own image, revert to the original |
 | Skills | Lists skills ready on Jibo |
-| Setup | First-boot household and BEam/BEnch update after BEetle (only while setup is pending) |
+| Setup | First-boot household and BEam/BEnch update after BEetle (API only; UI removed) |
 | More | Weather units and home location |
 | Server | Edit jetstream hub and OTA credentials endpoint (API only; UI removed) |
 | Update | Check / download / apply `@be/be` via jibo OTA tools (API only; UI removed) |
@@ -30,7 +30,7 @@ way the Skills Service Manager on port 8779 is already open.
 
 `@be/be/index.html` starts it alongside Be, so BEacon is up whenever Be is.
 If `/var/jibo/beetle-setup.json` has `pending: true`, the same page covers the eye
-and shows `Go to http://<lan-ip>:8123 to setup` until Finish reboots the robot.
+and shows `Go to http://<lan-ip>:8123 to setup` until the setup marker is cleared and the robot reboots.
 
 ```js
 require('./skills-resolve').install();
@@ -187,13 +187,13 @@ the robot (SSM / power cycle) so textures reload from disk.
 ## Setup (BEetle first boot)
 
 After [BEetle](../../BEetle/README.md) writes an out-of-box robot, Be hides the eye
-and the face tells you to open BEacon. The **Setup** tab is the landing page
-while `/var/jibo/beetle-setup.json` is pending.
+and the face tells you to open BEacon while `/var/jibo/beetle-setup.json` is pending.
+There is no Setup tab. The same work is available over HTTP:
 
-1. Welcome shows the robot name. The hub is `api.5x1.com:443` and updates come from `http://joap.5x1.com:80`. There is no server picker.
-2. Household adds people through the same Loop APIs as the People tab.
-3. Update checks every Skills pack plus the BEnch `services` subsystem and applies whatever `joap.5x1.com` offers. A factory-old services version with no published offer is reported as-is. This path does not flash a separate OS or body-board package.
-4. Finish clears the pending marker and reboots. The next boot shows the normal eye.
+1. `GET /api/setup` reports whether setup is pending, the robot name, hub `api.5x1.com:443`, and endpoint `https://api.5x1.com`.
+2. Household members are added through the People APIs.
+3. `POST /api/setup/update` checks every Skills pack plus the BEnch `services` subsystem and applies whatever is offered. A factory-old services version with no published offer is reported as-is. This path does not flash a separate OS or body-board package.
+4. `POST /api/setup/finish` clears the pending marker and reboots. The next boot shows the normal eye.
 
 ## Server (jetstream + credentials)
 
@@ -231,7 +231,7 @@ A running skill may retain the old location until Be is restarted.
 
 ## Update (OTA)
 
-The **Update** panel (and root [`update-beam.sh`](../update-beam.sh)) drives the
+The OTA API (and root [`update-beam.sh`](../update-beam.sh)) drives the
 same robot tools as a manual OTA for every Skills-root pack it finds
 (`@be/be`, `fin-goods-test`, `jibo-diagnostics`, `jibo-tbd`, …):
 

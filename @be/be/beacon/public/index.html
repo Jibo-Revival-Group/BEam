@@ -195,48 +195,6 @@
     </div>
 </section>
 
-<section class="panel" id="panel-setup">
-    <p class="hint" id="setup-intro">
-        This Jibo is ready for BEacon setup. The hub and the update endpoint are api.5x1.com. Package files still download from joap.
-    </p>
-    <div class="card">
-        <p class="section-header">1. Welcome</p>
-        <p id="setup-welcome" class="hint"></p>
-    </div>
-    <div class="card">
-        <p class="section-header">2. Household</p>
-        <p class="hint">Add the owner, then anyone else who lives with Jibo. You can add more later on People.</p>
-        <div class="people-add-row">
-            <input id="setup-first" type="text" placeholder="First name" autocomplete="off">
-            <input id="setup-last" type="text" placeholder="Last name (optional)" autocomplete="off">
-            <button class="btn btn-primary" type="button" data-action="setup-add-person">Add</button>
-        </div>
-        <p class="hint" id="setup-people"></p>
-    </div>
-    <div class="card">
-        <p class="section-header">3. Update</p>
-        <p class="hint">
-            Install the latest BEam skills and BEnch services. The check goes to api.5x1.com, and the package files still download from joap.
-            An older out-of-box robot may already be current for some packs, or may not
-            have a services offer yet. That is reported here; it does not ask you to pick a server.
-        </p>
-        <button class="btn btn-primary" type="button" data-action="setup-update">Check and install updates</button>
-        <pre class="hint" id="setup-update-log"></pre>
-    </div>
-    <div class="card">
-        <p class="section-header">4. Finish</p>
-        <p class="hint">This clears setup and reboots Jibo into the normal eye.</p>
-        <button class="btn btn-primary" type="button" data-action="setup-finish">Finish and reboot</button>
-    </div>
-</section>
-
-<section class="panel" id="panel-update">
-    <p class="hint">Checks the endpoint in credentials, which is BEefy. Package files still download from joap. UPDATE_NOT_FOUND means there is nothing to install.</p>
-    <button class="btn btn-primary" type="button" data-action="check-updates">Check for updates</button>
-    <div id="update-offers"></div>
-    <pre class="hint" id="update-log"></pre>
-</section>
-
 <section class="panel" id="panel-server">
     <div class="card">
         <p class="section-header">Hub</p>
@@ -262,17 +220,9 @@
 </main>
 
 <nav class="bottom-nav" id="tabs">
-    <button class="tab" data-panel="setup">
-        <span class="icon icon-sm icon-about" aria-hidden="true"></span>
-        <span>Setup</span>
-    </button>
     <button class="tab is-active" data-panel="status">
         <span class="icon icon-sm icon-about" aria-hidden="true"></span>
         <span>Status</span>
-    </button>
-    <button class="tab" data-panel="update">
-        <span class="icon icon-sm icon-skills" aria-hidden="true"></span>
-        <span>Update</span>
     </button>
     <button class="tab" data-panel="server">
         <span class="icon icon-sm icon-settings" aria-hidden="true"></span>
