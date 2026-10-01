@@ -14,6 +14,7 @@
 const os = require('os');
 
 const server = require('./server');
+const system = require('./lib/system');
 const eye = require('./lib/eye');
 const paths = require('./lib/paths');
 
@@ -82,6 +83,14 @@ function start (options, callback) {
         return null;
     }
     starting = true;
+
+    try {
+        if (system.rewriteLegacyEndpoint()) {
+            log('credentials.endpoint moved from joap to https://api.5x1.com');
+        }
+    } catch (err) {
+        warn('endpoint rewrite:', err && err.message);
+    }
 
     // Custom eyes + music live under Knowledge so Skills/@be/be OTA cannot wipe them.
     try {

@@ -197,7 +197,7 @@
 
 <section class="panel" id="panel-setup">
     <p class="hint" id="setup-intro">
-        This Jibo is ready for BEacon setup. Servers stay on api.5x1.com and joap.5x1.com.
+        This Jibo is ready for BEacon setup. The hub and the update endpoint are api.5x1.com. Package files still download from joap.
     </p>
     <div class="card">
         <p class="section-header">1. Welcome</p>
@@ -216,7 +216,7 @@
     <div class="card">
         <p class="section-header">3. Update</p>
         <p class="hint">
-            Install the latest BEam skills and BEnch services from http://joap.5x1.com:80.
+            Install the latest BEam skills and BEnch services. The check goes to api.5x1.com, and the package files still download from joap.
             An older out-of-box robot may already be current for some packs, or may not
             have a services offer yet. That is reported here; it does not ask you to pick a server.
         </p>
@@ -230,6 +230,35 @@
     </div>
 </section>
 
+<section class="panel" id="panel-update">
+    <p class="hint">Checks the endpoint in credentials, which is BEefy. Package files still download from joap. UPDATE_NOT_FOUND means there is nothing to install.</p>
+    <button class="btn btn-primary" type="button" data-action="check-updates">Check for updates</button>
+    <div id="update-offers"></div>
+    <pre class="hint" id="update-log"></pre>
+</section>
+
+<section class="panel" id="panel-server">
+    <div class="card">
+        <p class="section-header">Hub</p>
+        <p class="hint" id="server-hub-note"></p>
+        <div class="people-add-row">
+            <input id="server-host" type="text" placeholder="api.5x1.com" autocomplete="off">
+            <input id="server-port" type="text" placeholder="443" autocomplete="off">
+            <button class="btn btn-primary" type="button" data-action="save-hub">Save hub</button>
+        </div>
+        <p class="hint" id="server-hub-current"></p>
+    </div>
+    <div class="card">
+        <p class="section-header">Update endpoint</p>
+        <p class="hint">Only the endpoint is saved. Keys stay off this page.</p>
+        <div class="people-add-row">
+            <input id="server-endpoint" type="text" placeholder="https://api.5x1.com" autocomplete="off">
+            <button class="btn btn-primary" type="button" data-action="save-endpoint">Save endpoint</button>
+        </div>
+        <p class="hint" id="server-endpoint-current"></p>
+    </div>
+</section>
+
 </main>
 
 <nav class="bottom-nav" id="tabs">
@@ -240,6 +269,14 @@
     <button class="tab is-active" data-panel="status">
         <span class="icon icon-sm icon-about" aria-hidden="true"></span>
         <span>Status</span>
+    </button>
+    <button class="tab" data-panel="update">
+        <span class="icon icon-sm icon-skills" aria-hidden="true"></span>
+        <span>Update</span>
+    </button>
+    <button class="tab" data-panel="server">
+        <span class="icon icon-sm icon-settings" aria-hidden="true"></span>
+        <span>Server</span>
     </button>
     <button class="tab" data-panel="screen">
         <span class="icon icon-sm icon-screen" aria-hidden="true"></span>

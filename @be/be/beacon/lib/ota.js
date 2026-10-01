@@ -4,7 +4,7 @@
  * Official OTA via jibo-get-update / download-update / apply-update for every
  * installable pack under /opt/jibo/Jibo/Skills (top-level + scoped @org/name).
  *
- * Catalog host = credentials.endpoint (preset http://joap.5x1.com:80).
+ * Catalog host = credentials.endpoint (preset https://api.5x1.com, forwarded to joap).
  * UPDATE_NOT_FOUND means already up to date — not an error.
  * Knowledge music/eyes are outside Skills packs and are not replaced.
  */
@@ -395,7 +395,7 @@ function state () {
         note: onRobot
             ? (ready
                 ? 'Checks each Skills-root pack against the credentials endpoint ' +
-                  '(public: http://joap.5x1.com:80). UPDATE_NOT_FOUND means up to date.'
+                  '(https://api.5x1.com, packages still download from joap). UPDATE_NOT_FOUND means up to date.'
                 : 'Missing jibo-*-update tools under /usr/bin (and /usr/local/bin).')
             : 'OTA only runs on the robot. Dev checkout lists repo-root packs.'
     };

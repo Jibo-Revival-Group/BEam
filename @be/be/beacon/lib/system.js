@@ -20,16 +20,16 @@ const KNOWN_HUBS = [
     },
     {
         hostname: 'api.5x1.com',
-        port: 80,
-        label: '5x1 (free)'
+        port: 443,
+        label: 'api.5x1.com:443'
     }
 ];
 
-/** Preset OTA credential endpoints (host:port → http URL). */
+/** Preset credential endpoints. Update checks on this host are forwarded to joap. */
 const KNOWN_UPDATE_ENDPOINTS = [
     {
-        endpoint: 'http://joap.5x1.com:80',
-        label: 'joap.5x1.com:80 (public BEam OTA)'
+        endpoint: 'https://api.5x1.com',
+        label: 'https://api.5x1.com'
     }
 ];
 
@@ -508,12 +508,36 @@ function setCredentialsEndpoint (body) {
     };
 }
 
+var LEGACY_JOAP_ENDPOINT = 'http://joap.5x1.com:80';
+var BEEFY_ENDPOINT = 'https://api.5x1.com';
+
+/**
+ * One-time move for robots whose credentials.endpoint is still joap.
+ * Keys are left alone. Any other endpoint is left alone.
+ */
+function rewriteLegacyEndpoint () {
+    const file = paths.credentialsPath();
+    try {
+        if (!paths.isFile(file)) { return false; }
+        const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+        if (!data || data.endpoint !== LEGACY_JOAP_ENDPOINT) { return false; }
+        data.endpoint = BEEFY_ENDPOINT;
+        if (!data.region) { data.region = 'api'; }
+        fs.writeFileSync(file, JSON.stringify(data) + '\n');
+        return true;
+    } catch (err) {
+        console.warn('[beacon] endpoint rewrite skipped:', err && err.message);
+        return false;
+    }
+}
+
 module.exports = {
     status: status,
     serverConfig: serverConfig,
     setServer: setServer,
     credentialsState: credentialsState,
     setCredentialsEndpoint: setCredentialsEndpoint,
+    rewriteLegacyEndpoint: rewriteLegacyEndpoint,
     lanAddresses: lanAddresses,
     KNOWN_HUBS: KNOWN_HUBS,
     KNOWN_UPDATE_ENDPOINTS: KNOWN_UPDATE_ENDPOINTS

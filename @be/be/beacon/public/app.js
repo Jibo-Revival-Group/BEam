@@ -1390,6 +1390,121 @@
         });
     }
 
+    function loadUpdate () {
+        return api('GET', '/api/ota').then(function (data) {
+            var log = $('#update-log');
+            if (log && !log.textContent) {
+                log.textContent = data.note || '';
+            }
+            return data;
+        });
+    }
+
+    function checkUpdates () {
+        var log = $('#update-log');
+        var offers = $('#update-offers');
+        if (log) { log.textContent = 'Checking api.5x1.com…'; }
+        if (offers) { offers.innerHTML = ''; }
+        return api('POST', '/api/ota/check', {}).then(function (data) {
+            var lines = [];
+            (data.results || []).forEach(function (row) {
+                if (row.upToDate) {
+                    lines.push(row.subsystem + ' is up to date (' + row.currentVersion + ')');
+                } else if (row.offer) {
+                    lines.push(row.subsystem + ' ' + row.currentVersion + ' → ' + row.offer.toVersion);
+                    if (offers) {
+                        var button = el('button', 'btn btn-primary', 'Install ' + row.subsystem);
+                        button.setAttribute('data-action', 'apply-update');
+                        button.setAttribute('data-offer', JSON.stringify(row.offer));
+                        offers.appendChild(button);
+                    }
+                } else {
+                    lines.push(row.subsystem + ': ' + (row.error || 'no update'));
+                }
+            });
+            if (log) { log.textContent = lines.join('\n') || 'Nothing to install.'; }
+        });
+    }
+
+    function applyUpdate (button) {
+        var raw = button && button.getAttribute('data-offer');
+        var offer = null;
+        try { offer = raw ? JSON.parse(raw) : null; } catch (err) { offer = null; }
+        if (!offer) { return; }
+        var log = $('#update-log');
+        if (log) { log.textContent = 'Installing ' + (offer.subsystem || 'update') + '…'; }
+        return fetch('/api/ota/apply', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ offer: offer })
+        }).then(function (res) {
+            return res.text().then(function (text) {
+                if (log) { log.textContent = text || ('finished (' + res.status + ')'); }
+                if (!res.ok) { throw new Error('Install failed (' + res.status + ')'); }
+                toast('Update apply finished.', 'ok');
+            });
+        });
+    }
+
+    function loadServer () {
+        return Promise.all([
+            api('GET', '/api/server'),
+            api('GET', '/api/credentials')
+        ]).then(function (pair) {
+            var hub = pair[0] || {};
+            var creds = pair[1] || {};
+            var note = $('#server-hub-note');
+            var current = $('#server-hub-current');
+            var endpoint = $('#server-endpoint');
+            var endpointCurrent = $('#server-endpoint-current');
+            var host = $('#server-host');
+            var port = $('#server-port');
+            if (note) { note.textContent = hub.note || ''; }
+            if (hub.current && host && !host.value) { host.value = hub.current.hostname || 'api.5x1.com'; }
+            if (hub.current && port && !port.value) { port.value = hub.current.port || '443'; }
+            if (!hub.current && host && !host.value) { host.value = 'api.5x1.com'; }
+            if (!hub.current && port && !port.value) { port.value = '443'; }
+            if (current) {
+                current.textContent = hub.current
+                    ? ('Current hub ' + hub.current.hostname + ':' + hub.current.port)
+                    : (hub.error || '');
+            }
+            if (endpoint && !endpoint.value) {
+                endpoint.value = creds.endpoint || 'https://api.5x1.com';
+            }
+            if (endpointCurrent) {
+                endpointCurrent.textContent = creds.endpoint
+                    ? ('Current endpoint ' + creds.endpoint)
+                    : (creds.error || '');
+            }
+        });
+    }
+
+    function saveHub () {
+        var host = $('#server-host');
+        var port = $('#server-port');
+        return api('POST', '/api/server', {
+            hostname: host ? host.value.trim() : 'api.5x1.com',
+            port: port ? Number(port.value) : 443
+        }).then(function () {
+            toast('Hub saved. Reboot the robot to apply it.', 'ok');
+            return loadServer();
+        });
+    }
+
+    function saveEndpoint () {
+        var input = $('#server-endpoint');
+        return api('POST', '/api/credentials', {
+            endpoint: input ? input.value.trim() : 'https://api.5x1.com'
+        }).then(function (data) {
+            toast('Endpoint saved.', 'ok');
+            var current = $('#server-endpoint-current');
+            if (current && data && data.endpoint) {
+                current.textContent = 'Current endpoint ' + data.endpoint;
+            }
+        });
+    }
+
     var panelMeta = {
         status: {
             title: 'Status',
@@ -1429,6 +1544,14 @@
         setup: {
             title: 'Setup',
             actions: []
+        },
+        update: {
+            title: 'Update',
+            actions: [{ action: 'check-updates', label: 'Check' }]
+        },
+        server: {
+            title: 'Server',
+            actions: [{ action: 'refresh-server', label: 'Refresh' }]
         }
     };
 
@@ -1441,7 +1564,9 @@
         eye: loadEye,
         skills: loadSkills,
         etc: loadEtc,
-        setup: loadSetup
+        setup: loadSetup,
+        update: loadUpdate,
+        server: loadServer
     };
 
     function renderToolbar (name) {
@@ -1493,6 +1618,11 @@
         'refresh-skills': loadSkills,
         'refresh-location': loadEtc,
         'refresh-etc': loadEtc,
+        'check-updates': checkUpdates,
+        'apply-update': applyUpdate,
+        'refresh-server': loadServer,
+        'save-hub': saveHub,
+        'save-endpoint': saveEndpoint,
         'detect-location': detectLocation,
         'apply-location': applyLocation,
         'save-location-city': saveLocationCity,
@@ -1621,7 +1751,7 @@
         },
         'setup-update': function () {
             var log = $('#setup-update-log');
-            if (log) { log.textContent = 'Checking joap.5x1.com…'; }
+            if (log) { log.textContent = 'Checking api.5x1.com…'; }
             return api('POST', '/api/setup/update', {}).then(function (data) {
                 var lines = [];
                 var checked = (data.checked && data.checked.results) || [];
