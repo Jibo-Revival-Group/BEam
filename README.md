@@ -1,5 +1,10 @@
 # BEam
 
+On-robot skills for the BE family. BEefy hands these launches to the robot by skill id. The ids below are the ones BEefy redirects to:
+
+- `@be/be` is the host pack
+- `@be/radio`, `@be/gallery`, `@be/bad-apple`, `@be/word-of-the-day`
+
 This is a collection of system-skills. It is intended to work well in 2026, while still staying true to the 2016 design.
 
 These skills are based off Jibo 1.9.2
