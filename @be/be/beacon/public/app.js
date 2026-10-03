@@ -947,6 +947,9 @@
         if (data.loopId) {
             parts.push('Loop ' + data.loopId);
         }
+        if (data.calendarAvailable === false && data.calendarError) {
+            parts.push(data.calendarError);
+        }
         sync.textContent = parts.join(' · ');
         if (data.lastSyncErrorMessage) {
             sync.classList.add('error');
@@ -1077,10 +1080,72 @@
                     actionsRow.appendChild(remove);
                 }
                 card.appendChild(actionsRow);
+                card.appendChild(renderPersonCalendar(member, data));
             }
 
             list.appendChild(card);
         });
+    }
+
+    function calendarStatusText (member, data) {
+        if (data && data.calendarAvailable === false) {
+            return data.calendarError || 'Calendar setup needs the robot\'s cloud credentials.';
+        }
+        var calendar = member.calendar || {};
+        if (!calendar.configured) { return 'No personal calendar yet.'; }
+        var parts = [];
+        parts.push(calendar.host ? ('Saved at ' + calendar.host) : 'Calendar saved');
+        parts.push(calendar.isEnabled === false ? 'Disabled' : 'Enabled');
+        if (calendar.lastError) { parts.push(calendar.lastError); }
+        return parts.join(' · ');
+    }
+
+    function renderPersonCalendar (member, data) {
+        var block = el('div', 'people-calendar');
+        block.appendChild(el('p', 'setting-title', 'Personal calendar'));
+        block.appendChild(el('p', 'hint',
+            'Private iCal URL for this person\'s personal report. A Google secret ICS address is a normal https link. The saved link is not shown again.'));
+        block.appendChild(el('p', 'hint people-calendar-status', calendarStatusText(member, data)));
+
+        var urlRow = el('div', 'setting-row');
+        var url = document.createElement('input');
+        url.type = 'url';
+        url.className = 'people-calendar-url';
+        url.placeholder = 'https://calendar.example/private/basic.ics';
+        url.setAttribute('data-member-id', member.id);
+        url.setAttribute('autocomplete', 'off');
+        url.setAttribute('spellcheck', 'false');
+        urlRow.appendChild(url);
+        block.appendChild(urlRow);
+
+        var toggle = el('label', 'people-calendar-toggle');
+        var enabled = document.createElement('input');
+        enabled.type = 'checkbox';
+        enabled.className = 'people-calendar-enabled';
+        enabled.setAttribute('data-member-id', member.id);
+        var calendar = member.calendar || {};
+        enabled.checked = !calendar.configured || calendar.isEnabled !== false;
+        toggle.appendChild(enabled);
+        toggle.appendChild(document.createTextNode(' Use this calendar in personal report'));
+        block.appendChild(toggle);
+
+        var actions = el('div', 'setting-row people-actions-row');
+        var save = el('button', 'btn btn-primary', 'Save calendar');
+        save.setAttribute('data-action', 'save-calendar');
+        save.setAttribute('data-member-id', member.id);
+        actions.appendChild(save);
+        var test = el('button', 'btn', 'Test');
+        test.setAttribute('data-action', 'test-calendar');
+        test.setAttribute('data-member-id', member.id);
+        actions.appendChild(test);
+        if (calendar.configured) {
+            var clear = el('button', 'btn', 'Clear');
+            clear.setAttribute('data-action', 'clear-calendar');
+            clear.setAttribute('data-member-id', member.id);
+            actions.appendChild(clear);
+        }
+        block.appendChild(actions);
+        return block;
     }
 
     function loadPeople () {
@@ -1600,6 +1665,53 @@
             var input = $('#people-photo-file');
             input.setAttribute('data-member-id', memberId);
             input.click();
+        },
+        'save-calendar': function (button) {
+            var memberId = button && button.getAttribute('data-member-id');
+            if (!memberId) { return; }
+            var url = document.querySelector('.people-calendar-url[data-member-id="' + memberId + '"]');
+            var enabled = document.querySelector('.people-calendar-enabled[data-member-id="' + memberId + '"]');
+            var icalUrl = url ? url.value.trim() : '';
+            if (!icalUrl) {
+                toast('Paste an https iCal URL first.', 'error');
+                return;
+            }
+            return api('PUT', '/api/people/calendar', {
+                id: memberId,
+                icalUrl: icalUrl,
+                isEnabled: !enabled || enabled.checked
+            }).then(function (data) {
+                toast('Calendar saved.', 'ok');
+                renderPeople(data);
+            });
+        },
+        'test-calendar': function (button) {
+            var memberId = button && button.getAttribute('data-member-id');
+            if (!memberId) { return; }
+            var url = document.querySelector('.people-calendar-url[data-member-id="' + memberId + '"]');
+            var icalUrl = url ? url.value.trim() : '';
+            var body = { id: memberId };
+            if (icalUrl) { body.icalUrl = icalUrl; }
+            return api('POST', '/api/people/calendar/test', body).then(function (data) {
+                var probe = data.calendarTest || {};
+                if (probe.ok) {
+                    var count = typeof probe.todayEventCount === 'number' ? probe.todayEventCount : 0;
+                    toast('Calendar looks good. ' + count + ' event' + (count === 1 ? '' : 's') + ' today.', 'ok');
+                } else {
+                    toast(probe.error || 'Calendar test failed.', 'error');
+                }
+                renderPeople(data);
+            });
+        },
+        'clear-calendar': function (button) {
+            var memberId = button && button.getAttribute('data-member-id');
+            if (!memberId) { return; }
+            if (!confirm('Remove this personal calendar?')) { return; }
+            return api('DELETE', '/api/people/calendar?id=' + encodeURIComponent(memberId))
+                .then(function (data) {
+                    toast('Calendar removed.', 'ok');
+                    renderPeople(data);
+                });
         },
         'clear-person-photo': function (button) {
             var memberId = button && button.getAttribute('data-member-id');

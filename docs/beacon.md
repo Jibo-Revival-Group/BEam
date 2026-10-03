@@ -136,6 +136,13 @@ BEefy recognizes people from `runtime.loop.users` on each speech turn — it no
 longer owns household CRUD. Phonetic-name edits still go through SSM so cloud
 enrollment stays aligned.
 
+Each person card can hold a private iCal URL for that person's personal report.
+BEacon signs the save with `/var/jibo/credentials.json` and sends it to BEefy as
+`Loop_20160324.SetCalendarFeed`. The saved URL is not shown again; the card
+shows the host, whether the feed is enabled, and the last error. A Google
+secret ICS address is a normal https link. If the credentials file is missing,
+the card says calendar setup needs the robot's cloud credentials.
+
 ## Jibo eye
 
 The stock default eye is several byte-identical 720×720 PNGs. jibo.js loads the
@@ -299,7 +306,7 @@ rather than failing.
 | GET | `/api/ota` | Discovered Skills-root packs, tool availability |
 | POST | `/api/ota/check` | `{subsystem?}` or all — offers / up-to-date / errors |
 | POST | `/api/ota/apply` | `{offer}` — NDJSON progress of download + apply |
-| GET | `/api/people` | Local loop roster + sync diagnostics |
+| GET | `/api/people` | Local loop roster + sync diagnostics + calendar status (no saved URLs) |
 | POST | `/api/people` | `{firstName, lastName?, gender?}` — add a member |
 | POST | `/api/people/owner` | `{id}` — make that member the local Loop owner |
 | PUT | `/api/people` | `{id, firstName?, lastName?, gender?, phoneticName?}` — update |
@@ -308,6 +315,9 @@ rather than failing.
 | PUT | `/api/people/photo?id=` | Raw JPEG body — set profile photo |
 | DELETE | `/api/people/photo?id=` | Clear profile photo |
 | POST | `/api/people/phonetic-name` | `{id, phoneticName}` — spoken name via SSM |
+| PUT | `/api/people/calendar` | `{id, icalUrl, isEnabled}` — save that person's personal-report iCal feed |
+| DELETE | `/api/people/calendar?id=` | Clear that person's calendar feed |
+| POST | `/api/people/calendar/test` | `{id, icalUrl?}` — probe the feed; a blank URL tests the saved one |
 
 ## Layout
 
@@ -320,6 +330,7 @@ rather than failing.
   lib/jukebox.js          library operations
   lib/photos.js           saved robot photo listing and deletion
   lib/people.js           local loop roster CRUD and profile photos
+  lib/calendars.js        personal-report iCal feeds via signed cloud calls
   lib/screen.js           remote face view and touch input
   lib/eye.js              apply, revert, self-heal
   lib/skills.js           skill inventory

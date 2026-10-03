@@ -1087,6 +1087,30 @@ details.advanced[open] > summary::after { transform: rotate(-90deg); }
     align-items: center;
 }
 
+.people-calendar {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid var(--light-grey);
+}
+
+.people-calendar-url {
+    flex: 1;
+    min-width: 0;
+    background: var(--pearl);
+    border: 1px solid var(--light-grey);
+    border-radius: 2px;
+    color: var(--black);
+    font: inherit;
+    padding: 8px 10px;
+}
+
+.people-calendar-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+}
+
 .people-phonetic {
     flex: 1;
     background: var(--pearl);

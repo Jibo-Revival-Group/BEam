@@ -6,7 +6,8 @@
  * BEacon owns household CRUD (add / rename / remove / profile photo).
  * Phonetic-name edits still go through jibo.kb.loop.setPhoneticName so SSM
  * keeps cloud enrollment in sync. BEefy recognizes people from
- * runtime.loop.users on each speech turn, not from portal CRUD.
+ * runtime.loop.users on each speech turn. Personal calendars are saved
+ * from this panel through the robot's cloud credentials.
  */
 
 const fs = require('fs');

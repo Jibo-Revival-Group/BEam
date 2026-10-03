@@ -23,6 +23,7 @@ const ota = require('./lib/ota');
 const location = require('./lib/location');
 const units = require('./lib/units');
 const people = require('./lib/people');
+const calendars = require('./lib/calendars');
 const screen = require('./lib/screen');
 const setup = require('./lib/setup');
 const orchestra = require('./lib/orchestra');
@@ -57,6 +58,12 @@ function guard (fn) {
             handleError(res, err);
         }
     };
+}
+
+function sendPeople (res, snapshotPromise) {
+    return Promise.resolve(snapshotPromise)
+        .then((data) => calendars.attachStatus(data))
+        .then((data) => u.sendJson(res, 200, data));
 }
 
 const routes = {
@@ -246,31 +253,46 @@ const routes = {
     }),
 
     'GET /api/people': guard((req, res) => {
-        return people.list().then((data) => u.sendJson(res, 200, data));
+        return sendPeople(res, people.list());
     }),
 
     'POST /api/people': guard((req, res) => {
         return u.readJson(req).then((body) => {
-            return people.addMember(body).then((data) => u.sendJson(res, 200, data));
+            return sendPeople(res, people.addMember(body));
         });
     }),
 
     'POST /api/people/owner': guard((req, res) => {
         return u.readJson(req).then((body) => {
-            return people.setOwner(body && body.id).then((data) => u.sendJson(res, 200, data));
+            return sendPeople(res, people.setOwner(body && body.id));
         });
     }),
 
     'PUT /api/people': guard((req, res) => {
         return u.readJson(req).then((body) => {
-            return people.updateMember(body && body.id, body)
-                .then((data) => u.sendJson(res, 200, data));
+            return sendPeople(res, people.updateMember(body && body.id, body));
         });
     }),
 
     'DELETE /api/people': guard((req, res, query) => {
-        return people.removeMember(query && query.id)
-            .then((data) => u.sendJson(res, 200, data));
+        return sendPeople(res, people.removeMember(query && query.id));
+    }),
+
+    'PUT /api/people/calendar': guard((req, res) => {
+        return u.readJson(req).then((body) => {
+            const enabled = !(body && body.isEnabled === false);
+            return sendPeople(res, calendars.save(body && body.id, body && body.icalUrl, enabled));
+        });
+    }),
+
+    'DELETE /api/people/calendar': guard((req, res, query) => {
+        return sendPeople(res, calendars.clear(query && query.id));
+    }),
+
+    'POST /api/people/calendar/test': guard((req, res) => {
+        return u.readJson(req).then((body) => {
+            return sendPeople(res, calendars.testFeed(body && body.id, body && body.icalUrl));
+        });
     }),
 
     'GET /api/people/photo': guard((req, res, query) => {
@@ -281,20 +303,17 @@ const routes = {
 
     'PUT /api/people/photo': guard((req, res, query) => {
         return u.readBody(req, people.PHOTO_MAX_BYTES).then((buf) => {
-            return people.setPhoto(query && query.id, buf)
-                .then((data) => u.sendJson(res, 200, data));
+            return sendPeople(res, people.setPhoto(query && query.id, buf));
         });
     }),
 
     'DELETE /api/people/photo': guard((req, res, query) => {
-        return people.clearPhoto(query && query.id)
-            .then((data) => u.sendJson(res, 200, data));
+        return sendPeople(res, people.clearPhoto(query && query.id));
     }),
 
     'POST /api/people/phonetic-name': guard((req, res) => {
         return u.readJson(req).then((body) => {
-            return people.setPhoneticName(body && body.id, body && body.phoneticName)
-                .then((data) => u.sendJson(res, 200, data));
+            return sendPeople(res, people.setPhoneticName(body && body.id, body && body.phoneticName));
         });
     }),
 
