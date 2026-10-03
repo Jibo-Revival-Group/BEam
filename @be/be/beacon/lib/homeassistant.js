@@ -33,6 +33,9 @@ function fail (message, status) {
 }
 
 function configPath () {
+    if (paths.onRobot() || paths.isDir('/opt/jibo') || paths.isDir(paths.ROBOT_KNOWLEDGE)) {
+        return path.join(paths.ROBOT_KNOWLEDGE, 'beacon', 'homeassistant.json');
+    }
     return path.join(paths.dataDir(), 'homeassistant.json');
 }
 
@@ -46,8 +49,9 @@ function readConfig () {
 }
 
 function writeConfig (data) {
-    paths.ensureDir(paths.dataDir());
-    fs.writeFileSync(configPath(), JSON.stringify(data, null, 2) + '\n');
+    const file = configPath();
+    paths.ensureDir(path.dirname(file));
+    fs.writeFileSync(file, JSON.stringify(data, null, 2) + '\n');
 }
 
 function normalizeIp (ip) {
