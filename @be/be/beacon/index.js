@@ -17,6 +17,7 @@ const server = require('./server');
 const system = require('./lib/system');
 const eye = require('./lib/eye');
 const paths = require('./lib/paths');
+const homeassistant = require('./lib/homeassistant');
 
 const DEFAULT_PORT = 8123;
 const RETRY_DELAY_MS = 2000;
@@ -130,6 +131,11 @@ function start (options, callback) {
         }
         instance = srv;
         const hosts = lanAddresses();
+        try {
+            homeassistant.startWatcher();
+        } catch (watchErr) {
+            warn('home assistant watcher:', watchErr && watchErr.message);
+        }
         log('listening on http://0.0.0.0:' + port);
         hosts.forEach((host) => log('  http://' + host + ':' + port));
         done(null, srv);

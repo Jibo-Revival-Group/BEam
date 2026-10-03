@@ -27,6 +27,7 @@ const calendars = require('./lib/calendars');
 const screen = require('./lib/screen');
 const setup = require('./lib/setup');
 const orchestra = require('./lib/orchestra');
+const homeassistant = require('./lib/homeassistant');
 
 const MAX_UPLOAD = 256 * 1024 * 1024;
 const MAX_IMAGE = 16 * 1024 * 1024;
@@ -366,6 +367,14 @@ const routes = {
 
     'POST /api/setup/finish': guard((req, res) => {
         u.sendJson(res, 200, setup.finish());
+    }),
+
+    'POST /api/homeassistant/pair': guard((req, res) => {
+        return u.readJson(req).then((body) => {
+            return homeassistant.pair(req, body).then((result) => {
+                u.sendJson(res, result.status || 200, result.body);
+            });
+        });
     })
 };
 
@@ -446,6 +455,8 @@ if (require.main === module) {
         console.warn('[beacon] could not re-apply custom eye:', err && err.message);
     }
     create().listen(port, '0.0.0.0', () => {
+        try { homeassistant.startWatcher(); }
+        catch (err) { console.warn('[beacon] home assistant watcher:', err && err.message); }
         console.log('[beacon] listening on http://localhost:' + port);
         console.log('[beacon] be root   :', paths.BE_ROOT);
         console.log('[beacon] music dir :', paths.musicDir());
