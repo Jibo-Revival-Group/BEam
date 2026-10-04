@@ -164,6 +164,28 @@ async function run() {
     }
     {
         const directory = path.resolve(__dirname, '../@be/be/beacon/lib');
+        const crypto = require('crypto');
+        const status = { state: 'off', streaming: false };
+        const auth = load(path.join(directory, 'camera-stream-http.js'), {
+            crypto: { createHash: crypto.createHash }, // Jibo's older crypto API.
+            './homeassistant': { readConfig: () => ({ password: 'secret' }) },
+            './camera-stream': {
+                fail: require(path.join(directory, 'camera-stream')).fail,
+                getController: () => ({ status: () => status })
+            },
+            './http-util': { sendJson(res, code, body) { res.code = code; res.body = body; } }
+        });
+        const response = { setHeader() {} };
+        auth.status({ headers: { authorization: 'Bearer secret' } }, response);
+        assert.strictEqual(response.code, 200);
+        assert.deepStrictEqual(response.body, status);
+        ['', 'Bearer wrong', 'Bearer secreu', 'Bearer secre', 'Bearer secret-extra', 'Basic secret'].forEach(value => {
+            assert.throws(() => auth.authenticate({ headers: { authorization: value } }), error => error.status === 401);
+        });
+        assert.throws(() => auth.authenticate({ headers: {} }), error => error.status === 401);
+    }
+    {
+        const directory = path.resolve(__dirname, '../@be/be/beacon/lib');
         const Native = load(path.join(directory, 'camera-stream-native.js'), {
             './homeassistant': { configPath: () => '/tmp/pairing.json' },
             './camera-stream-webm': WebM,

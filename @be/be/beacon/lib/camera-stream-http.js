@@ -6,6 +6,19 @@ const homeassistant = require('./homeassistant');
 const camera = require('./camera-stream');
 const u = require('./http-util');
 
+function equalDigests(expected, actual) {
+    if (typeof crypto.timingSafeEqual === 'function') {
+        return crypto.timingSafeEqual(expected, actual);
+    }
+    // Older Electron/Node builds lack timingSafeEqual. Both SHA-256 digests
+    // have 32 bytes; compare every byte without an early mismatch return.
+    let difference = 0;
+    for (let i = 0; i < expected.length; i++) {
+        difference |= expected[i] ^ actual[i];
+    }
+    return difference === 0;
+}
+
 function authenticate(req) {
     const saved = homeassistant.readConfig();
     const supplied = req.headers.authorization || '';
@@ -15,7 +28,7 @@ function authenticate(req) {
     // Compare fixed-size digests, including when the password length is wrong.
     const expected = crypto.createHash('sha256').update('Bearer ' + saved.password).digest();
     const actual = crypto.createHash('sha256').update(supplied).digest();
-    if (!crypto.timingSafeEqual(expected, actual)) { throw camera.fail('Camera authentication failed', 401); }
+    if (!equalDigests(expected, actual)) { throw camera.fail('Camera authentication failed', 401); }
 }
 
 function status(req, res) {
