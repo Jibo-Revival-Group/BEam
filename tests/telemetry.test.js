@@ -36,8 +36,47 @@ async function run() {
     await loaded.exports.status({}, res);
     assert.deepStrictEqual(res.body, { battery: 75, battery_temperature: 30, main_board_temperature: 40,
         cpu_temperature: 50, system_voltage: 12.1, plugged_in: false, fan_speed: 25,
-        speaker_volume: 60, hatch_open: false });
+        speaker_volume: 60, hatch_open: false, charging_state: 'Not Plugged In' });
     assert(sockets.every(socket => socket.terminated));
+    const system = dependencies.jibo.system;
+    system.pluggedIn = true;
+    for (const charging of [true, false]) {
+        system.batteryCharging = charging;
+        await loaded.exports.status({}, res);
+        assert.strictEqual(res.body.charging_state, charging ? 'Charging' : 'Not Charging');
+    }
+    system.inputEnergy = { ts: [1, 0], db_rms: -42.5 };
+    system.padState = [false, false, true, false, false, false];
+    loaded.exports.activity({}, res);
+    assert.deepStrictEqual(res.body, { audio_level: -42.5, head_touch: true, sleeping: null });
+    system.padState = Array(6).fill(false);
+    system.inputEnergy.ts = [];
+    loaded.exports.activity({}, res);
+    assert.deepStrictEqual(res.body, { audio_level: null, head_touch: false, sleeping: null });
+    system.padState = undefined;
+    system.inputEnergy = { ts: [1, 0], db_rms: NaN };
+    loaded.exports.activity({}, res);
+    assert.deepStrictEqual(res.body, { audio_level: null, head_touch: null, sleeping: null });
+    const previousHost = global.be;
+    try {
+        const idle = { circadianManager: { getCurrentCircadianState: () => 'ASLEEP' } };
+        global.be = { idle: idle, currentSkill: idle };
+        for (const state of ['ASLEEP', 'DAYTIME_NAP', 'ALERT', 'RELAXED', 'WAKING_UP', 'FALLING_ASLEEP']) {
+            idle.circadianManager.getCurrentCircadianState = () => state;
+            loaded.exports.activity({}, res);
+            assert.strictEqual(res.body.sleeping, state === 'ASLEEP' || state === 'DAYTIME_NAP');
+        }
+        idle.circadianManager.getCurrentCircadianState = () => 'ASLEEP';
+        global.be.currentSkill = {};
+        loaded.exports.activity({}, res);
+        assert.strictEqual(res.body.sleeping, false, 'Inactive idle sleep state must not mark another skill asleep');
+        global.be.currentSkill = null;
+        loaded.exports.activity({}, res);
+        assert.strictEqual(res.body.sleeping, null);
+    } finally { global.be = previousHost; }
+    allowed = false;
+    assert.throws(() => loaded.exports.activity({}, res), /Unauthorized/);
+    allowed = true;
     hatch = 1; failFan = true; cpu = NaN;
     await loaded.exports.status({}, res);
     assert.strictEqual(res.body.hatch_open, true);

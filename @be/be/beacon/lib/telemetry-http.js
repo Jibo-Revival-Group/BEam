@@ -67,6 +67,15 @@ function status(req, res) {
         plugged_in: null
     };
     try { if (typeof system.pluggedIn === 'boolean') { data.plugged_in = system.pluggedIn; } } catch (error) { /* unavailable */ }
+    data.charging_state = null;
+    if (data.plugged_in === false) { data.charging_state = 'Not Plugged In'; }
+    else if (data.plugged_in === true) {
+        try {
+            if (typeof system.batteryCharging === 'boolean') {
+                data.charging_state = system.batteryCharging ? 'Charging' : 'Not Charging';
+            }
+        } catch (error) { /* unavailable */ }
+    }
     return Promise.all([callbackReading(system, 'getFanSpeed'), callbackReading(system, 'getMasterVolume'), hatch(jibo)])
         .then(values => {
             data.fan_speed = values[0];
@@ -77,4 +86,35 @@ function status(req, res) {
         });
 }
 
-module.exports = { status: status };
+function activity(req, res) {
+    authenticate(req);
+    const system = require('jibo').system;
+    const data = { audio_level: null, head_touch: null, sleeping: null };
+    try {
+        const host = global.be;
+        if (host && host.idle && host.currentSkill) {
+            if (host.currentSkill !== host.idle) { data.sleeping = false; }
+            else {
+                const state = host.idle.circadianManager.getCurrentCircadianState();
+                if (state) { data.sleeping = state === 'ASLEEP' || state === 'DAYTIME_NAP'; }
+            }
+        }
+    } catch (error) { /* sleep state not initialized */ }
+    try {
+        const energy = system.inputEnergy;
+        // An empty timestamp is the SDK's initial placeholder, not a reading.
+        if (energy && Array.isArray(energy.ts) && energy.ts.length) {
+            data.audio_level = reading(() => energy.db_rms);
+        }
+    } catch (error) { /* unavailable */ }
+    try {
+        const pads = system.padState;
+        if (Array.isArray(pads) && pads.length === 6 && pads.every(value => typeof value === 'boolean')) {
+            data.head_touch = pads.some(value => value);
+        }
+    } catch (error) { /* unavailable */ }
+    res.setHeader('Cache-Control', 'no-store');
+    u.sendJson(res, 200, data);
+}
+
+module.exports = { status: status, activity: activity };

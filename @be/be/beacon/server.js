@@ -73,6 +73,7 @@ function sendPeople (res, snapshotPromise) {
 const routes = {
     'GET /api/battery': guard(battery.status),
     'GET /api/telemetry': guard(telemetry.status),
+    'GET /api/activity': guard(telemetry.activity),
     'GET /api/camera-stream/status': guard(cameraStream.status),
     'POST /api/camera-stream/control': guard(cameraStream.command),
     'GET /api/camera-stream/image': guard(cameraStream.image),
