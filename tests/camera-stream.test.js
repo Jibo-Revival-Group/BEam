@@ -144,6 +144,17 @@ async function run() {
         parser.clear();
         assert.strictEqual(parser.init, null);
         assert.strictEqual(parser.buffer.length, 0);
+        const gstTracks = element('1654ae6b', element('ae', Buffer.concat([
+            element('d7', Buffer.from([1])), element('83', Buffer.from([1])),
+            element('86', Buffer.from('V_VP8\0')), element('e0', Buffer.concat([
+                element('b0', Buffer.from([2, 128])), element('ba', Buffer.from([1, 104]))
+            ]))
+        ])));
+        const gst = new WebM();
+        let gstKeyframe = false;
+        gst.on('cluster', (bytes, key) => { gstKeyframe = key; });
+        gst.push(Buffer.concat([ebml, segment, gstTracks, cluster(true)]));
+        assert(gstKeyframe, 'Accept null-padded GStreamer VP8 codec IDs');
         const malformed = new WebM();
         assert.throws(() => malformed.push(Buffer.from('1a45dfa3ff', 'hex')), /bounded/);
         const wrongTracks = new WebM();

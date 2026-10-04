@@ -73,7 +73,8 @@ function tracksValid(bytes, offset) {
     const codec = fields.filter(item => item.id === 0x86)[0];
     const video = fields.filter(item => item.id === 0xE0)[0];
     if (number(fields, 0xD7) !== 1 || number(fields, 0x83) !== 1 ||
-        !codec || codec.data.toString('utf8') !== 'V_VP8' || !video) { return false; }
+        // GStreamer's webmmux includes null padding in EBML string fields.
+        !codec || codec.data.toString('utf8').replace(/\0+$/, '') !== 'V_VP8' || !video) { return false; }
     const dimensions = children(video.data, 0);
     const width = number(dimensions, 0xB0), height = number(dimensions, 0xBA);
     // Native startStreaming uses ORIGINAL output (normally 1280x720).

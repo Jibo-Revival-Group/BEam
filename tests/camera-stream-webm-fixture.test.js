@@ -62,6 +62,32 @@ try {
     const liveProgress = ffmpeg(['-i', joined, '-an', '-progress', 'pipe:1', '-f', 'null', '-']);
     const liveCounts = Array.from(liveProgress.matchAll(/frame=(\d+)/g), match => Number(match[1]));
     assert(liveCounts[liveCounts.length - 1] >= 15, 'Open-ended native clusters must decode for late viewers');
+    if (process.env.GSTREAMER_BINARY) {
+        const gstInput = path.join(directory, 'gstreamer.webm');
+        const generated = spawnSync(process.env.GSTREAMER_BINARY, ['-q', 'videotestsrc', 'num-buffers=45',
+            '!', 'video/x-raw,width=640,height=360,framerate=15/1', '!', 'vp8enc', 'keyframe-max-dist=15',
+            '!', 'webmmux', 'streamable=true', '!', 'filesink', 'location=' + gstInput], { timeout: 20000 });
+        if (generated.error) { throw generated.error; }
+        assert.strictEqual(generated.status, 0, String(generated.stderr));
+        const gst = new WebM(), gstPackets = [];
+        let keys = 0;
+        gst.on('cluster', (bytes, key, join) => {
+            if (key) { keys++; }
+            if (keys < 2) { return; }
+            if (!gstPackets.length) { gstPackets.push(gst.init, join || bytes); }
+            else { gstPackets.push(bytes); }
+        });
+        const gstBytes = fs.readFileSync(gstInput);
+        for (let offset = 0; offset < gstBytes.length; offset += 37) {
+            gst.push(gstBytes.slice(offset, offset + 37));
+        }
+        assert(keys >= 2, 'GStreamer fixture contains multiple keyframes');
+        fs.writeFileSync(joined, Buffer.concat(gstPackets));
+        const decoded = ffmpeg(['-i', joined, '-an', '-progress', 'pipe:1', '-f', 'null', '-']);
+        const frames = Array.from(decoded.matchAll(/frame=(\d+)/g), match => Number(match[1]));
+        assert(frames[frames.length - 1] >= 15, 'Actual GStreamer output supports late-viewer decoding');
+        console.log('Real GStreamer WebM late-join decoding test passed');
+    }
     console.log('Real original-resolution VP8/WebM bounded and live late-join decoding tests passed');
 } finally {
     fs.rmSync(directory, { recursive: true, force: true });
