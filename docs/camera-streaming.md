@@ -1,5 +1,10 @@
 # Home Assistant camera streaming
 
+In BEacon's More tab, **Allow camera streaming** enables or disables this mode.
+It defaults to enabled. Disabling stops an active stream and rejects new Start
+or Toggle requests; Stop remains available if cleanup needs retrying. The
+preference survives robot restarts and updates. Changing it takes effect immediately.
+
 Native BE/BEacon pairing adds a Camera entity and three buttons to the existing
 Jibo device: Start Camera Stream, Stop Camera Stream, Toggle Camera Stream.
 Home Assistant connects locally to BEacon on port 8123. Existing remote access

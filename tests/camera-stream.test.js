@@ -20,7 +20,8 @@ function fixture() {
         stop() { calls.push('stop'); return Promise.resolve(); },
         stream() { calls.push('view'); }
     });
-    return { controller: new CameraStream(runtime, transport), runtime, transport, calls };
+    const settings = { allowed: true, get() { return this.allowed; }, set(value) { this.allowed = value; } };
+    return { controller: new CameraStream(runtime, transport, settings), runtime, transport, calls, settings };
 }
 
 function load(file, dependencies) {
@@ -48,6 +49,30 @@ function cluster(isKey) {
 }
 
 async function run() {
+    {
+        const f = fixture();
+        await f.controller.configure(false);
+        assert.strictEqual(f.controller.status().allowed, false);
+        for (const action of ['start', 'toggle']) {
+            await assert.rejects(f.controller.command(action), /disabled in BEacon/);
+        }
+        assert.deepStrictEqual(f.calls, []);
+        await f.controller.command('stop');
+        await f.controller.configure(true);
+        await Promise.all([f.controller.command('start'), f.controller.configure(false)]);
+        assert.strictEqual(f.controller.state, 'off');
+        assert.strictEqual(f.controller.status().allowed, false);
+        assert.deepStrictEqual(f.calls, ['prepare', 'enter', 'start', 'stop', 'leave', 'resume']);
+        await f.controller.configure(true);
+        await f.controller.command('start');
+        f.transport.stop = () => Promise.reject(new Error('Cleanup failed'));
+        await assert.rejects(f.controller.configure(false), /cleanup failed/i);
+        assert.strictEqual(f.settings.allowed, false, 'Failed cleanup must not enable future starts');
+        assert.strictEqual(f.controller.state, 'stopping');
+        f.transport.stop = () => Promise.resolve();
+        await f.controller.command('stop');
+        assert.strictEqual(f.controller.state, 'off');
+    }
     {
         const f = fixture();
         await f.controller.command('start');
