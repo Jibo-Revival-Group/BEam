@@ -76,7 +76,8 @@ class CameraStream extends EventEmitter {
         }).then(() => {
             if (firstError) {
                 // Do not declare the robot normal when capture teardown is unconfirmed.
-                this.lastError = 'Camera cleanup failed; retry Stop Camera Stream';
+                const detail = firstError.status ? firstError.message : 'robot interaction restoration failed';
+                this.lastError = 'Camera cleanup failed: ' + detail + '; retry Stop Camera Stream';
                 throw fail(this.lastError);
             }
             this.setState('off');
@@ -97,7 +98,7 @@ function getController() {
     const jibo = require('jibo');
     const Runtime = require('./camera-stream-runtime');
     const NativeTransport = require('./camera-stream-native');
-    singleton = new CameraStream(new Runtime(jibo, global.be), new NativeTransport());
+    singleton = new CameraStream(new Runtime(jibo, global.be), new NativeTransport(jibo));
     jibo.cameraStreamController = singleton;
     return singleton;
 }

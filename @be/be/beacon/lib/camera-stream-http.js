@@ -64,7 +64,8 @@ function image(req, res) {
     return jibo.media.takePhoto({ camera: controller.transport.validation.camera,
         photoType: jibo.media.PhotoType.PREVIEW, store: false }).then(photo => {
         return new Promise((resolve, reject) => {
-            const request = http.get({ host: '127.0.0.1', port: 7979,
+            const service = controller.transport.service;
+            const request = http.get({ host: service.host, port: service.port,
                 path: '/media/photo?id=' + encodeURIComponent(photo.id) }, response => {
                 const chunks = [];
                 let size = 0;

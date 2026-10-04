@@ -19,8 +19,14 @@ Stop command rather than claiming capture has stopped.
 
 Streaming is enabled for testing without a validation record. Native startup
 posts `{"enable":true,"ip":"127.0.0.1","port":"5000"}` to
-`/media/streaming/start` on port 7979 and reads the VP8/WebM TCP feed from
+`/media/streaming/start` at the SDK's registered `media` service address and reads the VP8/WebM TCP feed from
 loopback port 5000. Stop posts `{}` to `/media/streaming/control`.
+
+Production MediaService is embedded in LPS on port 8486, which is the fallback
+when no runtime registry record is available. Port 7979 belongs to the standalone
+test service. A refused start connection restores normal robot operation without
+requiring a stop request to the unavailable service. Ambiguous failures such as
+timeouts still require native cleanup; errors include its address and cause.
 
 Inspection of the shipped native handler confirms it calls `startStreaming`
 with ORIGINAL output. The HTTP GET handler returns an empty `video/webm`

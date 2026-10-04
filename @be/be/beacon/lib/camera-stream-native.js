@@ -33,8 +33,10 @@ function writeViewer(viewer, packet) {
 }
 
 class NativeTransport extends EventEmitter {
-    constructor() {
+    constructor(runtime) {
         super();
+        this.runtime = runtime;
+        this.service = { host: '127.0.0.1', port: 8486 };
         this.viewers = new Set();
         this.source = null;
         this.parser = null;
@@ -43,6 +45,18 @@ class NativeTransport extends EventEmitter {
         this.streamTimer = null;
     }
     prepare() {
+        // Production embeds MediaService in LPS (8486); the standalone test
+        // media service uses 7979. Prefer the same registry record as the SDK.
+        const records = this.runtime && this.runtime.records;
+        const record = Array.isArray(records) && records.filter(value => value.name === 'media')[0];
+        this.service = { host: '127.0.0.1', port: 8486 };
+        if (record) {
+            const port = Number(record.port);
+            if (typeof record.host !== 'string' || !record.host || !Number.isInteger(port) || port < 1 || port > 65535) {
+                throw fail('Invalid registered native media service address');
+            }
+            this.service = { host: record.host === '0.0.0.0' ? '127.0.0.1' : record.host, port: port };
+        }
         // Hardware measurements are recorded AFTER testing, not a startup gate.
         this.validation = { camera: 0, port: 5000,
             start: { enable: true, ip: '127.0.0.1', port: '5000' }, stop: {} };
@@ -65,20 +79,31 @@ class NativeTransport extends EventEmitter {
     post(route, payload) {
         return new Promise((resolve, reject) => {
             const body = JSON.stringify(payload);
-            const request = http.request({ host: '127.0.0.1', port: 7979, path: route, method: 'POST',
+            const request = http.request({ host: this.service.host, port: this.service.port, path: route, method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) } }, response => {
                 response.resume();
                 if (response.statusCode >= 200 && response.statusCode < 300) { resolve(); }
                 else { reject(fail('Native camera request failed (HTTP ' + response.statusCode + ')')); }
             });
-            request.on('error', () => reject(fail('Native camera service unavailable')));
+            request.on('error', cause => {
+                const code = cause && cause.code;
+                const error = fail('Native camera service unavailable at ' + this.service.host + ':' + this.service.port +
+                    (code ? ' (' + code + ')' : ''));
+                error.requestNotSent = ['ECONNREFUSED', 'ENOTFOUND', 'EHOSTUNREACH', 'ENETUNREACH', 'EACCES'].indexOf(code) !== -1;
+                reject(error);
+            });
             request.setTimeout(5000, () => { request.abort(); reject(fail('Native camera request timed out')); });
             request.end(body);
         });
     }
     start() {
         this.nativeStarted = true; // A timed-out POST may still have started capture.
-        return this.post('/media/streaming/start', this.validation.start).then(() => new Promise((resolve, reject) => {
+        return this.post('/media/streaming/start', this.validation.start).catch(error => {
+            // A refused TCP connection cannot have started capture. A timeout
+            // or broken connection may have, so those still require native stop.
+            if (error.requestNotSent) { this.nativeStarted = false; }
+            throw error;
+        }).then(() => new Promise((resolve, reject) => {
             this.parser = new WebM();
             let ready = false;
             const timer = setTimeout(() => finish(fail('Native camera produced no keyframe')), 10000);

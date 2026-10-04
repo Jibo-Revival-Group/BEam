@@ -206,6 +206,7 @@ async function run() {
         });
         const defaults = new Native();
         defaults.prepare();
+        assert.deepStrictEqual(defaults.service, { host: '127.0.0.1', port: 8486 });
         assert.deepStrictEqual(defaults.validation.start, { enable: true, ip: '127.0.0.1', port: '5000' });
         assert.deepStrictEqual(defaults.validation.stop, {});
         const capture = new Native();
@@ -231,6 +232,8 @@ async function run() {
         let source;
         const http = {
             request(options, callback) {
+                assert.strictEqual(options.host, '127.0.0.1');
+                assert.strictEqual(options.port, 8490, 'Use the SDK media registry address');
                 const request = new EventEmitter();
                 request.setTimeout = () => {};
                 request.abort = () => {};
@@ -260,7 +263,7 @@ async function run() {
             fs: { readFileSync: () => JSON.stringify({ validated: false, camera: 0, measuredFps: 0 }) },
             './camera-stream-webm': WebM, './camera-stream': require(path.join(directory, 'camera-stream'))
         });
-        const native = new Native();
+        const native = new Native({ records: [{ name: 'media', host: '0.0.0.0', port: '8490' }] });
         native.prepare(); // A disabled/incomplete old record does not gate testing.
         await native.start();
         function viewer() {
@@ -294,6 +297,37 @@ async function run() {
             { path: '/media/streaming/start', body: { enable: true, ip: '127.0.0.1', port: '5000' } },
             { path: '/media/streaming/control', body: {} }
         ]);
+    }
+    for (const code of ['ECONNREFUSED', 'ECONNRESET']) {
+        const directory = path.resolve(__dirname, '../@be/be/beacon/lib');
+        const requests = [];
+        const Native = load(path.join(directory, 'camera-stream-native.js'), {
+            './homeassistant': { configPath: () => '/tmp/pairing.json' },
+            './camera-stream-webm': WebM,
+            './camera-stream': require(path.join(directory, 'camera-stream')),
+            fs: { readFileSync() { const error = new Error('missing'); error.code = 'ENOENT'; throw error; } },
+            http: { request(options, callback) {
+                requests.push(options.path);
+                const request = new EventEmitter();
+                request.setTimeout = () => {};
+                request.end = () => process.nextTick(() => {
+                    if (options.path === '/media/streaming/start') { request.emit('error', { code }); }
+                    else { callback({ statusCode: 204, resume() {} }); }
+                });
+                return request;
+            } }
+        });
+        const f = fixture();
+        const native = new Native();
+        const controller = new CameraStream(f.runtime, native);
+        await assert.rejects(controller.command('start'), /127\.0\.0\.1:8486/);
+        assert.strictEqual(controller.status().state, 'off');
+        assert.strictEqual(native.nativeStarted, false);
+        assert.deepStrictEqual(f.calls, ['enter', 'leave', 'resume']);
+        assert.deepStrictEqual(requests, code === 'ECONNREFUSED' ? ['/media/streaming/start'] :
+            ['/media/streaming/start', '/media/streaming/control']);
+        await controller.command('stop');
+        assert.strictEqual(requests.length, code === 'ECONNREFUSED' ? 1 : 2);
     }
     {
         const api = require('../@be/be/beacon/lib/camera-stream-http');
