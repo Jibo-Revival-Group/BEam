@@ -30,6 +30,7 @@ const orchestra = require('./lib/orchestra');
 const homeassistant = require('./lib/homeassistant');
 const cameraStream = require('./lib/camera-stream-http');
 const battery = require('./lib/battery-http');
+const telemetry = require('./lib/telemetry-http');
 
 const MAX_UPLOAD = 256 * 1024 * 1024;
 const MAX_IMAGE = 16 * 1024 * 1024;
@@ -71,6 +72,7 @@ function sendPeople (res, snapshotPromise) {
 
 const routes = {
     'GET /api/battery': guard(battery.status),
+    'GET /api/telemetry': guard(telemetry.status),
     'GET /api/camera-stream/status': guard(cameraStream.status),
     'POST /api/camera-stream/control': guard(cameraStream.command),
     'GET /api/camera-stream/image': guard(cameraStream.image),
