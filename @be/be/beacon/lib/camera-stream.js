@@ -49,7 +49,7 @@ class CameraStream extends EventEmitter {
         this.lastError = null;
         return Promise.resolve().then(() => {
             if (this.runtime.isPrivate()) { throw fail('Turn off privacy mode before streaming', 409); }
-            // Check the hardware gate BEFORE disturbing the current skill.
+            // Load native transport settings before disturbing the current skill.
             return this.transport.prepare();
         }).then(() => {
             if (this.runtime.isPrivate()) { throw fail('Privacy mode is active', 409); }

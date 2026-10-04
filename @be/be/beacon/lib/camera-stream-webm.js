@@ -75,7 +75,10 @@ function tracksValid(bytes, offset) {
     if (number(fields, 0xD7) !== 1 || number(fields, 0x83) !== 1 ||
         !codec || codec.data.toString('utf8') !== 'V_VP8' || !video) { return false; }
     const dimensions = children(video.data, 0);
-    return number(dimensions, 0xB0) === 640 && number(dimensions, 0xBA) === 360;
+    const width = number(dimensions, 0xB0), height = number(dimensions, 0xBA);
+    // Native startStreaming uses ORIGINAL output (normally 1280x720).
+    // HA scales the decoded stream to the requested 640x360.
+    return width > 0 && width <= 4096 && height > 0 && height <= 4096;
 }
 
 class WebM extends EventEmitter {
@@ -87,6 +90,9 @@ class WebM extends EventEmitter {
         this.init = null;
         this.segment = false;
         this.videoValidated = false;
+        this.openCluster = false;
+        this.clusterPrefix = null;
+        this.pendingPrefix = null;
     }
     push(bytes) {
         if (this.buffer.length + bytes.length > LIMIT) { throw new Error('WebM buffer limit exceeded'); }
@@ -105,21 +111,48 @@ class WebM extends EventEmitter {
                 this.buffer = this.buffer.slice(item.length);
                 continue;
             }
+            if (item.id === 0x1F43B675 && item.unknown) {
+                if (!this.segment || !this.videoValidated) { throw new Error('Expected video-only VP8 WebM'); }
+                if (!this.init) { this.init = Buffer.concat(this.initial); this.initial = []; }
+                this.openCluster = true;
+                this.clusterPrefix = Buffer.from(this.buffer.slice(0, item.length));
+                this.pendingPrefix = this.clusterPrefix;
+                this.buffer = this.buffer.slice(item.length);
+                continue;
+            }
             if (item.unknown || item.size > LIMIT) { throw new Error('Expected bounded WebM elements'); }
             const total = item.length + item.size;
             if (this.buffer.length < total) { return; }
             const element = Buffer.from(this.buffer.slice(0, total));
             this.buffer = this.buffer.slice(total);
+            if (this.openCluster && item.id !== 0x1F43B675) {
+                if (item.id === 0xA3) {
+                    const key = keyframe(element, 0);
+                    const packet = this.pendingPrefix ? Buffer.concat([this.pendingPrefix, element]) : element;
+                    this.pendingPrefix = null;
+                    // Late viewers can join a keyframe inside an open Cluster.
+                    const join = key ? Buffer.concat([this.clusterPrefix, element]) : null;
+                    this.emit('cluster', packet, key, join);
+                } else {
+                    if (item.id === 0xE7) { this.clusterPrefix = Buffer.concat([this.clusterPrefix, element]); }
+                    if (this.pendingPrefix) {
+                        this.pendingPrefix = Buffer.concat([this.pendingPrefix, element]);
+                        if (this.pendingPrefix.length > LIMIT) { throw new Error('WebM Cluster prefix limit exceeded'); }
+                    } else { this.emit('cluster', element, false); }
+                }
+                continue;
+            }
             if (item.id === 0x1F43B675) {
+                this.openCluster = false;
                 if (!this.segment) { throw new Error('Missing WebM Segment'); }
-                if (!this.videoValidated) { throw new Error('Expected video-only 640x360 VP8 WebM'); }
+                if (!this.videoValidated) { throw new Error('Expected video-only VP8 WebM'); }
                 if (!this.init) { this.init = Buffer.concat(this.initial); this.initial = []; }
                 this.emit('cluster', element, keyframe(element, item.length));
             } else if (!this.init) {
                 if (!this.initial.length && item.id !== 0x1A45DFA3) { throw new Error('Missing EBML header'); }
                 if (item.id === 0x1654AE6B) {
                     if (this.videoValidated || !tracksValid(element, item.length)) {
-                        throw new Error('Expected video-only 640x360 VP8 WebM');
+                        throw new Error('Expected video-only VP8 WebM');
                     }
                     this.videoValidated = true;
                 }
@@ -136,6 +169,8 @@ class WebM extends EventEmitter {
         this.buffer = Buffer.alloc(0);
         this.initial = [];
         this.init = null;
+        this.clusterPrefix = null;
+        this.pendingPrefix = null;
         this.removeAllListeners();
     }
 }

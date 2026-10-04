@@ -15,82 +15,38 @@ session active. Entering privacy stops capture first; starting from privacy is
 refused. A failed native stop keeps Jibo in the restricted state with a retryable
 Stop command rather than claiming capture has stopped.
 
-## Hardware acceptance gate — currently unvalidated
+## On-robot testing
 
-There was no Jibo available during implementation. This feature is **not yet
-accepted for production streaming**. In particular, native request bodies,
-capture ownership, actual frame rate, image orientation, and resource cleanup
-have not been tested on a robot. Start fails before changing Jibo's current
-skill until a hardware acceptance record exists.
+Streaming is enabled for testing without a validation record. Native startup
+posts `{"enable":true,"ip":"127.0.0.1","port":"5000"}` to
+`/media/streaming/start` on port 7979 and reads the VP8/WebM TCP feed from
+loopback port 5000. Stop posts `{}` to `/media/streaming/control`.
 
-Static inspection of the shipped `libJiboMediaService.so` establishes these
-native handlers:
+Inspection of the shipped native handler confirms it calls `startStreaming`
+with ORIGINAL output. The HTTP GET handler returns an empty `video/webm`
+response; it is not the video source. Native capture uses camera 0 and its
+original resolution (normally 1280×720); HA decodes and scales to 640×360.
+Both bounded and open-ended live WebM Clusters are supported.
 
-- `/media/streaming/start`, including GET and POST handlers, and
-  `/media/streaming/control` for stopping.
-- A `video/webm` response and an `appsrc ! queue ! omxvp8enc ! webmmux
-  streamable=true ! tcpserversink` pipeline.
-
-These findings establish a candidate transport, **not** a verified API contract.
-The adapter assumes POST start, GET WebM, POST stop on the loopback media service
-at port 7979. If hardware contradicts that contract, update the adapter and its
-tests before creating an acceptance record. Do not put a validation record in
-an OTA or enable it based only on mocked tests.
-
-On a robot, verify all of the following:
-
-1. Discover the actual native start/stop request bodies using its media service
-   and service registry. Keep any native destination on loopback. Verify the
-   GET handler returns the one active pipeline's WebM stream. Verify the native
-   TCP stream binds loopback and cannot bypass BEacon authentication from LAN.
-2. Measure at least 15 distinct captured frames per second at 640×360 for ten
-   minutes; duplicated output frames do not count. Verify CPU, memory, temperature,
-   and normal camera operation after repeated sessions.
-3. Verify video-only VP8 with video track 1, bounded EBML Cluster lengths,
-   SimpleBlock keyframes, and keyframe intervals no longer than two seconds.
-   The bounded WebM parser intentionally rejects unsupported framing.
-4. Verify orientation matches what Jibo sees, with no upside-down or mirrored
-   image. Verify a single in-memory PREVIEW photo can coexist with streaming
-   without interrupting capture, and its native JPEG endpoint works.
-5. Verify all stop paths release the pipeline, stop delivering frames, and
-   restore listening, remote interactions, attention, and photo-taking.
-6. Test several viewers joining at different times, viewers disconnecting,
-   slow viewers, native-service interruption, Wi-Fi loss, HA reload, and robot
-   restart. Check physical motion stops, the camera emoji remains visible, and
-   both local stop controls work. Confirm startup failure restores idle.
-7. Verify the native media service does not retain capture across a BE runtime
-   crash/restart. If it does, add native owner-death cleanup before acceptance.
-
-Only after passing these checks, create `camera-stream-validation.json` beside
-the robot's persisted BEacon `homeassistant.json`. The following is a deliberately
-disabled template. Replace `start` and `stop` with the bodies actually tested,
-record the firmware and test date, and enter the measured results:
+Optional `camera-stream-validation.json` beside BEacon's persisted
+`homeassistant.json` can select another local TCP port:
 
 ```json
-{
-  "validated": false,
-  "robotFirmware": "",
-  "testedAt": "",
-  "camera": 0,
-  "width": 640,
-  "height": 360,
-  "measuredFps": 0,
-  "maxKeyframeIntervalSeconds": 0,
-  "videoOnly": true,
-  "videoTrack": 1,
-  "boundedClusters": true,
-  "orientationVerified": false,
-  "cleanupVerified": false,
-  "restartVerified": false,
-  "loopbackOnlyVerified": false,
-  "stillCaptureVerified": false,
-  "start": {},
-  "stop": {}
-}
+{"camera": 0, "port": 5000}
 ```
 
-The validation record configures native request bodies, never HA credentials,
-public endpoints, or automatic startup. Each process starts with streaming off.
+An existing record with `validated: false` does not block startup. Measurements
+and acceptance flags are informational; they are not prerequisites for testing.
+A malformed configuration still reports a configuration error. Camera 0 is the
+native handler's supported capture source; video capture is not a snapshot loop.
+
+On a robot, test frame rate, orientation, green indicators, camera emoji, both
+local stop controls, HA buttons, multiple viewers, and restoration of normal
+camera skills. Check runtime and robot restart cleanup, native-service failures,
+Wi-Fi loss, and HA reload. Target at least 15 distinct captured frames per
+second. Actual performance and the robot's runtime behavior remain to be measured
+on hardware. An observed transport error is reported through the control endpoint
+and startup attempts restore normal operation when native cleanup succeeds.
 
 ## Local interface
 

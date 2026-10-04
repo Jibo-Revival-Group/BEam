@@ -65,8 +65,8 @@ async function run() {
         await assert.rejects(f.controller.command('start'), /privacy/);
         assert.deepStrictEqual(f.calls, []);
         f.runtime.private = false;
-        f.transport.prepare = () => { throw new Error('Hardware unvalidated'); };
-        await assert.rejects(f.controller.command('start'), /unvalidated/);
+        f.transport.prepare = () => { throw new Error('Invalid native settings'); };
+        await assert.rejects(f.controller.command('start'), /Invalid native settings/);
         assert.deepStrictEqual(f.calls, []);
         assert.strictEqual(f.controller.state, 'off');
     }
@@ -150,6 +150,18 @@ async function run() {
         assert.throws(() => wrongTracks.push(Buffer.concat([
             ebml, segment, element('1654ae6b', element('ae', element('83', Buffer.from([2])))), cluster(true)
         ])), /video-only/);
+        const live = new WebM();
+        const livePackets = [];
+        live.on('cluster', (bytes, key, join) => livePackets.push({ bytes, key, join }));
+        const openHeader = Buffer.from('1f43b675ff', 'hex');
+        const timecode = element('e7', Buffer.from([0]));
+        const keyBlock = element('a3', Buffer.from([0x81, 0, 0, 128, 0]));
+        const deltaBlock = element('a3', Buffer.from([0x81, 0, 1, 0, 0]));
+        const liveBytes = Buffer.concat([ebml, segment, tracks, openHeader, timecode, keyBlock, deltaBlock, keyBlock]);
+        for (let i = 0; i < liveBytes.length; i++) { live.push(liveBytes.slice(i, i + 1)); }
+        assert.deepStrictEqual(livePackets.map(packet => packet.key), [true, false, true]);
+        assert.deepStrictEqual(livePackets[0].bytes, Buffer.concat([openHeader, timecode, keyBlock]));
+        assert.deepStrictEqual(livePackets[2].join, Buffer.concat([openHeader, timecode, keyBlock]));
     }
     {
         const directory = path.resolve(__dirname, '../@be/be/beacon/lib');
@@ -190,9 +202,12 @@ async function run() {
             './homeassistant': { configPath: () => '/tmp/pairing.json' },
             './camera-stream-webm': WebM,
             './camera-stream': require(path.join(directory, 'camera-stream')),
-            fs: { readFileSync() { throw new Error('missing'); } }
+            fs: { readFileSync() { const error = new Error('missing'); error.code = 'ENOENT'; throw error; } }
         });
-        assert.throws(() => new Native().prepare(), /hardware validation/);
+        const defaults = new Native();
+        defaults.prepare();
+        assert.deepStrictEqual(defaults.validation.start, { enable: true, ip: '127.0.0.1', port: '5000' });
+        assert.deepStrictEqual(defaults.validation.stop, {});
         const capture = new Native();
         capture.parser = new WebM();
         capture.parser.push(Buffer.concat([ebml, segment, tracks, cluster(true)]));
@@ -224,26 +239,29 @@ async function run() {
                     process.nextTick(() => callback({ statusCode: 200, resume() {} }));
                 };
                 return request;
-            },
-            get(options, callback) {
+            }
+        };
+        const net = {
+            connect(options) {
                 gets++;
-                const request = new EventEmitter();
-                request.abort = () => {};
+                assert.deepStrictEqual(options, { host: '127.0.0.1', port: 5000 });
                 source = new EventEmitter();
-                Object.assign(source, { statusCode: 200, headers: { 'content-type': 'video/webm' }, destroy() {} });
+                source.destroy = () => {};
+                const socket = source;
                 process.nextTick(() => {
-                    callback(source);
-                    source.emit('data', Buffer.concat([ebml, segment, tracks, cluster(true)]));
+                    if (gets === 1) { socket.emit('error', { code: 'ECONNREFUSED' }); }
+                    else { socket.emit('data', Buffer.concat([ebml, segment, tracks, cluster(true)])); }
                 });
-                return request;
+                return source;
             }
         };
         const Native = load(path.join(directory, 'camera-stream-native.js'), {
-            http: http, './homeassistant': { configPath: () => '/tmp/pairing.json' },
+            http: http, net: net, './homeassistant': { configPath: () => '/tmp/pairing.json' },
+            fs: { readFileSync: () => JSON.stringify({ validated: false, camera: 0, measuredFps: 0 }) },
             './camera-stream-webm': WebM, './camera-stream': require(path.join(directory, 'camera-stream'))
         });
         const native = new Native();
-        native.validation = { start: { tested: 'start' }, stop: { tested: 'stop' } };
+        native.prepare(); // A disabled/incomplete old record does not gate testing.
         await native.start();
         function viewer() {
             const response = new EventEmitter();
@@ -266,13 +284,15 @@ async function run() {
         first.emit('drain');
         source.emit('data', cluster(false));
         assert.strictEqual(first.packets.length, 2);
-        assert(second.destroyed, 'A viewer still blocked at the next cluster is too slow');
-        assert.strictEqual(gets, 1, 'Viewers share the same capture connection');
+        assert(!second.destroyed, 'Packets arriving together may wait for drain');
+        native.parser.emit('cluster', Buffer.alloc(1024 * 1024 + 1), false);
+        assert(second.destroyed, 'A viewer exceeding the bounded queue is too slow');
+        assert.strictEqual(gets, 2, 'Startup retries once; viewers share the resulting capture connection');
         await native.stop();
         assert(first.destroyed);
         assert.deepStrictEqual(posts, [
-            { path: '/media/streaming/start', body: { tested: 'start' } },
-            { path: '/media/streaming/control', body: { tested: 'stop' } }
+            { path: '/media/streaming/start', body: { enable: true, ip: '127.0.0.1', port: '5000' } },
+            { path: '/media/streaming/control', body: {} }
         ]);
     }
     {
