@@ -128,6 +128,15 @@
 </section>
 
 <section class="panel" id="panel-etc">
+    <p class="section-header">Camera streaming</p>
+    <div class="setting-block">
+        <label class="unit-choice">
+            <input id="camera-stream-enabled" type="checkbox" disabled>
+            <span>Allow camera streaming</span>
+        </label>
+        <p class="hint">Allow Home Assistant to start camera streaming. Turning this off stops any active stream.</p>
+        <p class="hint" id="camera-stream-setting-status" role="status"></p>
+    </div>
     <p class="section-header">Weather</p>
     <div class="setting-row">
         <span class="icon icon-weather" aria-hidden="true"></span>

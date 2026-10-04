@@ -918,8 +918,33 @@
     }
 
     function loadEtc () {
-        return Promise.all([loadLocation(), loadUnits()]);
+        return Promise.all([loadLocation(), loadUnits(), loadCameraStreamSetting()]);
     }
+
+    function loadCameraStreamSetting () {
+        return api('GET', '/api/camera-stream/settings').then(function (data) {
+            var input = $('#camera-stream-enabled');
+            input.checked = data.enabled === true;
+            input.disabled = false;
+            $('#camera-stream-setting-status').textContent = '';
+        });
+    }
+
+    $('#camera-stream-enabled').addEventListener('change', function () {
+        var input = this;
+        var previous = !input.checked;
+        input.disabled = true;
+        api('POST', '/api/camera-stream/settings', { enabled: input.checked }).then(function (data) {
+            input.checked = data.enabled === true;
+            $('#camera-stream-setting-status').textContent = 'Saved.';
+        }).catch(function (error) {
+            input.checked = previous;
+            $('#camera-stream-setting-status').textContent = error.message;
+            // A cleanup failure can leave the preference saved as disabled.
+            loadCameraStreamSetting().catch(function () {});
+            reportError(error);
+        }).then(function () { input.disabled = false; });
+    });
 
     function renderPeople (data) {
         var sync = $('#people-sync');

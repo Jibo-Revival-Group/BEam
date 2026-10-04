@@ -2,6 +2,7 @@
 
 // Serialized session lifecycle, independent of the robot SDK for offline tests.
 const EventEmitter = require('events');
+const preferences = require('./camera-stream-settings');
 
 function fail(message, status) {
     const error = new Error(message);
@@ -10,10 +11,11 @@ function fail(message, status) {
 }
 
 class CameraStream extends EventEmitter {
-    constructor(runtime, transport) {
+    constructor(runtime, transport, settings) {
         super();
         this.runtime = runtime;
         this.transport = transport;
+        this.settings = settings || preferences;
         this.state = 'off';
         this.lastError = null;
         this.queue = Promise.resolve();
@@ -25,6 +27,7 @@ class CameraStream extends EventEmitter {
     get enabled() { return this.state !== 'off'; }
     status() {
         return { state: this.state, streaming: this.state === 'streaming',
+            allowed: this.settings.get(),
             width: 640, height: 360, targetFps: 15, error: this.lastError };
     }
     setState(state) {
@@ -44,6 +47,7 @@ class CameraStream extends EventEmitter {
         return result;
     }
     start() {
+        if (!this.settings.get()) { return Promise.reject(fail('Camera streaming is disabled in BEacon More settings', 409)); }
         if (this.state === 'streaming') { return Promise.resolve(this.status()); }
         if (this.state !== 'off') { return Promise.reject(fail('Finish stopping the camera before starting again', 409)); }
         this.lastError = null;
@@ -85,6 +89,14 @@ class CameraStream extends EventEmitter {
             return this.status();
         });
     }
+    configure(enabled) {
+        const result = this.queue.then(() => {
+            this.settings.set(enabled);
+            return enabled ? this.status() : this.stop();
+        });
+        this.queue = result.catch(() => {});
+        return result;
+    }
     stream(req, res) {
         if (this.state !== 'streaming') { throw fail('Camera stream is inactive', 409); }
         return this.transport.stream(req, res);
@@ -104,4 +116,10 @@ function getController() {
 }
 
 module.exports = { CameraStream: CameraStream, fail: fail, getController: getController,
+    settings: () => ({ enabled: preferences.get() }),
+    configure: enabled => {
+        if (singleton) { return singleton.configure(enabled).then(() => ({ enabled: preferences.get() })); }
+        preferences.set(enabled);
+        return Promise.resolve({ enabled: preferences.get() });
+    },
     isRestricted: () => !!(singleton && singleton.enabled) };

@@ -29,6 +29,7 @@ const setup = require('./lib/setup');
 const orchestra = require('./lib/orchestra');
 const homeassistant = require('./lib/homeassistant');
 const cameraStream = require('./lib/camera-stream-http');
+const cameraController = require('./lib/camera-stream');
 const battery = require('./lib/battery-http');
 const telemetry = require('./lib/telemetry-http');
 
@@ -71,6 +72,13 @@ function sendPeople (res, snapshotPromise) {
 }
 
 const routes = {
+    'GET /api/camera-stream/settings': guard((req, res) => {
+        u.sendJson(res, 200, cameraController.settings());
+    }),
+    'POST /api/camera-stream/settings': guard((req, res) => {
+        return u.readJson(req, 4096).then(body => cameraController.configure(body && body.enabled))
+            .then(data => u.sendJson(res, 200, data));
+    }),
     'GET /api/battery': guard(battery.status),
     'GET /api/telemetry': guard(telemetry.status),
     'GET /api/activity': guard(telemetry.activity),
@@ -424,7 +432,8 @@ function requestHandler (req, res) {
     }
 
     const method = req.method === 'HEAD' ? 'GET' : req.method;
-    if (cameraStream.isRestricted() && method !== 'GET' && pathname !== '/api/camera-stream/control') {
+    if (cameraStream.isRestricted() && method !== 'GET' && pathname !== '/api/camera-stream/control' &&
+            pathname !== '/api/camera-stream/settings') {
         handleError(res, fail('Stop camera streaming before using other robot controls', 409));
         return;
     }
