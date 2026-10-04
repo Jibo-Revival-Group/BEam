@@ -32,6 +32,7 @@ const cameraStream = require('./lib/camera-stream-http');
 const cameraController = require('./lib/camera-stream');
 const battery = require('./lib/battery-http');
 const telemetry = require('./lib/telemetry-http');
+const sleep = require('./lib/sleep-http');
 
 const MAX_UPLOAD = 256 * 1024 * 1024;
 const MAX_IMAGE = 16 * 1024 * 1024;
@@ -72,6 +73,7 @@ function sendPeople (res, snapshotPromise) {
 }
 
 const routes = {
+    'POST /api/sleep': guard(sleep.sleep),
     'GET /api/camera-stream/settings': guard((req, res) => {
         u.sendJson(res, 200, cameraController.settings());
     }),
