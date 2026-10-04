@@ -86,6 +86,26 @@ try {
         const decoded = ffmpeg(['-i', joined, '-an', '-progress', 'pipe:1', '-f', 'null', '-']);
         const frames = Array.from(decoded.matchAll(/frame=(\d+)/g), match => Number(match[1]));
         assert(frames[frames.length - 1] >= 15, 'Actual GStreamer output supports late-viewer decoding');
+        const repeated = new WebM(), continuous = [];
+        let waiting = true, resets = 0;
+        repeated.on('reset', () => { waiting = true; resets++; });
+        repeated.on('cluster', (packet, key, join) => {
+            if (waiting) {
+                if (!key) { return; }
+                continuous.push(repeated.init, join || packet);
+                waiting = false;
+            } else { continuous.push(packet); }
+        });
+        const repeatedBytes = Buffer.concat([gstBytes, gstBytes]);
+        for (let offset = 0; offset < repeatedBytes.length; offset += 37) {
+            repeated.push(repeatedBytes.slice(offset, offset + 37));
+        }
+        assert.strictEqual(resets, 1);
+        fs.writeFileSync(joined, Buffer.concat(continuous));
+        const continuousProgress = ffmpeg(['-i', joined, '-an', '-progress', 'pipe:1', '-f', 'null', '-']);
+        const continuousFrames = Array.from(continuousProgress.matchAll(/frame=(\d+)/g), match => Number(match[1]));
+        assert.strictEqual(continuousFrames[continuousFrames.length - 1], 90,
+            'An existing viewer must decode both complete GStreamer segments');
         console.log('Real GStreamer WebM late-join decoding test passed');
     }
     console.log('Real original-resolution VP8/WebM bounded and live late-join decoding tests passed');

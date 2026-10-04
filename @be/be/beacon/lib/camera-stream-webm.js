@@ -94,6 +94,7 @@ class WebM extends EventEmitter {
         this.openCluster = false;
         this.clusterPrefix = null;
         this.pendingPrefix = null;
+        this.ebmlHeader = null;
     }
     push(bytes) {
         if (this.buffer.length + bytes.length > LIMIT) { throw new Error('WebM buffer limit exceeded'); }
@@ -102,7 +103,7 @@ class WebM extends EventEmitter {
             const item = header(this.buffer, 0);
             if (!item) { return; }
             if (item.id === 0x18538067) {
-                if (this.segment) { throw new Error('Multiple WebM segments are unsupported'); }
+                if (this.segment) { this.resetSegment(); }
                 this.segment = true;
                 const segment = Buffer.from(this.buffer.slice(0, item.length));
                 // Unknown size permits an init followed by any future clusters.
@@ -126,6 +127,16 @@ class WebM extends EventEmitter {
             if (this.buffer.length < total) { return; }
             const element = Buffer.from(this.buffer.slice(0, total));
             this.buffer = this.buffer.slice(total);
+            if (item.id === 0x1A45DFA3) {
+                // Native muxers may resend initialization or begin another
+                // document on the same TCP connection, including mid-cluster.
+                if (this.segment) { this.resetSegment(); }
+                this.ebmlHeader = element;
+                this.initial = [];
+                this.initialSize = 0;
+                this.addInitial(element);
+                continue;
+            }
             if (this.openCluster && item.id !== 0x1F43B675) {
                 if (item.id === 0xA3) {
                     const key = keyframe(element, 0);
@@ -165,6 +176,18 @@ class WebM extends EventEmitter {
         this.initialSize += bytes.length;
         if (this.initialSize > LIMIT) { throw new Error('WebM initialization limit exceeded'); }
         this.initial.push(bytes);
+    }
+    resetSegment() {
+        this.initial = [];
+        this.initialSize = 0;
+        this.init = null;
+        this.segment = false;
+        this.videoValidated = false;
+        this.openCluster = false;
+        this.clusterPrefix = null;
+        this.pendingPrefix = null;
+        if (this.ebmlHeader) { this.addInitial(this.ebmlHeader); }
+        this.emit('reset');
     }
     clear() {
         this.buffer = Buffer.alloc(0);

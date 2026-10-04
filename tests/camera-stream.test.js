@@ -173,6 +173,18 @@ async function run() {
         assert.deepStrictEqual(livePackets.map(packet => packet.key), [true, false, true]);
         assert.deepStrictEqual(livePackets[0].bytes, Buffer.concat([openHeader, timecode, keyBlock]));
         assert.deepStrictEqual(livePackets[2].join, Buffer.concat([openHeader, timecode, keyBlock]));
+        for (const restart of [Buffer.concat([ebml, segment]), segment]) {
+            const repeated = new WebM();
+            let resets = 0;
+            const frames = [];
+            repeated.on('reset', () => { resets++; });
+            repeated.on('cluster', (bytes, key) => { frames.push(key); });
+            const input = Buffer.concat([liveBytes, restart, tracks, cluster(true), cluster(false)]);
+            for (let i = 0; i < input.length; i++) { repeated.push(input.slice(i, i + 1)); }
+            assert.strictEqual(resets, 1);
+            assert.deepStrictEqual(frames, [true, false, true, true, false]);
+            assert.deepStrictEqual(repeated.init, Buffer.concat([ebml, segment, tracks]));
+        }
     }
     {
         const directory = path.resolve(__dirname, '../@be/be/beacon/lib');

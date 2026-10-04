@@ -105,6 +105,11 @@ class NativeTransport extends EventEmitter {
             throw error;
         }).then(() => new Promise((resolve, reject) => {
             this.parser = new WebM();
+            this.parser.on('reset', () => {
+                // Keep viewers connected, but give each the new initialization
+                // and wait for a keyframe before delivering the new segment.
+                this.viewers.forEach(viewer => { viewer.started = false; });
+            });
             let ready = false;
             const timer = setTimeout(() => finish(fail('Native camera produced no keyframe')), 10000);
             const finish = error => {
