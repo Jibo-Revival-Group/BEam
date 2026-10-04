@@ -24,6 +24,9 @@ class SkillSwitchData {
         return this._options;
     }
     get priority() {
+        if (this.name === '@be/camera-stream') {
+            return 8;
+        }
         if (this.name === "@be/restore") {
             return 7;
         }
@@ -55,4 +58,3 @@ class SkillSwitchData {
     }
 }
 exports.default = SkillSwitchData;
-

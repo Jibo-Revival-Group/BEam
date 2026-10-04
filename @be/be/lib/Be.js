@@ -631,6 +631,10 @@ class Be {
         return this._skillSwitchScheduler.requestSkillRedirect(skillSwitchData);
     }
     destroy(callback) {
+        if (jibo.cameraStreamController && jibo.cameraStreamController.enabled) {
+            jibo.cameraStreamController.command('stop', { skipResume: true }).then(() => this.destroy(callback), callback);
+            return;
+        }
         if (document.getElementById('splash')) {
             document.getElementById('splash').remove();
         }
@@ -708,4 +712,3 @@ be_framework_1.BeSkill.registerOpenHook((oldSkill, newSkill, result) => {
         resolve();
     };
 });
-

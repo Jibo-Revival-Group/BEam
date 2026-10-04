@@ -28,6 +28,7 @@ const screen = require('./lib/screen');
 const setup = require('./lib/setup');
 const orchestra = require('./lib/orchestra');
 const homeassistant = require('./lib/homeassistant');
+const cameraStream = require('./lib/camera-stream-http');
 
 const MAX_UPLOAD = 256 * 1024 * 1024;
 const MAX_IMAGE = 16 * 1024 * 1024;
@@ -68,6 +69,10 @@ function sendPeople (res, snapshotPromise) {
 }
 
 const routes = {
+    'GET /api/camera-stream/status': guard(cameraStream.status),
+    'POST /api/camera-stream/control': guard(cameraStream.command),
+    'GET /api/camera-stream/image': guard(cameraStream.image),
+    'GET /api/camera-stream/video': guard(cameraStream.stream),
     'GET /api/status': guard((req, res) => {
         u.sendJson(res, 200, system.status());
     }),
@@ -414,6 +419,10 @@ function requestHandler (req, res) {
     }
 
     const method = req.method === 'HEAD' ? 'GET' : req.method;
+    if (cameraStream.isRestricted() && method !== 'GET' && pathname !== '/api/camera-stream/control') {
+        handleError(res, fail('Stop camera streaming before using other robot controls', 409));
+        return;
+    }
     const route = routes[method + ' ' + pathname];
     if (route) {
         route(req, res, query);

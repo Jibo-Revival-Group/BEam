@@ -151,8 +151,14 @@ function stop (callback) {
         return;
     }
     const srv = instance;
-    instance = null;
-    srv.close(done);
+    const jibo = typeof window !== 'undefined' ? require('jibo') : null;
+    const camera = jibo && jibo.cameraStreamController;
+    if (camera) {
+        camera.command('stop').then(() => { instance = null; srv.close(done); }, err => done(err));
+    } else {
+        instance = null;
+        srv.close(done);
+    }
 }
 
 function isRunning () {

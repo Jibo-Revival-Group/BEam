@@ -558,6 +558,9 @@ class PrivacyController {
         this.updateIndicator = this.updateIndicator.bind(this);
     }
     enable() {
+        if (jibo.cameraStreamController && jibo.cameraStreamController.enabled) {
+            return jibo.cameraStreamController.command('stop').then(() => this.enable());
+        }
         if (this.enabled) {
             return Promise.resolve();
         }

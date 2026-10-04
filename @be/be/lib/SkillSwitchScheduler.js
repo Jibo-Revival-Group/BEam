@@ -34,6 +34,11 @@ class SkillSwitchScheduler {
         let reqestedSkillLifecycle = new SkillLifecycle_1.default(requestedSkillSwitchData);
         let skillRedirectToken = new SkillRedirectToken_1.default(reqestedSkillLifecycle, requestedSkillSwitchData);
         reqestedSkillLifecycle.skillSwitchRequested();
+        if (jibo.cameraStreamController && jibo.cameraStreamController.enabled &&
+            requestedSkillName !== '@be/camera-stream') {
+            reqestedSkillLifecycle.skillLifecycleEnded(SkillLifecycleEndState_1.default.SKILL_SWITCH_REQUEST_DENIED);
+            return skillRedirectToken;
+        }
         if (!this._pendingSkillLifecycle && !this._currentSkillLifecycle) {
             this.log.info("no current or pending skill. launching into requested skill");
             this._pendingSkillLifecycle = reqestedSkillLifecycle;
@@ -241,7 +246,7 @@ class SkillSwitchScheduler {
                         skillOptions: currentPendingSkillLifecycle.skillSwitchData.options,
                         beSkillPriority: currentPendingSkillLifecycle.skillSwitchData.priority,
                         beSkillPreferences: {
-                            cancelOrientOnStart: false
+                            cancelOrientOnStart: currentPendingSkillLifecycle.skillSwitchData.name === '@be/camera-stream'
                         }
                     });
                     this.log.info("waiting on action system", currentPendingSkillLifecycle.skillSwitchData.name);
@@ -274,4 +279,3 @@ class SkillSwitchScheduler {
     }
 }
 exports.default = SkillSwitchScheduler;
-
