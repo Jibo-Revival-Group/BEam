@@ -87,7 +87,7 @@ function start (options, callback) {
 
     try {
         if (system.rewriteLegacyEndpoint()) {
-            log('credentials.endpoint corrected to https://api.5x1.com');
+            log('credentials.endpoint pointed directly at http://joap.5x1.com:80');
         }
     } catch (err) {
         warn('endpoint rewrite:', err && err.message);

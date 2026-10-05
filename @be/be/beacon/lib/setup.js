@@ -13,7 +13,7 @@ var ota = require('./ota');
 var MARKER = '/var/jibo/beetle-setup.json';
 var IDENTITY = '/var/jibo/identity.json';
 var HUB = 'api.5x1.com:443';
-var ENDPOINT = 'https://api.5x1.com';
+var ENDPOINT = 'http://joap.5x1.com:80';
 
 function fail(message, status) {
     var err = new Error(message);

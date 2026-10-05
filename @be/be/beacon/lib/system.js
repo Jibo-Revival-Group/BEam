@@ -25,11 +25,11 @@ const KNOWN_HUBS = [
     }
 ];
 
-/** Preset credential endpoints. Update checks on this host are forwarded to joap. */
+/** Preset credential endpoint for direct update checks. */
 const KNOWN_UPDATE_ENDPOINTS = [
     {
-        endpoint: 'https://api.5x1.com',
-        label: 'https://api.5x1.com'
+        endpoint: 'http://joap.5x1.com:80',
+        label: 'http://joap.5x1.com:80'
     }
 ];
 
@@ -442,7 +442,10 @@ function normalizeEndpoint (input) {
     // Keep path if present, default none.
     const pathPart = match[2] && match[2] !== '/' ? match[2] : '';
     if (hostPort.toLowerCase() === 'api.5x1.com:443' && !pathPart) {
-        return 'https://api.5x1.com';
+        return 'http://joap.5x1.com:80';
+    }
+    if (hostPort.toLowerCase() === 'api.5x1.com' && !pathPart) {
+        return 'http://joap.5x1.com:80';
     }
     const protocol = raw.toLowerCase().indexOf('https://') === 0 ? 'https' : 'http';
     return protocol + '://' + hostPort + pathPart;
@@ -511,12 +514,12 @@ function setCredentialsEndpoint (body) {
     };
 }
 
-var LEGACY_JOAP_ENDPOINT = 'http://joap.5x1.com:80';
+var JOAP_ENDPOINT = 'http://joap.5x1.com:80';
 var LEGACY_HTTP_BEEFY_ENDPOINT = 'http://api.5x1.com:443';
-var BEEFY_ENDPOINT = 'https://api.5x1.com';
+var LEGACY_HTTPS_BEEFY_ENDPOINT = 'https://api.5x1.com';
 
 /**
- * Repair old joap and plain-HTTP-to-HTTPS-port endpoints on startup.
+ * Point known BEefy OTA endpoints directly at joap on startup.
  * Keys are left alone. Any other endpoint is left alone.
  */
 function rewriteLegacyEndpoint () {
@@ -524,9 +527,9 @@ function rewriteLegacyEndpoint () {
     try {
         if (!paths.isFile(file)) { return false; }
         const data = JSON.parse(fs.readFileSync(file, 'utf8'));
-        if (!data || (data.endpoint !== LEGACY_JOAP_ENDPOINT &&
-                data.endpoint !== LEGACY_HTTP_BEEFY_ENDPOINT)) { return false; }
-        data.endpoint = BEEFY_ENDPOINT;
+        if (!data || (data.endpoint !== LEGACY_HTTP_BEEFY_ENDPOINT &&
+                data.endpoint !== LEGACY_HTTPS_BEEFY_ENDPOINT)) { return false; }
+        data.endpoint = JOAP_ENDPOINT;
         if (!data.region) { data.region = 'api'; }
         fs.writeFileSync(file, JSON.stringify(data) + '\n');
         return true;

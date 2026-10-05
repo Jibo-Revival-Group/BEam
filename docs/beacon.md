@@ -197,7 +197,7 @@ After [BEetle](../../BEetle/README.md) writes an out-of-box robot, Be hides the 
 and the face tells you to open BEacon while `/var/jibo/beetle-setup.json` is pending.
 There is no Setup tab. The same work is available over HTTP:
 
-1. `GET /api/setup` reports whether setup is pending, the robot name, hub `api.5x1.com:443`, and endpoint `https://api.5x1.com`.
+1. `GET /api/setup` reports whether setup is pending, the robot name, hub `api.5x1.com:443`, and endpoint `http://joap.5x1.com:80`.
 2. Household members are added through the People APIs.
 3. `POST /api/setup/update` checks every Skills pack plus the BEnch `services` subsystem and applies whatever is offered. A factory-old services version with no published offer is reported as-is. This path does not flash a separate OS or body-board package.
 4. `POST /api/setup/finish` clears the pending marker and reboots. The next boot shows the normal eye.

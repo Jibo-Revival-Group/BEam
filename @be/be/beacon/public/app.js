@@ -1472,7 +1472,7 @@
                     : (hub.error || '');
             }
             if (endpoint && !endpoint.value) {
-                endpoint.value = creds.endpoint || 'https://api.5x1.com';
+                endpoint.value = creds.endpoint || 'http://joap.5x1.com:80';
             }
             if (endpointCurrent) {
                 endpointCurrent.textContent = creds.endpoint
@@ -1497,7 +1497,7 @@
     function saveEndpoint () {
         var input = $('#server-endpoint');
         return api('POST', '/api/credentials', {
-            endpoint: input ? input.value.trim() : 'https://api.5x1.com'
+            endpoint: input ? input.value.trim() : 'http://joap.5x1.com:80'
         }).then(function (data) {
             toast('Endpoint saved.', 'ok');
             var current = $('#server-endpoint-current');
