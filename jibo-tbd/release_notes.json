@@ -1,4 +1,4 @@
 {
-    "spoken": "The <pitch mult='1.2'>big</pitch> news is, my loop is back. You can add people to my household again from my control panel, so I can remember who's who. <break size='0.4'/>That control panel got a whole new look too. You can peek at my screen from another device, and type in your town if weather or location isn't quite right. <break size='0.3'/>And I got some behind-the-scenes upgrades so things load a little smoother.",
+    "spoken": "Home assistant has more sensors exposed and a new pairing system, meaning you might have to reconnect me to home assistant. A lot of things have also been updated on the server side, so that I act a little bit more like I used to.",
     "enableProactive": true
 }
