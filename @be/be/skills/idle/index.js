@@ -1573,21 +1573,21 @@ class CircadianExpression {
     }
     transitionSetup() {
         const alertMap = new Map();
-        alertMap.set(jibo_common_types_1.CircadianState.ASLEEP, [relaxedToSleep, fadeToAsleep]);
+        alertMap.set(jibo_common_types_1.CircadianState.ASLEEP, [relaxedToSleep, fadeToAsleep, sleepLoop]);
         alertMap.set(jibo_common_types_1.CircadianState.FALLING_ASLEEP, [drift, napPose, fadeToNap, napNoLoop]);
         const relaxedMap = new Map();
         relaxedMap.set(jibo_common_types_1.CircadianState.ALERT, [relaxedToActive]);
         relaxedMap.set(jibo_common_types_1.CircadianState.DAYTIME_NAP, [relaxedToNap, napPose, fadeToNap, napLoop]);
         relaxedMap.set(jibo_common_types_1.CircadianState.FALLING_ASLEEP, [drift, yawn, napPose, fadeToNap, napNoLoop]);
-        relaxedMap.set(jibo_common_types_1.CircadianState.ASLEEP, [relaxedToSleep, fadeToAsleep]);
+        relaxedMap.set(jibo_common_types_1.CircadianState.ASLEEP, [relaxedToSleep, fadeToAsleep, sleepLoop]);
         const napMap = new Map();
         napMap.set(jibo_common_types_1.CircadianState.ALERT, [napToAlert]);
         napMap.set(jibo_common_types_1.CircadianState.RELAXED, [napToRelaxed]);
         napMap.set(jibo_common_types_1.CircadianState.FALLING_ASLEEP, [napNoLoop]);
-        napMap.set(jibo_common_types_1.CircadianState.ASLEEP, [fallingAsleep, fadeToAsleep]);
+        napMap.set(jibo_common_types_1.CircadianState.ASLEEP, [fallingAsleep, fadeToAsleep, sleepLoop]);
         const fallingAsleepMap = new Map();
         fallingAsleepMap.set(jibo_common_types_1.CircadianState.ALERT, [napToAlert]);
-        fallingAsleepMap.set(jibo_common_types_1.CircadianState.ASLEEP, [fallingAsleep, fadeToAsleep]);
+        fallingAsleepMap.set(jibo_common_types_1.CircadianState.ASLEEP, [fallingAsleep, fadeToAsleep, sleepLoop]);
         const asleepMap = new Map();
         asleepMap.set(jibo_common_types_1.CircadianState.WAKING_UP, [fadeToNap, sleepToNap, napLoop]);
         asleepMap.set(jibo_common_types_1.CircadianState.ALERT, [sleepToAwake]);
@@ -1595,11 +1595,11 @@ class CircadianExpression {
         wakingUpMap.set(jibo_common_types_1.CircadianState.ALERT, [napToAlert]);
         wakingUpMap.set(jibo_common_types_1.CircadianState.RELAXED, [napToRelaxed]);
         const intentMap = new Map();
-        intentMap.set(jibo_common_types_1.CircadianState.ASLEEP, [relaxedToSleep, fadeToAsleep]);
+        intentMap.set(jibo_common_types_1.CircadianState.ASLEEP, [relaxedToSleep, fadeToAsleep, sleepLoop]);
         intentMap.set(jibo_common_types_1.CircadianState.TURN_AWAY, [lookAway, fadeToNap, lookAwayEye]);
         const turnAwayMap = new Map();
         turnAwayMap.set(jibo_common_types_1.CircadianState.RELAXED, [lookBackTowards]);
-        turnAwayMap.set(jibo_common_types_1.CircadianState.ASLEEP, [fadeToAsleep]);
+        turnAwayMap.set(jibo_common_types_1.CircadianState.ASLEEP, [fadeToAsleep, sleepLoop]);
         this.transitionAnimMap.set(jibo_common_types_1.CircadianState.ALERT, alertMap);
         this.transitionAnimMap.set(jibo_common_types_1.CircadianState.RELAXED, relaxedMap);
         this.transitionAnimMap.set(jibo_common_types_1.CircadianState.DAYTIME_NAP, napMap);
@@ -2036,6 +2036,9 @@ class CircadianManager {
         this.circadianSM.events.screenTouched.emit();
     }
     goToSleepHandler() {
+        if (this.getCurrentCircadianState() === jibo_common_types_1.CircadianState.ASLEEP) {
+            return;
+        }
         this.circadianSM.events.goToSleep.emit();
     }
     headTouchHandler(data) {
@@ -2296,13 +2299,21 @@ class EntryState extends sm.State {
         this.intentMap = new Map();
         this.mainSM.getCurrentState();
         this.skill = mainSM.parent.parent;
+        this.entryGeneration = 0;
+        this.onExit = () => { this.entryGeneration++; };
         this.onEntry = (trans, options) => {
+            const generation = ++this.entryGeneration;
             this.skill.log.info(`Entering: ${this.name}`);
             options = options || {};
             Promise.all([
                 this.resumeGlobalListen(),
                 this.skill.forceEyeView()
             ]).then(() => {
+                // A global sleep or wake event may have already left SELECT_INTENT.
+                // Its pending preparation must not overwrite that newer transition.
+                if (generation !== this.entryGeneration || this.mainSM.getCurrentState() !== this) {
+                    return;
+                }
                 let intent = this.skill.getIntent(options);
                 if (intent === hjNoMatch) {
                     this.transitionTo(mainSM.hjNoMatch, options);
@@ -2317,6 +2328,9 @@ class EntryState extends sm.State {
                     this.transitionTo(mainSM.alert);
                 }
             }).catch(error => {
+                if (generation !== this.entryGeneration || this.mainSM.getCurrentState() !== this) {
+                    return;
+                }
                 this.skill.log.error('Error in forcing eye closed: ', error);
                 this.transitionTo(mainSM.alert);
             });
@@ -2541,6 +2555,10 @@ class Idle extends be_framework_2.BeSkill {
         jibo.mim.shouldShowGUI = false;
         jibo.mim.silentMenus = false;
         result = result || {};
+        if (refresh && this.getIntent(result) === 'sleep' &&
+            this.circadianManager.getCurrentCircadianState() === jibo_common_types_1.CircadianState.ASLEEP) {
+            return;
+        }
         if (!refresh) {
             this.circadianManager.subscribeEventHandlers();
         }
