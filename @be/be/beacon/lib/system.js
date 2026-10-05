@@ -439,8 +439,11 @@ function normalizeEndpoint (input) {
     if (!hostPort || hostPort.indexOf('.') === -1 && hostPort.indexOf(':') === -1) {
         throw fail('endpoint host looks invalid', 400);
     }
-    // Keep path if present, default none; always http for the community updater.
+    // Keep path if present, default none.
     const pathPart = match[2] && match[2] !== '/' ? match[2] : '';
+    if (hostPort.toLowerCase() === 'api.5x1.com:443' && !pathPart) {
+        return 'https://api.5x1.com';
+    }
     const protocol = raw.toLowerCase().indexOf('https://') === 0 ? 'https' : 'http';
     return protocol + '://' + hostPort + pathPart;
 }
@@ -509,10 +512,11 @@ function setCredentialsEndpoint (body) {
 }
 
 var LEGACY_JOAP_ENDPOINT = 'http://joap.5x1.com:80';
+var LEGACY_HTTP_BEEFY_ENDPOINT = 'http://api.5x1.com:443';
 var BEEFY_ENDPOINT = 'https://api.5x1.com';
 
 /**
- * One-time move for robots whose credentials.endpoint is still joap.
+ * Repair old joap and plain-HTTP-to-HTTPS-port endpoints on startup.
  * Keys are left alone. Any other endpoint is left alone.
  */
 function rewriteLegacyEndpoint () {
@@ -520,7 +524,8 @@ function rewriteLegacyEndpoint () {
     try {
         if (!paths.isFile(file)) { return false; }
         const data = JSON.parse(fs.readFileSync(file, 'utf8'));
-        if (!data || data.endpoint !== LEGACY_JOAP_ENDPOINT) { return false; }
+        if (!data || (data.endpoint !== LEGACY_JOAP_ENDPOINT &&
+                data.endpoint !== LEGACY_HTTP_BEEFY_ENDPOINT)) { return false; }
         data.endpoint = BEEFY_ENDPOINT;
         if (!data.region) { data.region = 'api'; }
         fs.writeFileSync(file, JSON.stringify(data) + '\n');
