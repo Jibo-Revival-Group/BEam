@@ -8,11 +8,21 @@ Updates take effect on the next launch after leaving that skill.
 
 Store's three-dot menu includes **Upload Skill ZIP** for local testing and
 **Edit Main Menu**. The editor is also available under **More → Main Menu**.
-Drag buttons to reorder. Hover a skill over another for one second to create
-a folder. Double-click a folder to expand or collapse its bordered contents,
-then drag buttons between that folder and the surrounding menu. Empty folders
-are deleted. **Edit folder** changes its name, highlight/shadow colors, and
-stock icon or uploaded PNG (maximum 2 MB). **Save** writes the layout; Jibo uses
+Drag buttons to reorder; surrounding buttons slide into their new slots as you
+move, and the dragged button settles into place when released. Escape cancels a
+drag, and reduced-motion preferences disable sliding. Hover a skill over another for one second to create
+a folder. Double-click a folder to widen its button to the right and show its
+contents inside the same rounded container on a dark gray background. Neighboring
+buttons make room, and folder contents wrap onto additional rows when they do
+not fit across the editor.
+Drop on a folder's center to move inside; its left and
+right edges insert beside the folder. Empty folders are deleted. The Material
+folder icon in the top-right corner opens settings for its name, highlight/shadow colors, and
+stock icon or uploaded PNG (maximum 2 MB). Uploaded folder icons are scaled down
+to fit within 330 × 330 pixels, preserving aspect ratio and transparency. Smaller
+icons keep their size. Changes automatically save after five seconds without
+another edit, once any active drag or folder dialog finishes. **Save** writes
+immediately; failures keep edits available for retry. Jibo uses
 it the next time the main menu opens. **Discard changes** reloads the saved
 layout. Alt + arrow keys reorder a focused button within its current container;
 Enter or Space toggles a focused folder.
@@ -106,7 +116,8 @@ reusing stale menu buttons.
 - `GET /api/menu` returns layout, available buttons and stock icons.
 - `POST /api/menu` accepts `{ "tree": […] }` and returns the saved layout.
 - `GET /api/menu/icon?name=…` serves a validated stock/custom folder icon.
-- `PUT /api/menu/icon` accepts raw PNG bytes and returns an icon identifier.
+- `PUT /api/menu/icon` accepts raw PNG bytes with both dimensions at most 330 pixels
+  and returns an icon identifier. The editor resizes larger images before upload.
 
 Run `node tests/custom-skills.test.js`, `node tests/custom-skills-http.test.js`,
 `node tests/custom-skills-node6.test.js`,

@@ -69,6 +69,7 @@ function create(options) {
             const dest = path.join(root, 'packages', revision);
             const installed = Object.assign(skill, { revision: revision, origin: origin, installedAt: new Date().toISOString() });
             try {
+                paths.ensureDir(dest);
                 Object.keys(files).forEach(n => { const file = path.join(dest, n); paths.ensureDir(path.dirname(file)); fs.writeFileSync(file, files[n]); });
                 operation.check();
                 state.skills = state.skills.filter(s => s.id !== skill.id).concat(installed); save(state);
@@ -77,7 +78,8 @@ function create(options) {
             } catch (err) {
                 state.skills = previous;
                 try { save(state); } catch (ignored) { /* preserve the original error */ }
-                removeTree(dest); throw err;
+                try { removeTree(dest); } catch (ignored) { /* preserve the installation error; cleanup retries on restart */ }
+                throw err;
             }
             // Old revisions remain until restart; an open skill may still use them.
             return inventory();
@@ -113,7 +115,12 @@ function create(options) {
         return path.join(root, 'packages', item.revision, name);
     }
     function details(id) { const item = inventory().skills.filter(s => s.id === id)[0]; return item || null; }
-    function removeTree(dir) { if (!fs.existsSync(dir)) { return; } fs.readdirSync(dir).forEach(n => { const f = path.join(dir, n); if (fs.lstatSync(f).isDirectory()) { removeTree(f); } else { fs.unlinkSync(f); } }); fs.rmdirSync(dir); }
+    function removeTree(dir) {
+        let stat;
+        try { stat = fs.lstatSync(dir); } catch (err) { if (err.code === 'ENOENT') { return; } throw err; }
+        if (!stat.isDirectory()) { fs.unlinkSync(dir); return; }
+        fs.readdirSync(dir).forEach(n => removeTree(path.join(dir, n))); fs.rmdirSync(dir);
+    }
     function cleanup() {
         const state = read(), packagesRoot = path.join(root, 'packages');
         if (!fs.existsSync(packagesRoot)) { return; }

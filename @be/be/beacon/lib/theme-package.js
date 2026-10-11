@@ -95,9 +95,11 @@ function unzip(buf, options) {
             if (!name || name.length > 512 || /[\\:\u0000-\u001f\ufffd]/.test(name) || name[0] === '/' ||
                 pieces.some((p, j) => p === '..' || p === '.' || (!p && j !== pieces.length - 1))) { throw fail('Unsafe ZIP path'); }
             const canonical = name.replace(/\/$/, '').toLowerCase();
-            if (names[canonical]) { throw fail('Duplicate ZIP path'); } names[canonical] = true;
+            if (names[canonical]) { throw fail('Duplicate ZIP path'); }
             const kind = (buf.readUInt32LE(pos + 38) >>> 16) & 0xf000;
             if (kind && kind !== 0x8000 && kind !== 0x4000) { throw fail('ZIP links and special files are not allowed'); }
+            const directory = kind === 0x4000 || name.endsWith('/') || !!(buf.readUInt32LE(pos + 38) & 16);
+            names[canonical] = { directory: directory };
             if (!skill && /\.(js|mjs|cjs|sh|bash|bat|cmd|exe|dll|so|py|php|html|svg)$/i.test(name)) { throw fail('Executable theme content is not allowed'); }
             total += size;
             if (total > MAX_EXPANDED || local + 30 > centralStart || buf.readUInt32LE(local) !== 0x04034b50) { throw fail('Invalid or oversized ZIP'); }
@@ -105,13 +107,20 @@ function unzip(buf, options) {
             const start = local + 30 + localLen + localExtra;
             if (buf.readUInt16LE(local + 6) !== flags || buf.readUInt16LE(local + 8) !== method ||
                 buf.slice(local + 30, local + 30 + localLen).toString('utf8') !== name || start + packed > centralStart) { throw fail('Inconsistent ZIP entry'); }
-            records.push({ name: name, start: start, end: start + packed, local: local, size: size, crc: crc, method: method });
+            records.push({ name: name, directory: directory, start: start, end: start + packed, local: local, size: size, crc: crc, method: method });
             pos += 46 + len + extra + comment;
         }
         if (pos !== end) { throw fail('Invalid ZIP directory size'); }
+        Object.keys(names).forEach(name => {
+            const pieces = name.split('/');
+            for (let i = 1; i < pieces.length; i++) {
+                const parent = names[pieces.slice(0, i).join('/')];
+                if (parent && !parent.directory) { throw fail('ZIP file conflicts with a directory'); }
+            }
+        });
         const ordered = records.slice().sort((a, b) => a.local - b.local);
         for (let i = 1; i < ordered.length; i++) { if (ordered[i].local < ordered[i - 1].end) { throw fail('Overlapping ZIP entries'); } }
-        const roots = records.filter(r => r.name === 'manifest.json' || /^[^/]+\/manifest\.json$/.test(r.name));
+        const roots = records.filter(r => !r.directory && (r.name === 'manifest.json' || /^[^/]+\/manifest\.json$/.test(r.name)));
         if (roots.length !== 1) { throw fail('ZIP needs one root manifest.json, optionally inside one folder'); }
         const prefix = roots[0].name.slice(0, -'manifest.json'.length);
         const out = Object.create(null);
@@ -121,7 +130,7 @@ function unzip(buf, options) {
                 if (data.length !== r.size || crc32(data) !== r.crc) { throw fail('ZIP checksum or size mismatch'); }
                 const rel = r.name.slice(prefix.length);
                 if (!skill && r.name.indexOf(prefix) === 0 && /^(atex|asfx)\//.test(rel) && !rel.endsWith('/') && !assetPath(rel)) { throw fail('Unsupported animation asset: ' + rel); }
-                if (r.name.indexOf(prefix) === 0 && !rel.endsWith('/') && (skill || accepted(rel))) { out[rel] = data; }
+                if (r.name.indexOf(prefix) === 0 && rel && !r.directory && (skill || accepted(rel))) { out[rel] = data; }
             });
         }), Promise.resolve()).then(() => out);
     } catch (err) { return Promise.reject(err.status ? err : fail('Malformed ZIP')); }

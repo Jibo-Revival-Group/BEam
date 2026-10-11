@@ -15,7 +15,9 @@ const files = {
 const originalResolver = Module._resolveFilename;
 function clean(dir) { fs.readdirSync(dir).forEach(n => { const file = path.join(dir, n); if (fs.statSync(file).isDirectory()) { clean(file); } else { fs.unlinkSync(file); } }); fs.rmdirSync(dir); }
 function finish(err) { Module._resolveFilename = originalResolver; clean(temp); if (err) { console.error(err); process.exitCode = 1; } }
-service.upload(fixture.zip(files)).then(function () {
+const wrapped = { 'Skill-main/': Buffer.alloc(0), 'Skill-main/pack/': Buffer.alloc(0) };
+Object.keys(files).forEach(function (name) { wrapped['Skill-main/' + name] = files[name]; });
+service.upload(fixture.zip(wrapped)).then(function () {
     const layout = menu.create({ root: path.join(temp, 'menu'), skills: service });
     assert.strictEqual(layout.view(null).viewConfig.list[0].id, '@be/node6-test');
     const servicePath = require.resolve('../@be/be/beacon/lib/custom-skills');

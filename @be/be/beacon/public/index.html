@@ -130,7 +130,7 @@
 
 <section class="panel" id="panel-menu">
     <h2>Main Menu</h2>
-    <p class="hint">Drag buttons to reorder them. Hold one skill over another for a second to make a folder. Double-click a folder to open it, then drag skills in or out. Empty folders disappear.</p>
+    <p class="hint">Drag buttons to reorder them. Hold one skill over another for a second to make a folder. Double-click a folder to open it, then drag skills in or out. Empty folders disappear. Changes save automatically after 5 seconds without another edit.</p>
     <div class="menu-editor-actions"><button id="menu-save" class="btn btn-primary" type="button">Save</button><button id="menu-reset" class="btn" type="button">Discard changes</button><span id="menu-editor-status" class="hint" role="status"></span></div>
     <div id="menu-editor" class="menu-editor" aria-label="Main menu layout"></div>
 </section>
@@ -323,6 +323,7 @@
         <div class="folder-colors"><label>Button color<input id="folder-color" type="color"></label><label>Shadow color<input id="folder-shadow" type="color"></label></div>
         <label>Icon<select id="folder-icon"></select></label>
         <label>Custom icon (PNG)<input id="folder-icon-file" type="file" accept="image/png,.png"></label>
+        <p class="hint">Icons are resized to fit within 330 × 330 pixels, preserving their aspect ratio. Smaller icons keep their size.</p>
         <div class="modal-actions"><button id="folder-cancel" class="btn" type="button">Cancel</button><button class="btn btn-primary" type="submit">Done</button></div>
     </form>
 </div>

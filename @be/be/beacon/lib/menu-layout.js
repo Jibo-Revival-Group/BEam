@@ -77,7 +77,8 @@ function create(options) {
         if (!validIcon(name)) { throw pkg.fail('Unknown menu icon'); }
         return name.indexOf('custom-') === 0 ? path.join(root, 'icons', name) : path.join(menuRoot, name);
     }
-    function uploadIcon(buf) { return pkg.png(buf, 'Folder icon').then(() => {
+    function uploadIcon(buf) { return pkg.png(buf, 'Folder icon').then(size => {
+        if (size.width > 330 || size.height > 330) { throw pkg.fail('Folder icons must fit within 330 x 330 pixels. Upload through the menu editor to resize automatically.'); }
         const name = 'custom-' + crypto.createHash('sha256').update(buf).digest('hex').slice(0, 24) + '.png';
         paths.ensureDir(path.join(root, 'icons')); fs.writeFileSync(path.join(root, 'icons', name), buf); return { icon: name };
     }); }
@@ -99,8 +100,7 @@ function create(options) {
         if (title) { result.viewConfig.title = title; }
         return result;
     }
-    // Back uses an existing stock icon and the same MenuView action contract.
-    const back = { id: '__back', type: 'skill', label: 'Back', colors: ['#BBC6CA', '#434D55'], icon: 'resources/icons/fun-stuff.png' };
+    const back = { id: '__back', type: 'skill', label: 'Back', colors: ['#BBC6CA', '#434D55'], icon: 'resources/icons/back.png' };
     // Kept separate from editable inventory: users cannot reorder/delete navigation.
     function configView(folderId) {
         if (!folderId) { return view(null); }
