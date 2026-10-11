@@ -16,6 +16,14 @@ async function run() {
     assert.strictEqual(decoded.manifest.name, 'Astra'); assert.strictEqual(decoded.images['face/eye.png'].width, 500);
     assert.deepStrictEqual(decoded.menu.textPlacement, { x: 0, y: 45 });
     assert.strictEqual(decoded.menu.menuType, 'native', 'Existing themes keep native paging');
+    assert.strictEqual(decoded.menu.buttonColors, false, 'Existing themes preserve button artwork colors');
+    for (const buttonColors of [true, false]) {
+        const colored = await pkg.validate(Object.assign({}, files, { 'menu/menu.json': Buffer.from(JSON.stringify({ buttonColors })) }));
+        assert.strictEqual(colored.menu.buttonColors, buttonColors);
+    }
+    for (const buttonColors of ['true', 1, null, {}, []]) {
+        await bad(() => pkg.validate(Object.assign({}, files, { 'menu/menu.json': Buffer.from(JSON.stringify({ buttonColors })) })));
+    }
     const bannerFiles = Object.assign({}, files, { 'banner.png': fixture.png() });
     assert((await pkg.validate(await pkg.unzip(fixture.zip(bannerFiles)))).images['banner.png']);
     await bad(() => pkg.validate(Object.assign({}, files, { 'banner.png': Buffer.from('not an image') })));

@@ -145,40 +145,6 @@
                 }
             },
             {
-                "id": "bad-apple",
-                "label": "Bad Apple",
-                "colors": ["0x58586D", "0x282735"],
-                "iconSrc": "resources/icons/bad-apple.png",
-                "action": {
-                    "type": "utterance",
-                    "data":{
-                        "utterance": {
-                            "intent": "loadMenu",
-                            "entities": {
-                                "destination": "bad-apple"
-                            }
-                        }
-                    }
-                }
-            },
-            {
-                "id": "snapshot",
-                "label": "Snapshot",
-                "colors": ["0x8EDD40", "0x31732A"],
-                "iconSrc": "resources/icons/create.png",
-                "action": {
-                    "type": "utterance",
-                    "data":{
-                        "utterance": {
-                            "intent": "loadMenu",
-                            "entities": {
-                                "destination": "snapshot"
-                            }
-                        }
-                    }
-                }
-            },
-            {
                 "id": "gallery",
                 "label": "Gallery",
                 "colors": ["0x8EDD40", "0x31732A"],

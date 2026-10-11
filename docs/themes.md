@@ -82,6 +82,7 @@ Animation-specific eye textures remain unchanged.
 ```json
 {
   "menuType": "native",
+  "buttonColors": false,
   "buttonSize": 95,
   "iconSize": 90,
   "iconPlacement": "x0 y0",
@@ -97,6 +98,16 @@ button height. Placement is relative to the button center: +X moves right, +Y
 moves up. Values range from −50 to 50, where 50 reaches the corresponding edge.
 Sizes must be finite numbers greater than zero and at most 1000; colors use
 `#RRGGBB`. Unknown configuration fields are rejected.
+
+Set `"buttonColors": true` in `menu/menu.json` to color-shift `menu/button.png`
+using each MenuView button's existing `colors` pair (including main-menu colors
+and native default/confirm/cancel palettes). Artwork luminance maps between the
+second color for shadows and the first color for highlights, preserving shading
+and transparency. Neutral grayscale artwork gives predictable results; colored
+artwork is converted using its luminance. Icons and labels keep their original
+colors. Color changes update live, and both native and dynamic menus support
+this option. The default is `false`, which preserves the PNG's original colors.
+Without `button.png`, the stock artwork retains its native color behavior.
 
 `menuType` is optional and accepts `"native"` (the default) or `"dynamic"`.
 Native keeps Jibo's existing page-based swipe behavior. Dynamic lays buttons

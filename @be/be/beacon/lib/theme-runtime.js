@@ -171,6 +171,28 @@ function restoreButton(button) {
     button._content = stock.content; button._dimensions = stock.dimensions;
     button.display.hitArea = stock.hitArea; button._hitArea = stock.internalHitArea;
     button._beamThemeStock = null;
+    button._beamThemeButton = null;
+}
+function colorButton(button) {
+    const sprite = button._beamThemeButton;
+    if (!sprite || !current || !current.theme || current.theme.menu.buttonColors !== true) { return; }
+    // Map artwork luminance between MenuView's shadow and highlight colors.
+    // Filter only the artwork: labels/icons and image alpha remain unchanged.
+    const defaults = [0x25f2fb, 0x107799];
+    const colors = defaults.map((fallback, i) => {
+        const value = button.colors && Number(button.colors[i]);
+        return typeof value === 'number' && isFinite(value) && value >= 0 && value <= 0xffffff ? value : fallback;
+    });
+    const matrix = [];
+    [16, 8, 0].forEach(shift => {
+        const light = ((colors[0] >> shift) & 255) / 255;
+        const dark = ((colors[1] >> shift) & 255) / 255;
+        const range = light - dark;
+        matrix.push(range * 0.2126, range * 0.7152, range * 0.0722, 0, dark);
+    });
+    matrix.push(0, 0, 0, 1, 0);
+    if (!sprite.filters || !sprite.filters.length) { sprite.filters = [new PIXI.filters.ColorMatrixFilter()]; }
+    sprite.filters[0].matrix = matrix;
 }
 function styleButton(button, assets) {
     restoreButton(button);
@@ -185,6 +207,7 @@ function styleButton(button, assets) {
     const content = new PIXI.Container(); button.display.addChild(content); button._beamThemeDisplay = content; button._content = content;
     if (texture) {
         const sprite = new PIXI.Sprite(texture); sprite.width = dimensions.width; sprite.height = dimensions.height; content.addChild(sprite);
+        button._beamThemeButton = sprite; colorButton(button);
     } else {
         // Preserve the stock button art when the theme omits button.png.
         const old = button._beamThemeStock.content;
@@ -271,6 +294,14 @@ function hookMenus(jibo) {
     if (Button.prototype._beamThemeHooked) { return; }
     const setup = Button.prototype.setupDisplay; const destroy = Button.prototype.destroy;
     const empty = Button.prototype.emptyDisplay;
+    const colors = Button.prototype.applyColors;
+    Button.prototype.applyColors = function() {
+        // Keep hidden stock art current too, so None restores the latest colors.
+        const content = this._content;
+        if (this._beamThemeStock) { this._content = this._beamThemeStock.content; }
+        try { colors.apply(this, arguments); } finally { this._content = content; }
+        colorButton(this);
+    };
     Button.prototype.setupDisplay = function(assets) { restoreButton(this); this._beamAssets = assets; setup.call(this, assets); styleButton(this, assets); };
     Button.prototype.emptyDisplay = function() { restoreButton(this); return empty.call(this); };
     Button.prototype.destroy = function() { restoreButton(this); return destroy.call(this); };

@@ -36,7 +36,7 @@ class Graphics extends Container {
     generateTexture() { return texture('stock-art', this.width || 330, this.height || 300); }
 }
 function texture(name, width = 720, height = 720) { return { name, width, height, baseTexture: { imageUrl: name } }; }
-const pixi = { Container, Point, Sprite, Text, Graphics, mesh: { Mesh }, Rectangle: class { constructor(x,y,width,height) { Object.assign(this, { x,y,width,height }); } } };
+const pixi = { Container, Point, Sprite, Text, Graphics, filters: { ColorMatrixFilter: class {} }, mesh: { Mesh }, Rectangle: class { constructor(x,y,width,height) { Object.assign(this, { x,y,width,height }); } } };
 const bundle = fs.readFileSync(path.join(__dirname, '../@be/be/node_modules/jibo/lib/jibo.js'), 'utf8');
 function native(id, dependencies) {
     const marker = '}],' + id + ':[function(require,module,exports){';
@@ -179,6 +179,37 @@ async function run() {
     assert.strictEqual(button.display.hitArea.height, 684); assert.strictEqual(button._content.children[2].y, 34.199999999999996);
     assert.strictEqual(button.action.destination, 'skill-0');
     assert.strictEqual(button.member.targetPosition.y, nativeMenu._list.listStartPosition.y);
+    assert(!button._beamThemeButton.filters, 'Color shifting is opt-in');
+    const colored = Object.assign({}, theme, { menu: Object.assign({}, theme.menu, { buttonColors: true }) });
+    button.colors = ['0xff892f', '0xaf4123'];
+    await runtime.apply(await runtime.prepare(colored, '/tmp/theme'));
+    function shifted(pixel) {
+        const m = button._beamThemeButton.filters[0].matrix;
+        return [0, 5, 10, 15].map(i => pixel.reduce((v, channel, j) => v + m[i + j] * channel, m[i + 4]));
+    }
+    function close(actual, expected) { actual.forEach((n, i) => assert(Math.abs(n - expected[i]) < 0.000001)); }
+    close(shifted([1, 1, 1, 1]), [1, 137 / 255, 47 / 255, 1]);
+    close(shifted([0, 0, 0, 1]), [175 / 255, 65 / 255, 35 / 255, 1]);
+    close(shifted([0.5, 0.5, 0.5, 0.4]), [215 / 255, 101 / 255, 41 / 255, 0.4]);
+    assert(!button._content.children[1].filters && !button._content.children[2].filters, 'Icons and labels keep their own colors');
+    button.colors = 'confirm';
+    close(shifted([1, 1, 1, 1]), [163 / 255, 1, 74 / 255, 1]);
+    assert.strictEqual(button._beamThemeStock.content.background.children[0].tint, 0xa3ff4a, 'Stock colors stay current while themed');
+    const coloredNext = menu(); coloredNext.loaded();
+    assert(coloredNext._list.componentList[0]._beamThemeButton.filters, 'New menus receive color shifting');
+    button.colors = 'cancel';
+    close(shifted([0, 0, 0, 1]), [153 / 255, 0, 36 / 255, 1]);
+    await runtime.apply(await runtime.prepare(null));
+    assert.strictEqual(button._beamThemeButton, null);
+    assert.strictEqual(button._content.background.children[0].tint, 0xfd362f, 'None restores updated native colors');
+    const noArt = Object.assign({}, colored, { images: Object.assign({}, colored.images) });
+    delete noArt.images['menu/button.png'];
+    await runtime.apply(await runtime.prepare(noArt, '/tmp/theme'));
+    button.colors = ['0x3765ab', '0x1a2563'];
+    assert.strictEqual(button._beamThemeButton, null, 'Missing artwork keeps native color support');
+    assert.strictEqual(button._beamThemeStock.content.background.children[0].tint, '0x3765ab');
+    await runtime.apply(await runtime.prepare(theme, '/tmp/theme'));
+    assert(!button._beamThemeButton.filters, 'Switching to an uncolored theme clears the filter');
     const next = menu(); next.loaded(); assert.strictEqual(next._list.elementsPerPage, 1);
     assert(next._beamThemeBackground); assert(next._buttonLabels.every(l => !l.display.visible));
     const specialized = menu(); specialized._list.componentList.forEach(b => { b._type = 'ContactButton'; }); specialized.loaded();
