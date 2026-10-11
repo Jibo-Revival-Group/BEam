@@ -16,7 +16,8 @@ const paths = require('./lib/paths');
 const u = require('./lib/http-util');
 const jukebox = require('./lib/jukebox');
 const photos = require('./lib/photos');
-const eye = require('./lib/eye');
+const themes = require('./lib/themes');
+const themePackage = require('./lib/theme-package');
 const skills = require('./lib/skills');
 const system = require('./lib/system');
 const ota = require('./lib/ota');
@@ -161,30 +162,35 @@ const routes = {
         return photos.remove(query.id).then((result) => u.sendJson(res, 200, result));
     }),
 
-    'GET /api/eye': guard((req, res) => {
-        u.sendJson(res, 200, eye.state());
+    'GET /api/store': guard((req, res) => { u.sendJson(res, 200, themes.catalog()); }),
+    'GET /api/store/details': guard((req, res, query) => {
+        return themes.details(query.id).then(data => u.sendJson(res, 200, data));
     }),
-
-    'GET /api/eye/current.png': guard((req, res) => {
-        u.serveFile(req, res, eye.currentPath(), { contentType: 'image/png' });
+    'POST /api/store/refresh': guard((req, res) => {
+        return u.readJson(req, 4096).then(body => themes.refresh(body.id)).then(data => u.sendJson(res, 200, data));
     }),
-
-    'GET /api/eye/original.png': guard((req, res) => {
-        u.serveFile(req, res, paths.pristineEye(), { contentType: 'image/png' });
+    'GET /api/store/sources': guard((req, res) => { u.sendJson(res, 200, themes.catalog().sources); }),
+    'POST /api/store/sources': guard((req, res) => {
+        return u.readJson(req, 4096).then(body => themes.addSource(body.url)).then(data => u.sendJson(res, 200, data));
     }),
-
-    'PUT /api/eye': guard((req, res, query) => {
-        return u.readBody(req, MAX_IMAGE).then((buf) => {
-            return eye.apply(buf, query.name).then((result) => u.sendJson(res, 200, result));
-        });
+    'DELETE /api/store/sources': guard((req, res, query) => {
+        return themes.removeSource(query.id).then(data => u.sendJson(res, 200, data));
     }),
-
-    'POST /api/eye/revert': guard((req, res) => {
-        return eye.revert().then((result) => u.sendJson(res, 200, result));
+    'GET /api/themes': guard((req, res) => { u.sendJson(res, 200, themes.inventory()); }),
+    'POST /api/themes/install': guard((req, res) => {
+        return u.readJson(req, 4096).then(body => themes.install(body.entryId, body.themeId)).then(data => u.sendJson(res, 200, data));
     }),
-
-    'POST /api/eye/refresh': guard((req, res) => {
-        return eye.refresh().then((result) => u.sendJson(res, 200, result));
+    'PUT /api/themes/upload': guard((req, res, query) => {
+        return u.readBody(req, themePackage.MAX_ZIP).then(buf => themes.upload(buf, query.name)).then(data => u.sendJson(res, 200, data));
+    }),
+    'POST /api/themes/apply': guard((req, res) => {
+        return u.readJson(req, 4096).then(body => themes.activate(body.id === undefined ? null : body.id)).then(data => u.sendJson(res, 200, data));
+    }),
+    'DELETE /api/themes': guard((req, res, query) => {
+        return themes.remove(query.id).then(data => u.sendJson(res, 200, data));
+    }),
+    'GET /api/themes/asset': guard((req, res, query) => {
+        u.serveFile(req, res, themes.asset(query.id, query.name), { contentType: 'image/png' });
     }),
 
     'GET /api/server': guard((req, res) => {
@@ -473,12 +479,7 @@ module.exports = {
 
 if (require.main === module) {
     const port = Number(process.argv[2]) || Number(process.env.BEACON_PORT) || 8123;
-    try {
-        const healed = eye.selfHeal();
-        if (healed) { console.log('[beacon] re-applied custom eye from', healed); }
-    } catch (err) {
-        console.warn('[beacon] could not re-apply custom eye:', err && err.message);
-    }
+    themes.start();
     create().listen(port, '0.0.0.0', () => {
         try { homeassistant.startWatcher(); }
         catch (err) { console.warn('[beacon] home assistant watcher:', err && err.message); }

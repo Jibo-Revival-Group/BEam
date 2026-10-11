@@ -22,6 +22,7 @@ The robot face is **1280×720** pixels.
 | [main-menu.md](main-menu.md) | Menu buttons and redirect to skills |
 | [build-and-deploy.md](build-and-deploy.md) | Browserify builds, permissions, restart |
 | [beacon.md](beacon.md) | BEacon, the web control panel on port 8123 |
+| [themes.md](themes.md) | Custom themes, storefront manifests, ZIP testing and jibo-tbd compatibility |
 
 ## Patterns
 

@@ -88,37 +88,23 @@
     <input id="people-photo-file" type="file" accept="image/*" hidden>
 </section>
 
-<section class="panel" id="panel-eye">
-    <p class="hint">
-        Choose a picture for Jibo&rsquo;s eye. Tap Apply to show it on his face.
-    </p>
-    <div class="eye-grid">
-        <figure class="eye-card">
-            <figcaption>Current</figcaption>
-            <img id="eye-current" alt="Current eye">
-        </figure>
-        <figure class="eye-card">
-            <figcaption>Original</figcaption>
-            <img id="eye-original" alt="Original eye">
-        </figure>
-        <div class="eye-card eye-drop" id="eye-drop">
-            <p class="setting-title">Drop a picture here</p>
-            <p class="hint">or</p>
-            <button class="btn btn-primary" data-action="pick-eye">Choose a file</button>
-            <p class="hint">PNG, JPG, GIF or WebP</p>
-            <input type="file" id="eye-file" accept="image/*" hidden>
-        </div>
+<section class="panel" id="panel-themes">
+    <p class="hint" id="themes-summary" role="status"></p>
+    <div class="theme-upload" id="theme-drop">
+        <p>Test a theme by uploading its ZIP, then choose Apply.</p>
+        <button class="btn btn-primary" data-action="pick-theme">Upload theme ZIP</button>
+        <input id="theme-file" type="file" accept=".zip,application/zip" hidden>
+        <p class="hint">Drop a ZIP here · up to 32 MB</p>
     </div>
-    <div class="eye-controls">
-        <button class="btn btn-flat-danger" data-action="revert-eye">Restore original eye</button>
-    </div>
-    <details class="advanced">
-        <summary>Advanced</summary>
-        <div class="card">
-            <p class="section-header" style="margin-top:10px;">On the face</p>
-            <ul class="list" id="eye-textures"></ul>
-        </div>
-    </details>
+    <div id="themes-list" class="skill-grid"></div>
+</section>
+<section class="panel" id="panel-store">
+    <p class="hint">Discover themes for Jibo. Add a storefront manifest or a single GitHub theme repository.</p>
+    <button class="btn" data-action="add-store">Add storefront</button>
+    <p class="section-header">Storefronts</p>
+    <div id="store-sources"></div>
+    <p class="section-header">Themes</p>
+    <div id="store-list" class="skill-grid"></div>
 </section>
 
 <section class="panel" id="panel-skills">
@@ -253,9 +239,12 @@
         <span class="icon icon-sm icon-about" aria-hidden="true"></span>
         <span>People</span>
     </button>
-    <button class="tab" data-panel="eye">
+    <button class="tab" data-panel="themes">
         <span class="icon icon-sm icon-eye" aria-hidden="true"></span>
-        <span>Eye</span>
+        <span>Themes</span>
+    </button>
+    <button class="tab" data-panel="store">
+        <span class="icon icon-sm icon-skills" aria-hidden="true"></span><span>Store</span>
     </button>
     <button class="tab" data-panel="skills">
         <span class="icon icon-sm icon-skills" aria-hidden="true"></span>
@@ -269,6 +258,14 @@
 
 <div class="toasts" id="toasts"></div>
 
+<div id="theme-details" class="theme-details" hidden role="dialog" aria-modal="true" aria-labelledby="theme-details-title">
+    <div class="theme-details-card">
+        <button class="btn" data-action="close-theme-details">Close</button>
+        <h2 id="theme-details-title"></h2>
+        <p id="theme-details-meta" class="hint"></p>
+        <div id="theme-details-readme" class="theme-readme"></div>
+    </div>
+</div>
 <div class="modal" id="modal" hidden>
     <div class="modal-box">
         <h3 id="modal-title">Title</h3>
@@ -282,6 +279,7 @@
     </div>
 </div>
 
+<script src="themes.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

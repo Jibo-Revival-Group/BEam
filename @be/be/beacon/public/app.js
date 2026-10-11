@@ -2,7 +2,6 @@
 (function () {
     'use strict';
 
-    var EYE_SIZE = 720;
     var PEOPLE_PHOTO_SIZE = 384;
     var SCREEN_W = 1280;
     var SCREEN_H = 720;
@@ -175,9 +174,7 @@
             cards.appendChild(stat('Version', data.host.name + ' ' + (data.host.version || '')));
             cards.appendChild(stat('This Jibo', data.robot ? data.hostname : 'Development (' + data.hostname + ')'));
             cards.appendChild(stat('Uptime', duration(data.uptimeSeconds)));
-            cards.appendChild(stat('Custom eye', data.eye && data.eye.custom
-                ? (data.eye.applied ? 'On' : 'Saved — tap Apply')
-                : 'Off'));
+            cards.appendChild(stat('Theme', data.theme ? data.theme.name : 'None'));
 
             var links = el('div');
             (data.addresses || []).forEach(function (addr) {
@@ -196,7 +193,6 @@
                 ['Skills folder', data.paths.skillsRoot],
                 ['Music folder', data.paths.musicDir + (data.paths.musicDirExists ? '' : '  (missing)')],
                 ['Photos folder', data.paths.photosDir + (data.paths.photosDirExists ? '' : '  (missing)')],
-                ['Eye images', data.paths.texturesDir],
                 ['BEacon data', data.paths.dataDir]
             ];
             rows.forEach(function (row) {
@@ -608,101 +604,7 @@
         });
     }
 
-    /* ---------------------------------------------------------------- eye */
-
-    /** Centre-crop to a square and redraw at the size Jibo's eye uses. */
-    function toEyePng (file) {
-        return new Promise(function (resolve, reject) {
-            var url = URL.createObjectURL(file);
-            var image = new Image();
-            image.onload = function () {
-                URL.revokeObjectURL(url);
-                var side = Math.min(image.width, image.height);
-                var canvas = document.createElement('canvas');
-                canvas.width = EYE_SIZE;
-                canvas.height = EYE_SIZE;
-                var ctx = canvas.getContext('2d');
-                ctx.drawImage(
-                    image,
-                    (image.width - side) / 2, (image.height - side) / 2, side, side,
-                    0, 0, EYE_SIZE, EYE_SIZE
-                );
-                canvas.toBlob(function (blob) {
-                    if (blob) { resolve(blob); } else { reject(new Error('Could not convert that image')); }
-                }, 'image/png');
-            };
-            image.onerror = function () {
-                URL.revokeObjectURL(url);
-                reject(new Error('That file could not be read as an image'));
-            };
-            image.src = url;
-        });
-    }
-
-    function applyEye (file) {
-        if (!IMAGE_RE.test(file.name) && file.type.indexOf('image/') !== 0) {
-            toast('Pick a picture file', 'error');
-            return;
-        }
-        toast('Preparing picture…');
-        toEyePng(file).then(function (blob) {
-            return fetch('/api/eye?name=' + encodeURIComponent(file.name), {
-                method: 'PUT',
-                headers: { 'Content-Type': 'image/png' },
-                body: blob
-            }).then(function (res) {
-                return res.json().then(function (data) {
-                    if (!res.ok) { throw new Error(data.error || 'Upload failed'); }
-                    return data;
-                });
-            });
-        }).then(function (data) {
-            if (data.live) {
-                toast('Eye updated.', 'ok');
-            } else {
-                toast('Eye saved. Tap Apply if it still looks old.', 'ok');
-            }
-            return loadEye();
-        }).catch(reportError);
-    }
-
-    function refreshEye () {
-        toast('Updating Jibo\'s eye…');
-        return api('POST', '/api/eye/refresh')
-            .then(function (data) {
-                if (data.live) {
-                    toast('Eye updated.', 'ok');
-                } else {
-                    toast('Could not refresh the eye on his face right now.', 'error');
-                }
-                return loadEye();
-            })
-            .catch(reportError);
-    }
-
-    function loadEye () {
-        return api('GET', '/api/eye').then(function (data) {
-            var stamp = '?t=' + Date.now();
-            $('#eye-current').src = '/api/eye/current.png' + stamp;
-            $('#eye-original').src = '/api/eye/original.png' + stamp;
-
-            var list = $('#eye-textures');
-            list.innerHTML = '';
-            data.textures.forEach(function (texture) {
-                var li = el('li');
-                var mark = texture.matchesCustom ? 'custom' : (texture.matchesOriginal ? 'original' : 'other');
-                li.appendChild(el('span', 'chip' + (texture.matchesCustom ? ' is-role' : ' is-on'), mark));
-                li.appendChild(el('span', null, texture.name));
-                if (!texture.writable) { li.appendChild(el('span', 'chip', 'locked')); }
-                list.appendChild(li);
-            });
-
-            if (data.pending) {
-                list.appendChild(el('li', null, 'Tap Apply to finish showing the new eye.'));
-            }
-            return data;
-        });
-    }
+    var themeUI = window.BEaconThemes.create({ api: api, toast: toast, reportError: reportError, prompt: prompt2 });
 
     /* ------------------------------------------------------------- skills */
 
@@ -1531,10 +1433,8 @@
             title: 'People',
             actions: [{ action: 'refresh-people', label: 'Refresh' }]
         },
-        eye: {
-            title: "Jibo's eye",
-            actions: [{ action: 'refresh-eye', label: 'Apply' }]
-        },
+        themes: { title: 'Themes', actions: [{ action: 'refresh-themes', label: 'Refresh' }] },
+        store: { title: 'Store', actions: [{ action: 'refresh-store', label: 'Refresh' }] },
         skills: {
             title: 'Skills',
             actions: [{ action: 'refresh-skills', label: 'Refresh' }]
@@ -1555,7 +1455,8 @@
         jukebox: loadJukebox,
         photos: loadPhotos,
         people: loadPeople,
-        eye: loadEye,
+        themes: themeUI.loadThemes,
+        store: themeUI.loadStore,
         skills: loadSkills,
         etc: loadEtc,
         server: loadServer
@@ -1606,7 +1507,8 @@
         'refresh-jukebox': loadJukebox,
         'refresh-photos': loadPhotos,
         'refresh-people': loadPeople,
-        'refresh-eye': refreshEye,
+        'refresh-themes': themeUI.loadThemes,
+        'refresh-store': function () { return themeUI.refreshStore(); },
         'refresh-skills': loadSkills,
         'refresh-location': loadEtc,
         'refresh-etc': loadEtc,
@@ -1759,20 +1661,10 @@
                 })
                 .catch(reportError);
         },
-        'pick-eye': function () { $('#eye-file').click(); },
-        'revert-eye': function () {
-            if (!confirm('Put Jibo\'s original eye back?')) { return; }
-            api('POST', '/api/eye/revert')
-                .then(function (data) {
-                    if (data.live) {
-                        toast('Original eye restored.', 'ok');
-                    } else {
-                        toast('Original eye restored. Tap Apply if needed.', 'ok');
-                    }
-                    return loadEye();
-                })
-                .catch(reportError);
-        }
+        'pick-theme': function () { $('#theme-file').click(); },
+        'add-store': themeUI.addSource,
+        'close-theme-details': themeUI.closeDetails
+
     };
 
     document.addEventListener('change', function (event) {
@@ -1802,8 +1694,8 @@
         if (tab) { showPanel(tab.getAttribute('data-panel')); }
     });
 
-    $('#eye-file').addEventListener('change', function (event) {
-        if (event.target.files.length) { applyEye(event.target.files[0]); }
+    $('#theme-file').addEventListener('change', function (event) {
+        if (event.target.files.length) { themeUI.upload(event.target.files[0]); }
         event.target.value = '';
     });
 
@@ -1816,7 +1708,7 @@
         event.target.removeAttribute('data-member-id');
     });
 
-    var drop = $('#eye-drop');
+    var drop = $('#theme-drop');
     drop.addEventListener('dragover', function (event) {
         event.preventDefault();
         drop.classList.add('is-drop');
@@ -1825,7 +1717,7 @@
     drop.addEventListener('drop', function (event) {
         event.preventDefault();
         drop.classList.remove('is-drop');
-        if (event.dataTransfer.files.length) { applyEye(event.dataTransfer.files[0]); }
+        if (event.dataTransfer.files.length) { themeUI.upload(event.dataTransfer.files[0]); }
     });
 
     // Dropping a file anywhere else should not navigate away from the page.

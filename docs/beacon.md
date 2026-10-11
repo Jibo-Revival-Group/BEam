@@ -19,7 +19,8 @@ way the Skills Service Manager on port 8779 is already open.
 | Music | Full library management: albums, uploads, covers, rename, delete |
 | Photos | View saved robot photos, download originals, delete local copies |
 | People | Manage the household Loop: add, rename, remove, profile photos; enrollment badges |
-| Eye | Replace Jibo's eye with your own image, revert to the original |
+| Themes | Install theme ZIPs, apply installed themes, or restore stock appearance |
+| Store | Browse themes from manifest URLs and individual GitHub repositories |
 | Skills | Lists skills ready on Jibo |
 | Setup | First-boot household and BEam/BEnch update after BEetle (API only; UI removed) |
 | More | Weather units and home location |
@@ -143,53 +144,32 @@ shows the host, whether the feed is enabled, and the last error. A Google
 secret ICS address is a normal https link. If the credentials file is missing,
 the card says calendar setup needs the robot's cloud credentials.
 
-## Jibo eye
+## Themes and Store
 
-The stock default eye is several byte-identical 720×720 PNGs. jibo.js loads the
-first as `DEFAULT_TEXTURES.EYE`; animations address the same look through the
-customizer indices and, most often, `White_Eye.png`:
+The Store starts with `https://store.5x1.com/manifest.json`. Add another manifest
+URL or a single GitHub repository such as `https://github.com/ZaneThePython/Astra`.
+Repositories use the default branch and downloads are pinned to the resolved
+commit. Storefront refresh failures preserve cached entries. Removing a source
+preserves its installed themes. Skills are accepted in manifests but hidden;
+custom skill installation remains unavailable.
 
-```
-res/geometry-config/P1.0/textures/Default_Eye.png            (DEFAULT_TEXTURES.EYE in jibo.js)
-res/geometry-config/P1.0/textures/JiBO_eye_customizer_00.png (animation texture DOFs)
-res/geometry-config/P1.0/textures/JiBO_eye_customizer_38.png
-jibo-anim-db-animations/animations/textures/White_Eye.png   (headtouch / idles / most anims)
-(+ a few skill-local White_Eye / white-eye copies of the same image)
-```
+Themes shows installed packages and **None**, the stock appearance. Install or
+upload first, then select **Apply**. Updates and replacement ZIPs are explicit
+and leave the current appearance running until Apply. Removing the active theme
+first restores None. Details displays the full README as safe Markdown; store
+cards show the first non-heading paragraph in two lines.
 
-Applying a custom eye writes your image to **all of those** (upload fails if any
-write misses). That is why petting used to snap back to the original eye —
-those anims keyframe `White_Eye.png`, which BEacon previously left alone. The
-browser centre-crops and redraws whatever you drop at 720×720 first, so any
-PNG, JPG, GIF or WebP works. `JiBO_eye_customizer_44.png` is the eye overlay,
-not the eye itself, and is left alone. Recipe's distinct `White_Eye.png` is
-also left alone.
+Theme state and packages live in `/opt/jibo/Knowledge/beacon/themes`, outside the
+Skills tree replaced by OTA. No network access is needed to use installed themes.
+Startup waits for the live face renderer and restores the selected revision.
+Standalone BEacon saves selections for the next renderer start.
 
-The eye survives updates and is always revertible:
+The prior custom-eye feature and `/api/eye` endpoints have been removed. The
+first startup restores previously overwritten stock eye aliases from the shipped
+pristine image. Old uploads remain as inactive data; they no longer self-heal.
 
-- Your image is saved to `/opt/jibo/Knowledge/beacon/eye/custom.png`, outside the
-  Skills tree that `update-beam.sh` replaces (same Knowledge root jibo-kb uses).
-  That directory must be writable by Be; `update-beam.sh` and `post-mod.sh`
-  create it with mode `777`. Older installs under `/opt/tmp/beacon` are migrated
-  once on boot. If eye uploads fail with `EACCES`, fix it once on the robot:
-
-  ```sh
-  mkdir -p /opt/jibo/Knowledge/beacon /opt/jibo/Knowledge/jukebox/music
-  chmod -R 777 /opt/jibo/Knowledge
-  ```
-
-- `beacon.start()` ensures the Knowledge data dirs exist, migrates legacy music
-  / eye if needed, then re-applies a saved custom eye on boot when the textures
-  no longer match, which heals the face after an update restores the stock PNGs.
-- **Revert** copies the pristine PNG from `@be/be/beacon/assets/eye-original/`
-  back over all three paths.
-
-PIXI caches the default eye at boot, and animations keep stock White_Eye
-textures on KeysData. **Apply to face** (and upload / revert) rewrites the PNGs,
-reloads `Default_Eye.png`, hooks `EyeContainer.getTexture` so stock eye paths
-always use the live custom texture (so petting/idles cannot snap back), and
-updates matching PIXI `BaseTexture`s. If live reload fails, relaunch Be from
-the robot (SSM / power cycle) so textures reload from disk.
+See [themes.md](themes.md) for authoring, ZIP validation, storefront formats,
+minimum **jibo-tbd** versions, and device acceptance checks.
 
 ## Setup (BEetle first boot)
 
@@ -272,6 +252,18 @@ rather than failing.
 | Method | Path | Purpose |
 |--------|------|---------|
 | GET | `/api/status` | Versions, addresses, resolved paths |
+| GET | `/api/store` | Cached theme catalog, source statuses, compatibility |
+| GET | `/api/store/details?id=` | Theme metadata and README (catalog or installed ID) |
+| POST | `/api/store/refresh` | `{id?}` refreshes one or all sources |
+| GET | `/api/store/sources` | Configured storefronts |
+| POST | `/api/store/sources` | `{url}` adds and refreshes a manifest/repository |
+| DELETE | `/api/store/sources?id=` | Remove a source, preserve installations |
+| GET | `/api/themes` | Installed packages, active/pending revision, renderer status |
+| POST | `/api/themes/install` | `{entryId}` installs from the catalog; `{themeId}` updates an installation |
+| PUT | `/api/themes/upload?name=` | Raw ZIP upload, install without applying |
+| POST | `/api/themes/apply` | `{id}` applies a theme; `{id:null}` selects None |
+| DELETE | `/api/themes?id=` | Remove a theme, restoring None if active |
+| GET | `/api/themes/asset?id=&name=` | Serve a validated installed PNG |
 | GET | `/api/skills` | Registered and on-disk skills |
 | POST | `/api/skills/install` | Placeholder, returns 501 |
 | GET | `/api/jukebox` | Albums, tracks, ignored folders |
@@ -291,11 +283,6 @@ rather than failing.
 | POST | `/api/screen/input` | `{type: pointer\|tap\|swipe, phase?, x?, y?, direction?}` |
 | GET | `/api/orchestra` | `{now}` — this robot's clock, in unix milliseconds |
 | POST | `/api/orchestra` | Turn to global home (0 degrees), freeze attention, then play `assets/orchestra/Symphony.wav` with an oscilloscope. Attention is released when the clip ends. `{"prepare":true}` gets ready without starting; `{"startAt":<unix ms>}` on a ready robot is the shared downbeat. `{"stop":true}` stops playback, clears the oscilloscope, and releases the hold, including when nothing is playing. Replace that wav to use a different clip. |
-| GET | `/api/eye` | Custom-eye state and texture hashes |
-| GET | `/api/eye/current.png`, `/api/eye/original.png` | Previews |
-| PUT | `/api/eye?name=` | Raw PNG body, applies the eye + live reload |
-| POST | `/api/eye/refresh` | Re-write saved eye + reload face textures |
-| POST | `/api/eye/revert` | Restore the stock eye + live reload |
 | GET | `/api/server` | Jetstream hub state + presets |
 | POST | `/api/server` | `{hostname, port}` — write hub override; kill jetstream; reboot to apply |
 | GET | `/api/credentials` | Credentials endpoint/region (keys never returned) |
@@ -332,7 +319,10 @@ rather than failing.
   lib/people.js           local loop roster CRUD and profile photos
   lib/calendars.js        personal-report iCal feeds via signed cloud calls
   lib/screen.js           remote face view and touch input
-  lib/eye.js              apply, revert, self-heal
+  lib/themes.js           persistent theme inventory, sources, installation and activation
+  lib/theme-package.js    bounded ZIP/PNG and config validation
+  lib/theme-store.js      manifest and GitHub resolution
+  lib/theme-runtime.js    live eye, background and standard menu adapter
   lib/skills.js           skill inventory
   lib/location.js         local home location, ip-api detection, timezone persistence
   lib/system.js           status, hub config, credentials

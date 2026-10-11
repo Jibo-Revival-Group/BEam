@@ -1,0 +1,156 @@
+# Authoring themes and storefronts
+
+A theme is declarative JSON and PNG imagery. It never executes JavaScript or
+installs a skill. ZIP uploads and storefront downloads share validation.
+
+Store and theme HTTPS downloads use a bundled Mozilla CA list because Jibo's
+Electron 1.4.3 built-in certificates are outdated. Certificate and hostname
+verification remain enabled. The bundle ships inside BEam's `beacon/certs`
+directory; maintainers should refresh it when publishing BEam releases (see
+that directory's README for provenance and checksum verification).
+
+## Package layout
+
+```text
+manifest.json
+README.md                 optional store description/details
+face/
+  face.json               optional color and eye scale
+  eye.png                 optional open eye
+  eyeClosed.png           optional closed eye, deformed like the open eye
+  background.png          optional face background
+menu/
+  menu.json               optional standard menu layout
+  button.png              optional button artwork
+```
+
+Place the manifest at the ZIP root or within one enclosing directory. GitHub
+generated ZIPs work. Notes and other inert repository files are ignored; only
+the files above are installed. ZIPs are limited to 32 MB compressed, 64 MB
+expanded, and 1024 entries. Links, unsafe/duplicate paths, executable files,
+invalid checksums, encrypted archives and ZIP64 are rejected.
+
+```json
+{
+  "name": "Astra",
+  "version": "1.0.0",
+  "supported": "3.1.6",
+  "type": "theme"
+}
+```
+
+`supported` is optional and means the minimum installed **jibo-tbd** package
+version. It is never compared with the Be host or services version. Known older
+versions block installation and activation; unknown versions are marked
+unverified. Installed package names identify themes across versions. Installing
+the same name replaces its installed revision; replacing a theme from another
+store URL requires removing the old installation first. ZIP uploads can replace
+an installation with the same name for local testing.
+
+Install/upload does not apply. If a theme is active while a new revision is
+installed, the previous revision stays active until Apply. Installed themes
+work offline and survive BEam updates. Store Update downloads the latest commit;
+ZIP themes are updated by uploading another ZIP. None restores stock appearance.
+
+## Face configuration
+
+```json
+{ "backgroundColor": "#000000", "eyeSize": 100 }
+```
+
+`eyeSize` is a percentage of the stock eye: 50 is half size and 300 is triple.
+PNG dimensions are independent of displayed size (maximum 4096×4096 and 64 MB
+decoded). The eye's normal geometry and movements continue to animate. The
+closed texture fades in as the geometry compresses vertically, including
+blinking, petting and sleeping; both images undergo the same deformation. A
+missing closed-eye image uses the open eye. Square eye images give the intended
+1:1 mapping. Background images stretch to fill 1280×720 over the configured
+color. Omitted face files use stock appearance; omitted eye images use the
+stock eye while retaining the supplied scale/background.
+
+## Menu configuration
+
+```json
+{
+  "buttonSize": 95,
+  "iconSize": 90,
+  "iconPlacement": "x0 y0",
+  "textSize": 15,
+  "textPlacement": "x0 y45",
+  "backgroundColor": "#000000"
+}
+```
+
+Buttons take `buttonSize` percent of the screen's 720-pixel height. Artwork
+preserves aspect ratio. Icons and text use `iconSize` and `textSize` percent of
+button height. Placement is relative to the button center: +X moves right, +Y
+moves up. Values range from −50 to 50, where 50 reaches the corresponding edge.
+Sizes must be finite numbers greater than zero and at most 1000; colors use
+`#RRGGBB`. Unknown configuration fields are rejected.
+
+Missing values default to a black background, eye size 100, button size 42,
+icon size 70, text size 15, centered icons and `x0 y-40` text placement. An
+entirely absent menu section leaves standard menus unchanged. Menu styling
+covers shared MenuView buttons, including skill menus; custom skill interfaces
+retain their own layout. The adapter fits buttons per horizontal page and
+updates swipe spacing and touch bounds. Titles are hidden while themed to give
+large buttons the requested screen space. Existing button labels and icons are
+preserved.
+
+## Storefront formats
+
+The preferred manifest is:
+
+```json
+{
+  "themes": [{ "name": "Astra", "url": "https://github.com/ZaneThePython/Astra" }],
+  "skills": [{ "name": "Example", "url": "https://github.com/owner/skill" }]
+}
+```
+
+The example's alternating format also works:
+
+```json
+{
+  "themes": ["Astra", { "url": "https://github.com/ZaneThePython/Astra" },
+             "None", { "url": "." }],
+  "skills": ["Placeholder note", "Example", { "url": "https://github.com/owner/skill" }]
+}
+```
+
+Skills are parsed but hidden in this release. None is a built-in theme and needs
+no download. Relative URLs resolve against the storefront manifest. A source
+may also point directly at a theme's manifest or its GitHub repository. GitHub
+metadata resolves the default branch to a commit; manifest, README and package
+are fetched from that commit. Public repositories need no token. Rate-limit or
+network failures appear on the source; previously cached entries remain usable.
+
+For non-GitHub hosting, link entries to a theme's `manifest.json`. The installer
+fetches the standard optional files beside it, or downloads a ZIP specified by
+an optional `download` URL in the manifest. Only HTTP/HTTPS without URL credentials
+is accepted. A source supports up to 100 entries per section and 20 configured
+storefronts.
+
+Store cards use the first non-heading README paragraph, visually limited to two
+lines. Details renders headings, paragraphs, lists, fenced code, emphasis and
+HTTP/HTTPS links using DOM nodes; raw HTML and executable link schemes cannot
+run.
+
+## Validation and device acceptance
+
+Run `node tests/themes.test.js`, `node tests/theme-runtime.test.js`,
+`node tests/theme-ui.test.js`, `node tests/theme-http.test.js`, and
+`node tests/theme-node6.test.js`. The last
+script also runs under Node 6 to exercise the target runtime's ZIP/PNG decoder.
+
+For device acceptance, use a robot/simulator with jibo-tbd 3.1.6 or newer:
+
+1. Add Astra's repository, install it, and verify appearance stays stock until Apply.
+2. Apply and verify its artwork, normal movement, blink/petting/sleep blending,
+   main-menu and skill-menu layouts, icons, labels, swipes and taps.
+3. Upload another Astra ZIP; confirm the active revision remains unchanged until Apply.
+4. Switch to None and verify stock face, menu layout and actions return.
+5. Restart Be and apply a BEam update; confirm installed themes, sources and the
+   selected appearance survive without network access.
+6. Start with a prior custom eye and verify its aliases restore to stock and its
+   upload remains inactive. `/api/eye` must return 404.

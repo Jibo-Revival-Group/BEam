@@ -15,7 +15,7 @@ const os = require('os');
 
 const server = require('./server');
 const system = require('./lib/system');
-const eye = require('./lib/eye');
+const themes = require('./lib/themes');
 const paths = require('./lib/paths');
 const homeassistant = require('./lib/homeassistant');
 
@@ -93,7 +93,7 @@ function start (options, callback) {
         warn('endpoint rewrite:', err && err.message);
     }
 
-    // Custom eyes + music live under Knowledge so Skills/@be/be OTA cannot wipe them.
+    // Themes + music live under Knowledge so Skills/@be/be OTA cannot wipe them.
     try {
         paths.ensureDir(paths.dataDir());
         paths.ensureDir(paths.musicDirCanonical());
@@ -105,7 +105,7 @@ function start (options, callback) {
         );
     }
 
-    // Migrate + eye self-heal can be slow (FS copy / texture rewrite). Defer so
+    // Music migration and theme texture loading are deferred so
     // Be construct and splash paint are not blocked on the critical path.
     setImmediate(() => {
         try {
@@ -114,10 +114,9 @@ function start (options, callback) {
             warn('music migrate:', err && err.message);
         }
         try {
-            const healed = eye.selfHeal();
-            if (healed) { log('re-applied custom eye from', healed); }
+            themes.start();
         } catch (err) {
-            warn('could not re-apply custom eye:', err && err.message);
+            warn('could not restore theme:', err && err.message);
         }
     });
 

@@ -1,0 +1,8 @@
+{
+    "buttonSize": 95,
+    "iconSize": 90,
+    "iconPlacement": "x0 y0",
+    "textSize": 15,
+    "textPlacement": "x0 y45",
+    "backgroundColor": "#000000"
+}

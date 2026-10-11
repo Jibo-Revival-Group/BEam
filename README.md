@@ -42,8 +42,8 @@ only lists `@be/be` as a launchable skill and OTA of `@be/be` ships the packs.
 
 Be starts a web control panel on **port 8123**. Open `http://<jibo-ip>:8123` from
 any device on your network to watch and touch Jibo's screen, manage the jukebox
-library, swap Jibo's eye for your own image (and put the original back), see
-what skills are loaded, and update BEam.
+library, browse custom theme storefronts, upload theme ZIPs, change Jibo's face
+and standard menus, see what skills are loaded, and update BEam.
 
 See [docs/beacon.md](docs/beacon.md).
 

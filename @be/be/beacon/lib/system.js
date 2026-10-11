@@ -9,7 +9,7 @@ const os = require('os');
 const spawnSync = require('child_process').spawnSync;
 
 const paths = require('./paths');
-const eye = require('./eye');
+const themes = require('./themes');
 
 /** Preset jetstream hubs offered in the Server panel. */
 const KNOWN_HUBS = [
@@ -85,13 +85,12 @@ function remountRw () {
 
 function status () {
     const pkg = paths.bePackage();
-    let eyeState = null;
+    let themeState;
     try {
-        const current = eye.state();
-        eyeState = { custom: current.custom, applied: current.applied, pending: current.pending };
-    } catch (err) {
-        eyeState = { custom: false, error: err.message };
-    }
+        const inventory = themes.inventory();
+        const active = inventory.themes.filter(t => t.active)[0];
+        themeState = { name: active ? active.manifest.name : 'None', live: inventory.live.live };
+    } catch (err) { themeState = { name: 'Unavailable', error: err.message }; }
 
     return {
         name: 'BEacon',
@@ -121,7 +120,7 @@ function status () {
             jetstreamConfig: paths.jetstreamConfig(),
             credentialsPath: paths.credentialsPath()
         },
-        eye: eyeState
+        theme: themeState
     };
 }
 
