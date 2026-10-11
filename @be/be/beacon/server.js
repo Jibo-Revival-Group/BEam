@@ -39,6 +39,8 @@ const MAX_UPLOAD = 256 * 1024 * 1024;
 const MAX_IMAGE = 16 * 1024 * 1024;
 
 function handleError (res, err) {
+    if (res.finished || (res.connection && res.connection.destroyed)) { return; }
+    if (res.headersSent) { res.destroy(); return; }
     const status = (err && err.status) || 500;
     // Errors we raise deliberately carry a status; anything else is a bug.
     if (!err || !err.status) {
@@ -166,6 +168,12 @@ const routes = {
     'GET /api/store/details': guard((req, res, query) => {
         return themes.details(query.id).then(data => u.sendJson(res, 200, data));
     }),
+    'GET /api/store/banner': guard((req, res, query) => {
+        return themes.banner(query.id).then(file => {
+            if (!file) { u.sendJson(res, 404, { error: 'No banner is available' }); return; }
+            u.serveFile(req, res, file, { contentType: 'image/png' });
+        });
+    }),
     'POST /api/store/refresh': guard((req, res) => {
         return u.readJson(req, 4096).then(body => themes.refresh(body.id)).then(data => u.sendJson(res, 200, data));
     }),
@@ -181,7 +189,7 @@ const routes = {
         return u.readJson(req, 4096).then(body => themes.install(body.entryId, body.themeId)).then(data => u.sendJson(res, 200, data));
     }),
     'PUT /api/themes/upload': guard((req, res, query) => {
-        return u.readBody(req, themePackage.MAX_ZIP).then(buf => themes.upload(buf, query.name)).then(data => u.sendJson(res, 200, data));
+        return u.readBody(req, themePackage.MAX_ZIP, 120000).then(buf => themes.upload(buf, query.name)).then(data => u.sendJson(res, 200, data));
     }),
     'POST /api/themes/apply': guard((req, res) => {
         return u.readJson(req, 4096).then(body => themes.activate(body.id === undefined ? null : body.id)).then(data => u.sendJson(res, 200, data));

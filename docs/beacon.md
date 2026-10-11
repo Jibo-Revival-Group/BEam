@@ -19,9 +19,7 @@ way the Skills Service Manager on port 8779 is already open.
 | Music | Full library management: albums, uploads, covers, rename, delete |
 | Photos | View saved robot photos, download originals, delete local copies |
 | People | Manage the household Loop: add, rename, remove, profile photos; enrollment badges |
-| Themes | Install theme ZIPs, apply installed themes, or restore stock appearance |
-| Store | Browse themes from manifest URLs and individual GitHub repositories |
-| Skills | Lists skills ready on Jibo |
+| Store | Browse and manage installed themes, restore None, and upload ZIPs via the three-dot menu; Skills is a placeholder within the Store |
 | Setup | First-boot household and BEam/BEnch update after BEetle (API only; UI removed) |
 | More | Weather units and home location |
 | Server | Edit jetstream hub and OTA credentials endpoint (API only; UI removed) |
@@ -153,7 +151,12 @@ commit. Storefront refresh failures preserve cached entries. Removing a source
 preserves its installed themes. Skills are accepted in manifests but hidden;
 custom skill installation remains unavailable.
 
-Themes shows installed packages and **None**, the stock appearance. Install or
+The Store's Themes section shows installed packages and **None**, the stock
+appearance, alongside available themes. Installed packages remain visible after
+their source is removed or when uploaded as ZIPs. **None** uses the cancel icon
+and restores the stock face and menus. Use **Upload Theme ZIP** in the three-dot
+menu to test a package. The separate Themes and Skills navigation tabs are gone;
+Skills has a work-in-progress page in the Store. Install or
 upload first, then select **Apply**. Updates and replacement ZIPs are explicit
 and leave the current appearance running until Apply. Removing the active theme
 first restores None. Details displays the full README as safe Markdown; store

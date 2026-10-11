@@ -88,30 +88,32 @@
     <input id="people-photo-file" type="file" accept="image/*" hidden>
 </section>
 
-<section class="panel" id="panel-themes">
-    <p class="hint" id="themes-summary" role="status"></p>
-    <div class="theme-upload" id="theme-drop">
-        <p>Test a theme by uploading its ZIP, then choose Apply.</p>
-        <button class="btn btn-primary" data-action="pick-theme">Upload theme ZIP</button>
-        <input id="theme-file" type="file" accept=".zip,application/zip" hidden>
-        <p class="hint">Drop a ZIP here · up to 32 MB</p>
-    </div>
-    <div id="themes-list" class="skill-grid"></div>
-</section>
 <section class="panel" id="panel-store">
-    <p class="hint">Discover themes for Jibo. Add a storefront manifest or a single GitHub theme repository.</p>
-    <button class="btn" data-action="add-store">Add storefront</button>
-    <p class="section-header">Storefronts</p>
-    <div id="store-sources"></div>
-    <p class="section-header">Themes</p>
-    <div id="store-list" class="skill-grid"></div>
+    <div class="store-topbar">
+        <h2>Store</h2>
+        <div class="store-topbar-actions">
+        <div class="store-switch" id="store-switch" role="tablist" aria-label="Store category">
+            <span class="store-switch-slider" aria-hidden="true"></span>
+            <button id="store-tab-themes" class="store-switch-tab" type="button" role="tab" aria-selected="true" aria-controls="store-themes">Themes</button>
+            <button id="store-tab-skills" class="store-switch-tab" type="button" role="tab" aria-selected="false" aria-controls="store-skills" tabindex="-1">Skills</button>
+        </div>
+        <div class="store-options" id="store-options">
+            <button class="store-options-button" id="store-options-button" type="button" aria-label="Store options" aria-haspopup="menu" aria-expanded="false" aria-controls="store-options-menu">&#8942;</button>
+            <div class="store-options-menu" id="store-options-menu" role="menu" hidden>
+                <button id="manage-storefronts" type="button" role="menuitem">Manage Storefronts</button>
+                <button id="upload-store-theme" type="button" role="menuitem">Upload Theme ZIP</button>
+            </div>
+        </div>
+        </div>
+    </div>
+    <div id="store-themes" role="tabpanel" aria-labelledby="store-tab-themes">
+        <p class="hint store-summary" id="themes-summary" role="status"></p>
+        <div id="store-list" class="store-grid"></div>
+        <input id="theme-file" type="file" accept=".zip,application/zip" hidden>
+    </div>
+    <div id="store-skills" class="store-wip" role="tabpanel" aria-labelledby="store-tab-skills" hidden>WORK IN PROGRESS!!!!</div>
 </section>
 
-<section class="panel" id="panel-skills">
-    <p class="hint" id="skills-summary"></p>
-    <p class="section-header">Your Jibo skills</p>
-    <div id="skills-list" class="skill-grid"></div>
-</section>
 
 <section class="panel" id="panel-etc">
     <p class="section-header">Camera streaming</p>
@@ -239,16 +241,8 @@
         <span class="icon icon-sm icon-about" aria-hidden="true"></span>
         <span>People</span>
     </button>
-    <button class="tab" data-panel="themes">
-        <span class="icon icon-sm icon-eye" aria-hidden="true"></span>
-        <span>Themes</span>
-    </button>
     <button class="tab" data-panel="store">
         <span class="icon icon-sm icon-skills" aria-hidden="true"></span><span>Store</span>
-    </button>
-    <button class="tab" data-panel="skills">
-        <span class="icon icon-sm icon-skills" aria-hidden="true"></span>
-        <span>Skills</span>
     </button>
     <button class="tab" data-panel="etc">
         <span class="icon icon-sm icon-settings" aria-hidden="true"></span>
@@ -264,6 +258,15 @@
         <h2 id="theme-details-title"></h2>
         <p id="theme-details-meta" class="hint"></p>
         <div id="theme-details-readme" class="theme-readme"></div>
+    </div>
+</div>
+<div id="store-management" class="theme-details" hidden role="dialog" aria-modal="true" aria-labelledby="store-management-title">
+    <div class="theme-details-card store-management-card">
+        <button class="btn" id="close-store-management" type="button">Close</button>
+        <h2 id="store-management-title">Manage Storefronts</h2>
+        <p class="hint">Add a storefront manifest or a single GitHub theme repository.</p>
+        <button class="btn btn-primary" data-action="add-store">Add storefront</button>
+        <div id="store-sources"></div>
     </div>
 </div>
 <div class="modal" id="modal" hidden>

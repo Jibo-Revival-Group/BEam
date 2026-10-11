@@ -11,6 +11,18 @@ let retryTimer = null;
 function stockEye(value) {
     return /^(default_eye|white_eye|white-eye|jibo_eye_customizer_00|jibo_eye_customizer_38)\.png$/i.test(String(value || '').split(/[/\\]/).pop());
 }
+function listeningEye(dofs) {
+    // Native listening animations tint the stock eye light blue (163,217,255),
+    // including interpolated transitions into and out of that color.
+    return dofs.eye_blueChannelBn_r > dofs.eye_greenChannelBn_r + 0.001 &&
+        dofs.eye_greenChannelBn_r > dofs.eye_redChannelBn_r + 0.001;
+}
+function restoreListeningFilters(eye) {
+    if (eye._beamListeningFilters !== undefined) {
+        eye.filters = eye._beamListeningFilters;
+        delete eye._beamListeningFilters;
+    }
+}
 function closedAmount(points) {
     if (!points || points.length !== 9) { return 0; }
     // The neutral UV mesh is square. Row/column averages exclude translation and rotation.
@@ -46,7 +58,7 @@ function prepare(theme, dir) {
     const bg = stock.filter(a => a.id === 'background')[0];
     descriptors.push({ id: 'stockBackground', src: bg.src, type: 'texture', cache: cache });
     if (theme) {
-        Object.keys(theme.images).forEach(name => descriptors.push({ id: name, src: path.join(dir, name), type: 'texture', cache: cache }));
+        Object.keys(theme.images).filter(name => name !== 'banner.png').forEach(name => descriptors.push({ id: name, src: path.join(dir, name), type: 'texture', cache: cache }));
     }
     return new Promise((resolve, reject) => {
         jibo.loader.addCache(cache);
@@ -65,8 +77,32 @@ function prepare(theme, dir) {
 }
 function hookFace(jibo) {
     const container = jibo.face.eye;
+    // FaceRenderer replaces the entire EyeContainer after a render failure. Hook
+    // its initialization before the asynchronous stock texture load completes.
+    const prototype = container.constructor.prototype;
+    if (prototype.init && !prototype._beamThemeRecoveryHooked) {
+        const originalInit = prototype.init;
+        prototype.init = function() {
+            if (jibo.face.eye === this) { hookFace(jibo); }
+            return originalInit.apply(this, arguments);
+        };
+        prototype._beamThemeRecoveryHooked = true;
+    }
     if (container._beamThemeHooked) { return; }
     const eye = container.eye; const background = container.background;
+    [eye, background].forEach((layer, index) => {
+        const init = layer.init;
+        layer.init = function(texture) {
+            if (current && current.live && current.jibo === jibo) {
+                texture = index === 0 ? current.textures['face/eye.png'] || current.textures.stockEye :
+                    current.textures['face/background.png'] || current.textures.stockBackground;
+            }
+            const result = init.call(this, texture);
+            if (current && current.live && current.jibo === jibo && jibo.face.eye === container &&
+                eye.initialized && background.initialized) { refreshFace(jibo); }
+            return result;
+        };
+    });
     const originalTexture = container.getTexture;
     container.getTexture = function(value) {
         if (current && current.live && stockEye(value)) { return current.textures['face/eye.png'] || current.textures.stockEye; }
@@ -80,7 +116,18 @@ function hookFace(jibo) {
         const themed = current && current.theme && current.theme.hasFace;
         const custom = themed && (stockEye(dofs.eyeTextureInfixBn_r) || !/\.(png|jpe?g|gif|webp|bmp)$/i.test(dofs.eyeTextureInfixBn_r || ''));
         if (this._beamClosedMesh) { this._beamClosedMesh.visible = !!custom; }
-        if (!result || !custom) { this.scale.set(1, 1); this.eyeMesh.alpha = 1; return result; }
+        if (!result || !custom) { restoreListeningFilters(this); this.scale.set(1, 1); this.eyeMesh.alpha = 1; return result; }
+        const listening = listeningEye(dofs) ? current.textures['face/eyeListening.png'] : null;
+        const open = listening || current.textures['face/eye.png'] || current.textures.stockEye;
+        // Texture paths often stay unchanged while only the listening tint changes.
+        if (this._texture !== open) { this._applyTexture(open); }
+        if (listening) {
+            this.eyeMesh.tint = 0xffffff;
+            if (this._beamListeningFilters === undefined) {
+                this._beamListeningFilters = this.filters || null;
+                this.filters = (this.filters || []).filter(filter => filter !== container.lighting && filter !== container.glow);
+            }
+        } else { restoreListeningFilters(this); }
         const theme = current.theme; const factor = theme.face.eyeSize / 100; this.scale.set(factor, factor);
         const closed = current.textures['face/eyeClosed.png'];
         if (closed) {
@@ -249,8 +296,9 @@ function menuBackground(view) {
         view._stage.addChildAt(bg, 0); view._beamThemeBackground = bg;
     }
 }
-function refresh(jibo) {
+function refreshFace(jibo) {
     const c = jibo.face.eye; const themed = current && current.theme && current.theme.hasFace;
+    restoreListeningFilters(c.eye);
     c.eye._defaultTexture = current.textures['face/eye.png'] || current.textures.stockEye;
     c.background._defaultTexture = current.textures['face/background.png'] || current.textures.stockBackground;
     c.eye.reset(); c.background.reset(); c.eye.scale.set(1, 1); c.eye.eyeMesh.alpha = 1;
@@ -264,6 +312,9 @@ function refresh(jibo) {
     if (!themed) { c.background.sprite.scale.set(1, 1); }
     c._previousDofValues = null;
     if (c._currentDofValues) { c.eye.display(Date.now(), c._currentDofValues); c.background.display(Date.now(), c._currentDofValues); }
+}
+function refresh(jibo) {
+    refreshFace(jibo);
     const views = jibo.face.views; const visited = [];
     function update(view) {
         if (!view || visited.indexOf(view) >= 0) { return; } visited.push(view);
@@ -314,5 +365,8 @@ function start(restore) {
     }
     attempt();
 }
-module.exports = { prepare: prepare, apply: apply, start: start, status: () => live,
+function discard(prepared) {
+    if (prepared && prepared.cache && prepared !== current) { prepared.jibo.loader.deleteCache(prepared.cache); }
+}
+module.exports = { prepare: prepare, apply: apply, discard: discard, start: start, status: () => live,
     closedAmount: closedAmount, geometry: geometry, stockEye: stockEye };

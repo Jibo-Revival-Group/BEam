@@ -14,10 +14,12 @@ that directory's README for provenance and checksum verification).
 ```text
 manifest.json
 README.md                 optional store description/details
+banner.png                optional storefront card banner (16:9 recommended)
 face/
   face.json               optional color and eye scale
   eye.png                 optional open eye
   eyeClosed.png           optional closed eye, deformed like the open eye
+  eyeListening.png        optional listening eye, displayed in its original colors
   background.png          optional face background
 menu/
   menu.json               optional standard menu layout
@@ -67,6 +69,13 @@ missing closed-eye image uses the open eye. Square eye images give the intended
 1:1 mapping. Background images stretch to fill 1280×720 over the configured
 color. Omitted face files use stock appearance; omitted eye images use the
 stock eye while retaining the supplied scale/background.
+
+`face/eyeListening.png` replaces the normal eye during the native blue listening
+mode. Its colors bypass the eye tint, lighting and glow filters. Eye movement,
+scaling and closed-eye blending still animate; the closed texture also retains
+its original colors while listening. When listening ends, the normal eye and
+filters return. Without this file, listening keeps the normal blue appearance.
+Animation-specific eye textures remain unchanged.
 
 ## Menu configuration
 
@@ -145,14 +154,44 @@ is accepted. A source supports up to 100 entries per section and 20 configured
 storefronts.
 
 Store cards use the first non-heading README paragraph, visually limited to two
-lines. Details renders headings, paragraphs, lists, fenced code, emphasis and
+lines, beneath the optional root `banner.png`. A 16:9 image is recommended;
+cards crop it to fill the banner area. Store previews are limited to 2 MB and
+use the same PNG validation as installed themes. GitHub banners are fetched
+from the resolved commit and cached in Knowledge for offline browsing; the
+banner cache is bounded to 64 MB. Missing banners show a fallback. ZIP installs
+also preserve and validate `banner.png`, which never loads into the robot's face
+renderer. The Store switch selects Themes or the Skills work-in-progress page.
+The Store fills the available width and refreshes every five minutes after it
+has been opened. Installed themes show Remove when the catalog version matches,
+and Update when it differs, plus Apply/Active controls on the same cards. ZIP
+uploads and installed themes from removed sources stay in this grid. None is
+always the first card and restores stock appearance. Separate Themes and Skills
+navigation tabs have been merged into the Store. Use the three-dot menu beside
+the switch to select Upload Theme ZIP or open Manage Storefronts.
+Both management and theme details close on a backdrop click,
+Escape, or Close. User-facing compatibility notices say "Needs version …";
+the underlying minimum-version check still reads the installed `jibo-tbd` package.
+
+Details renders headings, paragraphs, lists, fenced code, emphasis and
 HTTP/HTTPS links using DOM nodes; raw HTML and executable link schemes cannot
 run.
+
+Failed uploads, downloads and theme actions display an error and release their
+controls so they can be retried without restarting BEacon. Downloads and
+storefront refreshes have a two-minute deadline; texture preparation and local
+theme operations are also bounded. Downloads run separately from local theme
+changes, so a slow storefront does not prevent applying an installed theme or
+selecting None. Only one package download runs at a time to bound robot memory.
+Interrupted transfers are rejected, cached storefront entries remain available
+when refresh fails, and late responses from timed-out operations cannot install
+or activate a theme. A browser connection failure can occur after a successful
+commit; reopen or refresh the Store to see the current state before retrying.
 
 ## Validation and device acceptance
 
 Run `node tests/themes.test.js`, `node tests/theme-runtime.test.js`,
-`node tests/theme-ui.test.js`, `node tests/theme-http.test.js`, and
+`node tests/theme-ui.test.js`, `node tests/theme-http.test.js`,
+`node tests/theme-recovery.test.js`, and
 `node tests/theme-node6.test.js`. The last
 script also runs under Node 6 to exercise the target runtime's ZIP/PNG decoder.
 

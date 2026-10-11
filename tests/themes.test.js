@@ -16,6 +16,14 @@ async function run() {
     assert.strictEqual(decoded.manifest.name, 'Astra'); assert.strictEqual(decoded.images['face/eye.png'].width, 500);
     assert.deepStrictEqual(decoded.menu.textPlacement, { x: 0, y: 45 });
     assert.strictEqual(decoded.menu.menuType, 'native', 'Existing themes keep native paging');
+    const bannerFiles = Object.assign({}, files, { 'banner.png': fixture.png() });
+    assert((await pkg.validate(await pkg.unzip(fixture.zip(bannerFiles)))).images['banner.png']);
+    await bad(() => pkg.validate(Object.assign({}, files, { 'banner.png': Buffer.from('not an image') })));
+    const listeningFiles = Object.assign({}, files, { 'face/eyeListening.png': fixture.png() });
+    assert((await pkg.validate(await pkg.unzip(fixture.zip(listeningFiles)))).images['face/eyeListening.png']);
+    const listeningNested = {}; Object.keys(listeningFiles).forEach(n => { listeningNested['Astra-main/' + n] = listeningFiles[n]; });
+    assert((await pkg.validate(await pkg.unzip(fixture.zip(listeningNested)))).images['face/eyeListening.png']);
+    await bad(() => pkg.validate(Object.assign({}, files, { 'face/eyeListening.png': Buffer.from('not an image') })));
     const dynamic = await pkg.validate(Object.assign({}, files, { 'menu/menu.json': Buffer.from('{"menuType":"dynamic"}') }));
     assert.strictEqual(dynamic.menu.menuType, 'dynamic');
     for (const menuType of ['paged', 'Dynamic', '', null, true, 1, {}, []]) {
@@ -65,6 +73,12 @@ async function run() {
         return Promise.resolve(Buffer.isBuffer(responses[u]) ? responses[u] : Buffer.from(JSON.stringify(responses[u])));
     });
     const catalog = await store.catalog('https://store.example/manifest.json');
+    assert.strictEqual(catalog[0].bannerUrl, base + 'banner.png', 'GitHub banners use the resolved commit');
+    let bannerLimit;
+    const banners = stores.create((value, limit) => { bannerLimit = limit; return Promise.resolve(fixture.png()); });
+    assert(Buffer.isBuffer(await banners.banner('https://example.com/banner.png'))); assert.strictEqual(bannerLimit, 2 * 1024 * 1024);
+    await bad(() => stores.create(() => Promise.resolve(Buffer.from('bad png'))).banner('https://example.com/banner.png'));
+    assert.strictEqual(await stores.create(() => { const e = new Error('Missing'); e.remoteStatus = 404; return Promise.reject(e); }).banner('https://example.com/banner.png'), null);
     assert.strictEqual(catalog.length, 2); assert(catalog[1].stock); assert.strictEqual(catalog[0].manifest.type, 'theme');
     assert.strictEqual((await store.catalog('https://objects.example/manifest.json')).length, 1);
     assert.strictEqual((await store.catalog('https://github.com/ZaneThePython/Astra')).length, 1);

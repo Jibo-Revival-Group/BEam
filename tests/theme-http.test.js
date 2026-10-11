@@ -13,10 +13,12 @@ const sourceFile = path.resolve(__dirname, '../@be/be/beacon/server.js');
 const serverRequire = createRequire(sourceFile);
 const runtime = { status: () => ({ live: true }), prepare: (theme, dir) => Promise.resolve({ theme, dir }),
     apply: (prepared, commit) => { if (commit) commit(); return Promise.resolve(); }, start() {} };
+let downloadMode = 'ok';
 const store = { catalog: () => Promise.resolve([{ name: 'Astra', type: 'theme', url: 'https://example.com/Astra/manifest.json',
-    manifest: JSON.parse(fixture.astra()['manifest.json']), readme: '# Astra\n\nDescription.' }]),
-    download: () => Promise.resolve({ files: fixture.astra(), commit: null }) };
-const manager = themes.create({ root: path.join(temp, 'http'), runtime, version: () => '3.1.6', store });
+    bannerUrl: 'https://example.com/Astra/banner.png', manifest: JSON.parse(fixture.astra()['manifest.json']), readme: '# Astra\n\nDescription.' }]),
+    banner: () => Promise.resolve(fixture.png()),
+    download: () => downloadMode === 'hang' ? new Promise(() => {}) : downloadMode === 'error' ? Promise.reject(new Error('Download connection failed')) : Promise.resolve({ files: fixture.astra(), commit: null }) };
+const manager = themes.create({ root: path.join(temp, 'http'), runtime, version: () => '3.1.6', store, downloadTimeout: 80 });
 const loaded = { exports: {} };
 new Function('require', 'module', 'exports', fs.readFileSync(sourceFile, 'utf8'))(
     name => name === './lib/themes' ? manager : serverRequire(name), loaded, loaded.exports);
@@ -34,6 +36,8 @@ async function run() {
     const server = loaded.exports.create(); await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
     try {
         const initial = await request(server, 'GET', '/api/themes'); assert.strictEqual(initial.status, 200); assert.strictEqual(initial.data.active, null);
+        const stockIcon = await request(server, 'GET', '/theme-none.svg'); assert.strictEqual(stockIcon.status, 200);
+        assert(stockIcon.data.toString().includes('viewBox="0 -960 960 960"'), 'The stock theme icon ships with BEacon');
         const upload = await request(server, 'PUT', '/api/themes/upload?name=Astra.zip', fixture.zip(fixture.astra()));
         assert.strictEqual(upload.status, 200); const id = upload.data.installed; assert.strictEqual(upload.data.themes.active, null);
         const image = await request(server, 'GET', '/api/themes/asset?id=' + id + '&name=face%2Feye.png');
@@ -42,13 +46,33 @@ async function run() {
         assert.strictEqual((await request(server, 'POST', '/api/themes/apply', { id: 0 })).status, 400);
         assert.strictEqual((await request(server, 'POST', '/api/themes/apply', { id })).data.active, id);
         assert.strictEqual((await request(server, 'PUT', '/api/themes/upload', Buffer.from('broken'))).status, 400);
+        await new Promise(resolve => {
+            const interrupted = http.request({ hostname: '127.0.0.1', port: server.address().port, method: 'PUT',
+                path: '/api/themes/upload', headers: { 'Content-Length': 1000 } });
+            interrupted.on('error', () => {}); interrupted.on('close', resolve);
+            server.once('request', () => setImmediate(() => interrupted.destroy()));
+            interrupted.write('partial');
+        });
         assert.strictEqual((await request(server, 'GET', '/api/themes')).data.active, id);
         assert.strictEqual((await request(server, 'GET', '/api/eye')).status, 404);
         assert.strictEqual((await request(server, 'POST', '/api/store/sources', { url: 'file:///tmp/manifest.json' })).status, 400);
         const sources = await request(server, 'POST', '/api/store/sources', { url: 'https://example.com/manifest.json' });
         assert.strictEqual(sources.status, 200); const entry = sources.data.entries[0];
+        const banner = await request(server, 'GET', '/api/store/banner?id=' + entry.id);
+        assert.strictEqual(banner.status, 200); assert.deepStrictEqual(banner.data, fixture.png());
+        const offline = themes.create({ root: path.join(temp, 'http'), runtime, version: () => '3.1.6', store: { banner() { throw new Error('Offline'); } } });
+        assert.deepStrictEqual(fs.readFileSync(await offline.banner(entry.id)), fixture.png(), 'Banners survive restart and work offline');
+        assert.strictEqual((await request(server, 'GET', '/api/store/banner?id=missing')).status, 404);
         assert.strictEqual((await request(server, 'GET', '/api/store/details?id=' + entry.id)).data.readme, '# Astra\n\nDescription.');
-        assert.strictEqual((await request(server, 'POST', '/api/themes/install', { entryId: entry.id })).status, 200);
+        downloadMode = 'error';
+        const downloadError = await request(server, 'POST', '/api/themes/install', { entryId: entry.id });
+        assert.strictEqual(downloadError.status, 500); assert(downloadError.data.error.includes('Download connection failed'));
+        downloadMode = 'hang';
+        const timeout = await request(server, 'POST', '/api/themes/install', { entryId: entry.id });
+        assert.strictEqual(timeout.status, 504); assert(timeout.data.error.includes('timed out'));
+        assert.strictEqual((await request(server, 'GET', '/api/themes')).data.active, id, 'Failed downloads preserve the selected theme');
+        downloadMode = 'ok';
+        assert.strictEqual((await request(server, 'POST', '/api/themes/install', { entryId: entry.id })).status, 200, 'Install API recovers without restart');
         const source = sources.data.sources[1]; await request(server, 'DELETE', '/api/store/sources?id=' + source.id);
         assert.strictEqual((await request(server, 'GET', '/api/themes')).data.themes.length, 1);
         const removed = await request(server, 'DELETE', '/api/themes?id=' + id); assert.strictEqual(removed.status, 200);

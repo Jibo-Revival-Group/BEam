@@ -7,6 +7,7 @@ const paths = require('./paths');
 const packages = require('./theme-package');
 const stores = require('./theme-store');
 const runtime = require('./theme-runtime');
+const operations = require('./theme-operation');
 
 function compare(a, b) {
     function parts(v) { const p = v.split('+')[0].split('-'); return { nums: p[0].split('.').map(Number), pre: p.slice(1).join('-') }; }
@@ -41,7 +42,8 @@ function removeTree(dir) {
 function create(options) {
     const opts = options || {}; const root = opts.root || path.join(paths.dataDir(), 'themes');
     const store = opts.store || stores.create(); const renderer = opts.runtime || runtime;
-    const version = opts.version || tbdVersion; let queue = Promise.resolve();
+    const version = opts.version || tbdVersion; let queue = Promise.resolve(); let downloading = false;
+    let bannerQueue = Promise.resolve(); const bannerPending = Object.create(null);
     function atomic(file, data) {
         paths.ensureDir(path.dirname(file)); const temp = file + '.tmp-' + crypto.randomBytes(6).toString('hex');
         try { fs.writeFileSync(temp, JSON.stringify(data, null, 2)); fs.renameSync(temp, file); }
@@ -58,7 +60,10 @@ function create(options) {
         } catch (err) { throw packages.fail('Theme state is unreadable; restore state.json before changing themes'); }
     }
     function save(s) { atomic(path.join(root, 'state.json'), s); }
-    function mutate(fn) { const result = queue.then(fn); queue = result.catch(() => {}); return result; }
+    function mutate(fn) {
+        const result = queue.then(() => operations.run('Theme operation', opts.operationTimeout || 30000, fn));
+        queue = result.catch(() => {}); return result;
+    }
     function dir(revision) {
         if (!/^[a-f0-9]{24}$/.test(revision || '')) { throw packages.fail('Invalid theme revision'); }
         return path.join(root, 'packages', revision);
@@ -67,7 +72,7 @@ function create(options) {
         const current = version(); const minimum = manifest.supported;
         return { current: current, minimum: minimum, status: !minimum ? 'compatible' : !current ? 'unverified' : compare(current, minimum) >= 0 ? 'compatible' : 'incompatible' };
     }
-    function check(m) { const c = compat(m); if (c.status === 'incompatible') { throw packages.fail(m.name + ' requires jibo-tbd ' + c.minimum + ' or newer (installed: ' + c.current + ')'); } }
+    function check(m) { const c = compat(m); if (c.status === 'incompatible') { throw packages.fail(m.name + ' needs version ' + c.minimum + ' or newer (installed: ' + c.current + ')'); } }
     function inventory() {
         const s = read(); return { active: s.active ? s.active.id : null, jiboTbdVersion: version(), live: renderer.status(),
             themes: s.themes.map(t => Object.assign({}, t, { compatibility: compat(t.manifest), active: !!(s.active && s.active.id === t.id),
@@ -88,9 +93,14 @@ function create(options) {
         if (id && !selected.length) { throw packages.fail('Storefront not found'); }
         // Fetch outside the mutation queue so a slow storefront cannot block offline theme use.
         const results = [];
-        return selected.reduce((chain, source) => chain.then(() => store.catalog(source.url).then(entries => {
-            results.push({ id: source.id, entries: entries, refreshedAt: new Date().toISOString(), error: null });
-        }).catch(err => { results.push({ id: source.id, error: err.message }); })), Promise.resolve()).then(() => mutate(() => {
+        return operations.run('Storefront refresh', opts.refreshTimeout || 120000, operation => selected.reduce((chain, source) => chain.then(() => {
+            operation.check(); return Promise.resolve().then(() => store.catalog(source.url, operation)).then(entries => {
+                operation.check();
+                results.push({ id: source.id, entries: entries, refreshedAt: new Date().toISOString(), error: null });
+            }).catch(err => { operation.check(); results.push({ id: source.id, error: err.message }); });
+        }), Promise.resolve())).catch(err => {
+            selected.forEach(source => { if (!results.some(r => r.id === source.id)) { results.push({ id: source.id, error: err.message }); } });
+        }).then(() => mutate(() => {
             const fresh = read();
             results.forEach(result => {
                 const source = fresh.sources.filter(v => v.id === result.id)[0];
@@ -111,8 +121,9 @@ function create(options) {
         }).then(refreshSources);
     }
     function removeSource(id) { return mutate(() => { const s = read(); s.sources = s.sources.filter(v => v.id !== id); save(s); return catalog(); }); }
-    function installFiles(files, origin) {
+    function installFiles(files, origin, operation) {
         return packages.validate(files).then(theme => {
+            operation.check();
             check(theme.manifest);
             const s = read(); const revision = crypto.randomBytes(12).toString('hex'); const dest = dir(revision);
             const staged = Object.assign({}, theme, { revision: revision, origin: origin, installedAt: new Date().toISOString() });
@@ -126,12 +137,14 @@ function create(options) {
                 s.themes = s.themes.filter(t => t.id !== theme.id).concat(staged); save(s);
                 if (old && (!s.active || s.active.revision !== old.revision)) { try { removeTree(dir(old.revision)); } catch (err) { /* orphan cleanup can wait */ } }
                 return { installed: staged.id, themes: inventory() };
-            } catch (err) { removeTree(dest); throw err; }
+            } catch (err) { try { removeTree(dest); } catch (ignored) { /* preserve the installation error */ } throw err; }
         });
     }
-    function upload(buf, name) { return mutate(() => packages.unzip(buf).then(files => installFiles(files, { kind: 'zip', name: String(name || 'theme.zip').slice(0, 180) }))); }
+    function upload(buf, name) { return mutate(operation => packages.unzip(buf).then(files => installFiles(files, { kind: 'zip', name: String(name || 'theme.zip').slice(0, 180) }, operation))); }
     function install(entryId, themeId) {
-        return mutate(() => {
+        if (downloading) { return Promise.reject(packages.fail('A theme download is already in progress. Please wait and retry.')); }
+        downloading = true;
+        const result = operations.run('Theme download', opts.downloadTimeout || 120000, operation => {
             let origin;
             if (themeId) {
                 const t = read().themes.filter(v => v.id === themeId)[0];
@@ -142,21 +155,31 @@ function create(options) {
                 if (!entry || entry.error) { throw packages.fail('Refresh this storefront before installing its theme'); }
                 origin = { kind: 'store', url: entry.url, sourceId: entry.sourceId };
             }
-            return store.download(origin.url).then(result => installFiles(result.files, Object.assign({}, origin, { commit: result.commit })));
+            return Promise.resolve().then(() => store.download(origin.url, operation)).then(result => {
+                operation.check();
+                return mutate(commit => {
+                    operation.check();
+                    return installFiles(result.files, Object.assign({}, origin, { commit: result.commit }),
+                        { check: () => { operation.check(); commit.check(); } });
+                });
+            });
         });
+        return result.then(value => { downloading = false; return value; }, err => { downloading = false; throw err; });
     }
     function activeTheme(s) {
         if (!s.active) { return null; }
         return JSON.parse(fs.readFileSync(path.join(dir(s.active.revision), 'theme.json'), 'utf8'));
     }
     function activate(id) {
-        return mutate(() => {
+        return mutate(operation => {
             if (id !== null && (typeof id !== 'string' || !/^[a-f0-9]{24}$/.test(id))) { throw packages.fail('Use a theme ID or null for None'); }
             const s = read(); const theme = id ? s.themes.filter(t => t.id === id)[0] : null;
             if (id && !theme) { throw packages.fail('Theme not found'); } if (theme) { check(theme.manifest); }
             const old = s.active;
             return renderer.prepare(theme, theme && dir(theme.revision)).then(prepared => {
+                try { operation.check(); } catch (err) { if (renderer.discard) { renderer.discard(prepared); } throw err; }
                 return renderer.apply(prepared, () => {
+                    operation.check();
                     s.active = theme ? { id: theme.id, revision: theme.revision } : null; save(s);
                 }).then(() => {
                     if (old && !s.themes.some(t => t.revision === old.revision)) { try { removeTree(dir(old.revision)); } catch (err) { /* retained orphan */ } }
@@ -184,6 +207,40 @@ function create(options) {
         const entry = catalog().entries.filter(v => v.id === id)[0]; if (!entry) { return Promise.reject(packages.fail('Store entry not found')); }
         return Promise.resolve(entry);
     }
+    function banner(id) {
+        const entry = catalog().entries.filter(v => v.id === id)[0];
+        if (!entry || !entry.bannerUrl) { return Promise.resolve(null); }
+        const source = read().sources.filter(v => v.id === entry.sourceId)[0];
+        const key = stores.hash(entry.bannerUrl + ':' + (entry.commit || source.refreshedAt || ''));
+        const file = path.join(root, 'banners', key + '.png'); const missing = file + '.missing';
+        if (fs.existsSync(file)) { return Promise.resolve(file); }
+        if (fs.existsSync(missing)) { return Promise.resolve(null); }
+        if (bannerPending[key]) { return bannerPending[key]; }
+        // Bound image decoding/network memory without blocking theme mutations.
+        const pending = bannerQueue.then(() => operations.run('Theme banner download', opts.bannerTimeout || 30000, operation =>
+            Promise.resolve().then(() => store.banner(entry.bannerUrl, operation)).then(buf => {
+            operation.check();
+            paths.ensureDir(path.dirname(file));
+            if (!buf) { fs.writeFileSync(missing, ''); }
+            else {
+                const temp = file + '.tmp-' + crypto.randomBytes(6).toString('hex');
+                try { fs.writeFileSync(temp, buf); fs.renameSync(temp, file); }
+                finally { if (fs.existsSync(temp)) { fs.unlinkSync(temp); } }
+            }
+            // Keep the browser cache on disk bounded across storefront updates.
+            const cached = fs.readdirSync(path.dirname(file)).filter(n => /\.png(?:\.missing)?$/.test(n)).map(n => {
+                const p = path.join(root, 'banners', n); const stat = fs.statSync(p); return { path: p, size: stat.size, time: stat.mtime.getTime() };
+            }).sort((a, b) => a.time - b.time);
+            let size = cached.reduce((total, item) => total + item.size, 0);
+            cached.forEach((item, i) => {
+                if (item.path !== file && (size > 64 * 1024 * 1024 || i < cached.length - 2048)) { fs.unlinkSync(item.path); size -= item.size; }
+            });
+            return buf ? file : null;
+        })));
+        bannerQueue = pending.catch(() => {});
+        bannerPending[key] = pending.then(value => { delete bannerPending[key]; return value; }, err => { delete bannerPending[key]; throw err; });
+        return bannerPending[key];
+    }
     function migrate() {
         const s = read(); if (s.migratedEye) { return; }
         const eyeDirs = [path.join(paths.dataDir(), 'eye'), path.join(paths.dataDirLegacy(), 'eye')];
@@ -200,13 +257,16 @@ function create(options) {
     }
     function start() {
         try { migrate(); } catch (err) { console.warn('[themes] eye migration failed:', err.message); return; }
-        renderer.start(() => mutate(() => {
+        renderer.start(() => mutate(operation => {
             const s = read(); const theme = activeTheme(s); if (theme) { check(theme.manifest); }
-            return renderer.prepare(theme, theme && dir(theme.revision)).then(p => renderer.apply(p));
+            return renderer.prepare(theme, theme && dir(theme.revision)).then(p => {
+                try { operation.check(); } catch (err) { if (renderer.discard) { renderer.discard(p); } throw err; }
+                return renderer.apply(p);
+            });
         }));
     }
     return { inventory: inventory, catalog: catalog, addSource: addSource, removeSource: removeSource,
-        refresh: refreshSources, details: details, upload: upload, install: install,
+        refresh: refreshSources, details: details, banner: banner, upload: upload, install: install,
         activate: activate, remove: remove, asset: asset, start: start, compatibility: compat };
 }
 const instance = create();

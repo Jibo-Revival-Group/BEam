@@ -82,8 +82,9 @@
         }, kind === 'error' ? 7000 : 3800);
     }
 
-    function api (method, path, body) {
+    function api (method, path, body, requestOptions) {
         var options = { method: method, headers: {} };
+        if (requestOptions && requestOptions.signal) { options.signal = requestOptions.signal; }
         if (body !== undefined) {
             options.headers['Content-Type'] = 'application/json';
             options.body = JSON.stringify(body);
@@ -605,40 +606,6 @@
     }
 
     var themeUI = window.BEaconThemes.create({ api: api, toast: toast, reportError: reportError, prompt: prompt2 });
-
-    /* ------------------------------------------------------------- skills */
-
-    function loadSkills () {
-        return api('GET', '/api/skills').then(function (data) {
-            var ready = data.counts.registered || 0;
-            $('#skills-summary').textContent = ready === 1
-                ? '1 skill ready on Jibo'
-                : ready + ' skills ready on Jibo';
-
-            var list = $('#skills-list');
-            list.innerHTML = '';
-            data.skills.forEach(function (skill) {
-                var card = el('div', 'skill' + (skill.registered ? '' : ' is-off'));
-                var name = el('div', 'skill-name', skill.name);
-                if (skill.version) { name.appendChild(el('span', 'chip', 'v' + skill.version)); }
-                card.appendChild(name);
-                if (skill.description) { card.appendChild(el('div', 'skill-desc', skill.description)); }
-
-                var chips = el('div', 'chips');
-                chips.appendChild(el('span', 'chip' + (skill.registered ? ' is-on' : ''),
-                    skill.registered ? 'On' : 'Off'));
-                if (!skill.installed) { chips.appendChild(el('span', 'chip', 'Missing')); }
-                else if (!skill.registered) { chips.appendChild(el('span', 'chip', 'On disk')); }
-                if (skill.hasLaunchRule) { chips.appendChild(el('span', 'chip is-role', 'Voice')); }
-                (skill.roles || []).forEach(function (role) {
-                    chips.appendChild(el('span', 'chip is-role', role));
-                });
-                card.appendChild(chips);
-                list.appendChild(card);
-            });
-            return data;
-        });
-    }
 
     /* ------------------------------------------------------------ location */
 
@@ -1433,12 +1400,7 @@
             title: 'People',
             actions: [{ action: 'refresh-people', label: 'Refresh' }]
         },
-        themes: { title: 'Themes', actions: [{ action: 'refresh-themes', label: 'Refresh' }] },
         store: { title: 'Store', actions: [{ action: 'refresh-store', label: 'Refresh' }] },
-        skills: {
-            title: 'Skills',
-            actions: [{ action: 'refresh-skills', label: 'Refresh' }]
-        },
         etc: {
             title: 'More',
             actions: [{ action: 'refresh-etc', label: 'Refresh' }]
@@ -1455,9 +1417,7 @@
         jukebox: loadJukebox,
         photos: loadPhotos,
         people: loadPeople,
-        themes: themeUI.loadThemes,
         store: themeUI.loadStore,
-        skills: loadSkills,
         etc: loadEtc,
         server: loadServer
     };
@@ -1481,9 +1441,11 @@
     }
 
     function showPanel (name) {
+        if (name === 'themes' || name === 'skills') { name = 'store'; }
         if (!loaders[name]) { name = 'status'; }
         if (name !== 'screen') { stopScreen(); }
         state.panel = name;
+        document.querySelector('main').classList.toggle('is-store', name === 'store');
         renderToolbar(name);
         var tabs = document.querySelectorAll('.tab');
         for (var i = 0; i < tabs.length; i++) {
@@ -1507,9 +1469,7 @@
         'refresh-jukebox': loadJukebox,
         'refresh-photos': loadPhotos,
         'refresh-people': loadPeople,
-        'refresh-themes': themeUI.loadThemes,
         'refresh-store': function () { return themeUI.refreshStore(); },
-        'refresh-skills': loadSkills,
         'refresh-location': loadEtc,
         'refresh-etc': loadEtc,
         'refresh-server': loadServer,
@@ -1661,7 +1621,6 @@
                 })
                 .catch(reportError);
         },
-        'pick-theme': function () { $('#theme-file').click(); },
         'add-store': themeUI.addSource,
         'close-theme-details': themeUI.closeDetails
 
@@ -1708,25 +1667,13 @@
         event.target.removeAttribute('data-member-id');
     });
 
-    var drop = $('#theme-drop');
-    drop.addEventListener('dragover', function (event) {
-        event.preventDefault();
-        drop.classList.add('is-drop');
-    });
-    drop.addEventListener('dragleave', function () { drop.classList.remove('is-drop'); });
-    drop.addEventListener('drop', function (event) {
-        event.preventDefault();
-        drop.classList.remove('is-drop');
-        if (event.dataTransfer.files.length) { themeUI.upload(event.dataTransfer.files[0]); }
-    });
-
     // Dropping a file anywhere else should not navigate away from the page.
     window.addEventListener('dragover', function (event) { event.preventDefault(); });
     window.addEventListener('drop', function (event) { event.preventDefault(); });
 
     window.addEventListener('hashchange', function () {
         var name = location.hash.slice(1);
-        if (loaders[name] && name !== state.panel) { showPanel(name); }
+        if ((loaders[name] || name === 'themes' || name === 'skills') && name !== state.panel) { showPanel(name); }
     });
 
     setInterval(function () {
@@ -1755,5 +1702,5 @@
         }
     });
 
-    showPanel(loaders[location.hash.slice(1)] ? location.hash.slice(1) : 'status');
+    showPanel(location.hash.slice(1) || 'status');
 }());

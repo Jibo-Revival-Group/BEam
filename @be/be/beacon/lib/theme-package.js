@@ -5,8 +5,8 @@ const zlib = require('zlib');
 const crypto = require('crypto');
 const MAX_ZIP = 32 * 1024 * 1024;
 const MAX_EXPANDED = 64 * 1024 * 1024;
-const FILES = ['manifest.json', 'README.md', 'face/face.json', 'face/eye.png',
-    'face/eyeClosed.png', 'face/background.png', 'menu/menu.json', 'menu/button.png'];
+const FILES = ['manifest.json', 'README.md', 'banner.png', 'face/face.json', 'face/eye.png',
+    'face/eyeClosed.png', 'face/eyeListening.png', 'face/background.png', 'menu/menu.json', 'menu/button.png'];
 
 function fail(message) { const e = new Error(message); e.status = 400; return e; }
 const crcTable = [];
@@ -24,14 +24,17 @@ function inflate(buf, limit, raw) {
     return new Promise((resolve, reject) => {
         const stream = raw ? zlib.createInflateRaw() : zlib.createInflate();
         const chunks = []; let size = 0; let done = false;
-        function abort(err) { if (!done) { done = true; stream.close(); reject(fail(err.message)); } }
+        const timer = setTimeout(() => abort(fail('Theme image/archive decoding timed out. You can retry.')), 10000);
+        function abort(err) { if (!done) { done = true; clearTimeout(timer); chunks.length = 0; stream.close(); reject(fail(err.message)); } }
         stream.on('error', abort);
+        stream.on('close', () => { if (!done) { abort(fail('Theme image/archive decoding was interrupted')); } });
         stream.on('data', chunk => {
+            if (done) { return; }
             size += chunk.length;
             if (size > limit) { abort(fail('Expanded data exceeds the theme limit')); }
             else { chunks.push(chunk); }
         });
-        stream.on('end', () => { if (!done) { done = true; resolve(Buffer.concat(chunks, size)); } });
+        stream.on('end', () => { if (!done) { done = true; clearTimeout(timer); resolve(Buffer.concat(chunks, size)); } });
         stream.end(buf);
     });
 }

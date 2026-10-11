@@ -68,16 +68,21 @@ function errorMessage (err) {
 }
 
 /** Collect a raw request body (uploads are sent as plain PUT bodies). */
-function readBody (req, maxBytes) {
+function readBody (req, maxBytes, timeoutMs) {
     const limit = maxBytes || 64 * 1024 * 1024;
     return new Promise((resolve, reject) => {
         const chunks = [];
         let size = 0;
         let done = false;
+        const timer = timeoutMs ? setTimeout(() => {
+            const err = new Error('Theme upload timed out. You can retry.'); err.status = 408;
+            fail(err); req.resume();
+        }, timeoutMs) : null;
 
         const fail = (err) => {
             if (done) { return; }
             done = true;
+            if (timer) { clearTimeout(timer); } chunks.length = 0;
             reject(err);
         };
 
@@ -95,9 +100,12 @@ function readBody (req, maxBytes) {
             chunks.push(chunk);
         });
         req.on('error', fail);
+        req.on('aborted', () => { const err = new Error('Upload was interrupted. You can retry.'); err.status = 400; fail(err); });
+        req.on('close', () => { if (!done) { const err = new Error('Upload connection closed before completion. You can retry.'); err.status = 400; fail(err); } });
         req.on('end', () => {
             if (done) { return; }
             done = true;
+            if (timer) { clearTimeout(timer); }
             resolve(Buffer.concat(chunks, size));
         });
     });
