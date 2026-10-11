@@ -185,8 +185,9 @@ const routes = {
         return themes.removeSource(query.id).then(data => u.sendJson(res, 200, data));
     }),
     'GET /api/themes': guard((req, res) => { u.sendJson(res, 200, themes.inventory()); }),
+    'GET /api/themes/progress': guard((req, res, query) => { u.sendJson(res, 200, themes.progress(query.id)); }),
     'POST /api/themes/install': guard((req, res) => {
-        return u.readJson(req, 4096).then(body => themes.install(body.entryId, body.themeId)).then(data => u.sendJson(res, 200, data));
+        return u.readJson(req, 4096).then(body => themes.install(body.entryId, body.themeId, body.requestId)).then(data => u.sendJson(res, 200, data));
     }),
     'PUT /api/themes/upload': guard((req, res, query) => {
         return u.readBody(req, themePackage.MAX_ZIP, 120000).then(buf => themes.upload(buf, query.name)).then(data => u.sendJson(res, 200, data));

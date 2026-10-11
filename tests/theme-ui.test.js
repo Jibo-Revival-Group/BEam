@@ -9,6 +9,7 @@ class Node {
     appendChild(node) { this.children.push(node); node.parentNode = this; return node; }
     addEventListener(type, handler) { this.events[type] = handler; }
     setAttribute(name, value) { this.attrs[name] = value; }
+    removeAttribute(name) { delete this.attrs[name]; if (name === 'value') delete this.value; }
     focus() { document.activeElement = this; }
     click() { this.clicked = true; }
     contains(node) { return this === node || this.children.some(c => c.contains(node)); }
@@ -43,7 +44,7 @@ async function api(method, url, data) {
     if (url === '/api/store/refresh') return catalog;
     return {};
 }
-let fetchMode = 'ok'; let apiMode = 'ok';
+let fetchMode = 'ok'; let apiMode = 'ok'; let installResolve, installReject, progressData;
 const fetch = (url, options) => {
     calls.push({ method: options.method, url });
     if (fetchMode === 'throw') throw new Error('Connection failed');
@@ -53,10 +54,15 @@ const fetch = (url, options) => {
 };
 new Function('window', 'document', 'fetch', 'confirm', fs.readFileSync(path.join(__dirname, '../@be/be/beacon/public/themes.js'), 'utf8'))(window, document, fetch, () => true);
 const ui = window.BEaconThemes.create({ api: (method, url, data) => {
+    if (apiMode === 'progress' && url === '/api/themes/install') {
+        progressData = { id: data.requestId, state: 'downloading', received: 5120, total: 10240, percent: 50 };
+        return new Promise((resolve, reject) => { installResolve = resolve; installReject = reject; });
+    }
+    if (url.startsWith('/api/themes/progress')) return Promise.resolve(progressData || { state: 'idle' });
     if (apiMode === 'hang') return new Promise(() => {});
     if (apiMode === 'error') return Promise.reject(new Error('Connection lost'));
     return api(method, url, data);
-}, requestTimeout: 40, toast: text => messages.push(text), reportError: error => errors.push(error), prompt: () => Promise.resolve('https://github.com/ZaneThePython/Astra') });
+}, requestTimeout: 100, progressPollInterval: 5, toast: text => messages.push(text), reportError: error => errors.push(error), prompt: () => Promise.resolve('https://github.com/ZaneThePython/Astra') });
 async function run() {
     await ui.loadStore(false);
     assert.strictEqual(timers.length, 1); assert.strictEqual(timers[0].delay, 300000, 'Refresh every five minutes');
@@ -156,6 +162,28 @@ async function run() {
     assert.strictEqual(errors.length, beforeStoreError + 1, 'Source errors returned with cached entries are reported');
     assert(errors[errors.length - 1].message.includes('Unable to download manifest'));
     delete catalog.sources[0].error;
+    apiMode = 'progress'; await ui.loadStore(false);
+    let progressButton = all(ids['store-list']).find(n => n.textContent === 'Update' && n.tagName === 'button');
+    const runningInstall = progressButton.onclick();
+    await new Promise(resolve => setTimeout(resolve, 15));
+    let progressBar = all(ids['store-list']).find(n => n.tagName === 'progress');
+    assert.strictEqual(progressBar.value, 50, 'Download bytes update the card progress bar');
+    assert(ids['store-list'].textContent.includes('Downloading… 50%'));
+    await ui.loadStore(false);
+    progressButton = all(ids['store-list']).find(n => n.textContent === 'Update' && n.tagName === 'button');
+    assert(progressButton.disabled, 'Refresh preserves the in-progress button state');
+    progressData = Object.assign({}, progressData, { total: null, percent: null, received: 1024 * 1024 });
+    await new Promise(resolve => setTimeout(resolve, 15));
+    progressBar = all(ids['store-list']).find(n => n.tagName === 'progress');
+    assert.strictEqual(progressBar.value, undefined, 'Unknown totals use indeterminate progress');
+    assert(ids['store-list'].textContent.includes('1.0 MB'));
+    installReject(new Error('Download interrupted')); await runningInstall;
+    assert(!progressButton.disabled, 'Interrupted downloads release refreshed buttons');
+    assert(ids['store-list'].textContent.includes('Download failed'));
+    const retryInstall = progressButton.onclick(); await new Promise(resolve => setTimeout(resolve, 10));
+    installResolve({ installed: theme.id }); await retryInstall;
+    assert(!all(ids['store-list']).some(n => n.tagName === 'progress'), 'Successful installation clears download progress');
+    apiMode = 'ok';
     const imageTest = new Node('div');
     window.BEaconThemes.markdown(imageTest, 'Before ![](https://example.com/empty.png) after\n\n' +
         '- ![Local eye](./face/eye.png)\n\n![Unsafe](javascript:alert) ![Data](data:image/png;base64,test) ![File](file:///tmp/x.png)\n\n' +

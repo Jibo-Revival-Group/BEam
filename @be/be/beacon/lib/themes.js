@@ -44,6 +44,8 @@ function create(options) {
     const opts = options || {}; const root = opts.root || path.join(paths.dataDir(), 'themes');
     const store = opts.store || stores.create(); const renderer = opts.runtime || runtime;
     const version = opts.version || tbdVersion; let queue = Promise.resolve(); let downloading = false;
+    let downloadProgress = { state: 'idle' };
+    function progress(id) { return Object.assign({}, !id || downloadProgress.id === id ? downloadProgress : { id: id, state: 'idle' }); }
     let bannerQueue = Promise.resolve(); const bannerPending = Object.create(null);
     function atomic(file, data) {
         paths.ensureDir(path.dirname(file)); const temp = file + '.tmp-' + crypto.randomBytes(6).toString('hex');
@@ -142,10 +144,16 @@ function create(options) {
         });
     }
     function upload(buf, name) { return mutate(operation => packages.unzip(buf).then(files => installFiles(files, { kind: 'zip', name: String(name || 'theme.zip').slice(0, 180) }, operation))); }
-    function install(entryId, themeId) {
+    function install(entryId, themeId, requestId) {
+        if (requestId !== undefined && (typeof requestId !== 'string' || !/^[A-Za-z0-9_-]{1,80}$/.test(requestId))) {
+            return Promise.reject(packages.fail('Invalid download request ID'));
+        }
         if (downloading) { return Promise.reject(packages.fail('A theme download is already in progress. Please wait and retry.')); }
         downloading = true;
+        downloadProgress = { id: requestId || crypto.randomBytes(12).toString('hex'), entryId: entryId || null,
+            themeId: themeId || null, state: 'resolving', received: 0, total: null, percent: null, error: null };
         const result = operations.run('Theme download', opts.downloadTimeout || 120000, operation => {
+            operation.progress = update => { operation.check(); Object.assign(downloadProgress, update); };
             let origin;
             if (themeId) {
                 const t = read().themes.filter(v => v.id === themeId)[0];
@@ -158,14 +166,18 @@ function create(options) {
             }
             return Promise.resolve().then(() => store.download(origin.url, operation)).then(result => {
                 operation.check();
+                operation.progress({ state: 'validating', percent: null });
                 return mutate(commit => {
                     operation.check();
+                    operation.progress({ state: 'installing', percent: null });
                     return installFiles(result.files, Object.assign({}, origin, { commit: result.commit, readmeUrl: result.readmeUrl }),
                         { check: () => { operation.check(); commit.check(); } });
                 });
             });
         });
-        return result.then(value => { downloading = false; return value; }, err => { downloading = false; throw err; });
+        return result.then(value => {
+            downloadProgress.state = 'complete'; downloadProgress.percent = 100; downloading = false; return value;
+        }, err => { downloadProgress.state = 'failed'; downloadProgress.error = err.message; downloading = false; throw err; });
     }
     function activeTheme(s) {
         if (!s.active) { return null; }
@@ -279,7 +291,7 @@ function create(options) {
     }
     return { inventory: inventory, catalog: catalog, addSource: addSource, removeSource: removeSource,
         refresh: refreshSources, details: details, banner: banner, upload: upload, install: install,
-        activate: activate, remove: remove, asset: asset, start: start, compatibility: compat };
+        activate: activate, remove: remove, asset: asset, start: start, compatibility: compat, progress: progress };
 }
 const instance = create();
 module.exports = Object.assign(instance, { create: create, compare: compare, tbdVersion: tbdVersion });

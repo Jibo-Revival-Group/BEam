@@ -63,14 +63,14 @@
     }
     function create(options) {
         var toast = options.toast, reportError = options.reportError;
-        function request(work, label) {
+        function request(work, label, timeout) {
             return new Promise(function (resolve, reject) {
                 var done = false, controller = window.AbortController ? new window.AbortController() : null;
                 var timer = setTimeout(function () {
                     if (done) { return; } done = true;
                     reject(new Error(label + ' timed out. You can retry; check the Store for the current theme state.'));
                     if (controller) { controller.abort(); }
-                }, options.requestTimeout || 150000);
+                }, timeout || options.requestTimeout || 150000);
                 Promise.resolve().then(function () { return work(controller && controller.signal); }).then(function (data) {
                     if (done) { return; } done = true; clearTimeout(timer); resolve(data);
                 }, function (err) {
@@ -84,7 +84,8 @@
             var label = path.indexOf('/api/themes/install') === 0 ? 'Theme download/install' :
                 path.indexOf('/api/themes/apply') === 0 ? 'Applying theme' :
                 method === 'DELETE' ? 'Removal' : path.indexOf('/api/store/refresh') === 0 ? 'Storefront refresh' : 'Theme/store request';
-            return request(function (signal) { return options.api(method, path, body, { signal: signal }); }, label);
+            return request(function (signal) { return options.api(method, path, body, { signal: signal }); }, label,
+                path.indexOf('/api/themes/progress') === 0 ? Math.min(options.requestTimeout || 5000, 5000) : null);
         }
         function storeErrors(data) {
             var errors = (data.sources || []).concat(data.entries || []).filter(function (item) { return item.error; });
@@ -92,6 +93,60 @@
                 (errors.length > 1 ? ' (' + errors.length + ' errors)' : '') + '. Cached themes are still available.')); }
         }
         var opener = null, managementOpener = null, refreshing = null, refreshTimer = null, uploading = false, inventory = { themes: [], active: null, live: { live: false } };
+        var downloads = Object.create(null);
+        function downloadFor(entry) {
+            return Object.keys(downloads).map(function (id) { return downloads[id]; }).filter(function (item) {
+                return (entry.id && item.entryId === entry.id) || (entry.local && item.themeId === entry.local.id);
+            })[0];
+        }
+        function updateProgress(item) {
+            var data = item.data, percent = data.percent;
+            item.nodes.forEach(function (node) {
+                if (typeof percent === 'number') { node.bar.value = percent; }
+                else { node.bar.removeAttribute('value'); }
+                var label = data.state === 'resolving' ? 'Preparing download…' : data.state === 'validating' ? 'Validating theme…' :
+                    data.state === 'installing' ? 'Installing theme…' : data.state === 'complete' ? 'Installed' :
+                    data.state === 'failed' ? 'Download failed: ' + data.error : 'Downloading…';
+                if (data.state === 'downloading') {
+                    if (typeof percent === 'number') { label += ' ' + Math.floor(percent) + '%'; }
+                    else if (data.received) { label += ' ' + (data.received / (1024 * 1024)).toFixed(1) + ' MB'; }
+                }
+                node.label.textContent = label;
+                node.box.className = 'theme-download-progress' + (data.state === 'failed' ? ' is-failed' : '');
+            });
+            item.buttons.forEach(function (button) { button.node.disabled = !item.stopped || button.disabled; });
+        }
+        function attachProgress(content, item) {
+            var box = el('div', 'theme-download-progress'), label = el('p', 'hint'), bar = el('progress');
+            bar.max = 100; bar.setAttribute('aria-label', 'Theme download progress'); label.setAttribute('aria-live', 'polite');
+            box.appendChild(label); box.appendChild(bar); content.appendChild(box);
+            item.nodes.push({ box: box, label: label, bar: bar }); updateProgress(item);
+        }
+        function installTheme(entry, existing, content, button) {
+            var item = { id: 'theme-' + Date.now() + '-' + Math.random().toString(16).slice(2),
+                entryId: entry.id, themeId: existing && existing.id, nodes: [], buttons: [{ node: button, disabled: false }], stopped: false, timer: null, data: { state: 'resolving', percent: null } };
+            Object.keys(downloads).forEach(function (id) {
+                var prior = downloads[id];
+                if (prior.stopped && (prior.entryId === item.entryId || (item.themeId && prior.themeId === item.themeId))) {
+                    prior.nodes.forEach(function (node) { node.box.hidden = true; }); delete downloads[id];
+                }
+            });
+            downloads[item.id] = item; attachProgress(content, item); toast('Downloading theme…');
+            function poll() {
+                if (item.stopped) { return; }
+                api('GET', '/api/themes/progress?id=' + encodeURIComponent(item.id)).then(function (data) {
+                    if (!item.stopped && data.id === item.id && data.state !== 'idle') { item.data = data; updateProgress(item); }
+                }).catch(function () { /* The install request reports failures; retry progress independently. */ }).then(function () {
+                    if (!item.stopped) { item.timer = setTimeout(poll, options.progressPollInterval || 500); }
+                });
+            }
+            item.timer = setTimeout(poll, options.progressPollInterval || 500);
+            function stop(data) { item.stopped = true; clearTimeout(item.timer); item.data = data; updateProgress(item); }
+            return api('POST', '/api/themes/install', { entryId: entry.id, requestId: item.id }).then(function () {
+                stop({ state: 'complete', percent: 100 }); toast('Theme installed. Choose Apply to use it.', 'ok');
+                delete downloads[item.id]; return loadStore(false);
+            }, function (err) { stop({ state: 'failed', percent: item.data.percent, error: err.message }); throw err; });
+        }
         function closeOptions(focus) {
             $('#store-options-menu').hidden = true;
             $('#store-options-button').setAttribute('aria-expanded', 'false');
@@ -188,6 +243,7 @@
             });
         }
         function renderStore(data) {
+            Object.keys(downloads).forEach(function (id) { downloads[id].nodes = []; downloads[id].buttons = []; });
             var sources = $('#store-sources'); sources.textContent = '';
             data.sources.forEach(function (source) {
                 var row = el('div', 'card store-source'); row.appendChild(el('p', null, source.url));
@@ -236,7 +292,8 @@
                 if (entry.compatibility && entry.compatibility.status === 'incompatible') {
                     content.appendChild(el('p', 'hint', 'Needs version ' + entry.manifest.supported + ' or newer'));
                 }
-                var actions = el('div', 'theme-actions'), existing = entry.local;
+                var actions = el('div', 'theme-actions'), existing = entry.local, download = downloadFor(entry);
+                if (download) { attachProgress(content, download); }
                 if (entry.stock) {
                     var stockActive = !inventory.active && inventory.live.live;
                     var stockApply = button(actions, stockActive ? 'Active' : 'Apply', function () { return action('POST', '/api/themes/apply', { id: null }); }, stockActive);
@@ -260,9 +317,13 @@
                         if (!confirm('Remove ' + existing.manifest.name + '?')) { return; }
                         return action('DELETE', '/api/themes?id=' + encodeURIComponent(existing.id));
                     }
-                    return action('POST', '/api/themes/install', { entryId: entry.id });
+                    return installTheme(entry, existing, content, install);
                 }, !remove && (!!entry.error || (entry.compatibility && entry.compatibility.status === 'incompatible')));
                 install.className = 'btn btn-primary store-install';
+                if (download && !remove) {
+                    download.buttons.push({ node: install, disabled: !!entry.error || !!(entry.compatibility && entry.compatibility.status === 'incompatible') });
+                    if (!download.stopped) { install.disabled = true; }
+                }
                 var detailButton = button(actions, 'Details', function () { return details(existing ? existing.id : entry.id); }, !existing && !!entry.error);
                 detailButton.className = 'btn store-details';
                 content.appendChild(actions); card.appendChild(content); list.appendChild(card);

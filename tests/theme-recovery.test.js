@@ -90,6 +90,14 @@ async function run() {
     await manager.remove(installed.installed); assert.strictEqual(manager.inventory().themes.length, 0);
 
     const server = http.createServer((req, res) => {
+        if (req.url === '/manifest.json' || req.url === '/unknown-manifest.json') {
+            res.end(JSON.stringify(Object.assign({}, JSON.parse(files['manifest.json']), { download: req.url === '/manifest.json' ? '/package.zip' : '/unknown.zip' }))); return;
+        }
+        if (req.url === '/package.zip' || req.url === '/unknown.zip') {
+            if (req.url === '/package.zip') res.setHeader('Content-Length', zip.length);
+            const split = Math.floor(zip.length / 2); res.write(zip.slice(0, split));
+            setTimeout(() => res.end(zip.slice(split)), 15); return;
+        }
         if (req.url === '/stall') return;
         if (req.url === '/broken') {
             res.writeHead(200, { 'Content-Length': 100 }); res.write('partial'); setImmediate(() => res.destroy()); return;
@@ -100,6 +108,20 @@ async function run() {
     await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
     const base = 'http://127.0.0.1:' + server.address().port;
     try {
+        for (const manifest of ['/manifest.json', '/unknown-manifest.json']) {
+            const updates = [];
+            await operations.run('Test download', 1000, token => {
+                token.progress = data => updates.push(Object.assign({}, data));
+                return stores.create().download(base + manifest, token);
+            });
+            const bytes = updates.filter(p => p.state === 'downloading' && p.received > 0);
+            assert(bytes.length >= 2, 'Streamed package bytes produce progress updates');
+            if (manifest === '/manifest.json') {
+                assert(bytes.some(p => p.percent > 0 && p.percent < 100));
+                assert.strictEqual(bytes[bytes.length - 1].received, zip.length);
+            } else { assert(bytes.every(p => p.percent === null && p.total === null), 'Missing Content-Length stays indeterminate'); }
+            assert(updates.some(p => p.state === 'validating'));
+        }
         await assert.rejects(stores.request(base + '/broken', 1000), /interrupted|closed|aborted/i);
         for (const route of ['/stall', '/redirect']) {
             await assert.rejects(operations.run('Theme download', 40, operation => stores.request(base + route, 1000, 0, operation)), /timed out/);

@@ -58,11 +58,15 @@ function request(value, limit, hops, operation) {
                 const e = pkg.fail('Download returned HTTP ' + res.statusCode); e.remoteStatus = res.statusCode; res.resume(); abort(e); return;
             }
             const chunks = []; let size = 0;
+            const length = Number(res.headers['content-length']);
+            const total = Number.isFinite(length) && length > 0 ? length : null;
+            function report() { if (operation && operation.onProgress) { operation.onProgress(size, total); } }
+            report();
             res.on('data', chunk => {
                 if (done) { return; }
                 size += chunk.length;
                 if (size > limit) { abort(pkg.fail('Download exceeds the size limit')); }
-                else { chunks.push(chunk); }
+                else { chunks.push(chunk); report(); }
             });
             res.on('end', () => { if (!done) { done = true; clearTimeout(deadline); unsubscribe(); resolve(Buffer.concat(chunks, size)); } });
         });
@@ -154,6 +158,20 @@ function create(fetcher) {
         });
     }
     function download(value, operation) {
+        function report(update) { if (operation && operation.progress) { operation.progress(update); } }
+        function transfer(onProgress) {
+            const token = Object.create(operation || null); token.onProgress = onProgress;
+            // Standalone store downloads have no cancellation token.
+            if (!operation) { token.check = () => {}; token.onCancel = () => () => {}; }
+            return token;
+        }
+        const packageTransfer = transfer((received, total) => report({ state: 'downloading', received: received, total: total,
+            percent: total ? Math.min(100, received / total * 100) : null }));
+        function archive(value) {
+            return fetch(value, pkg.MAX_ZIP, packageTransfer).then(buf => {
+                report({ state: 'validating', percent: null }); return pkg.unzip(buf);
+            });
+        }
         return resolve(value, operation).then(r => {
             const declared = pkg.manifest(r.manifest);
             if (declared.type !== 'theme') { throw pkg.fail('Custom skills are not supported yet'); }
@@ -162,15 +180,20 @@ function create(fetcher) {
                 if (JSON.stringify(actual) !== JSON.stringify(declared)) { throw pkg.fail('Downloaded theme does not match its published manifest'); }
                 return { files: files, commit: r.commit || null, readmeUrl: url.resolve(r.base, 'README.md') };
             }
-            if (r.archive) { return fetch(r.archive, pkg.MAX_ZIP, operation).then(pkg.unzip).then(archiveResult); }
+            if (r.archive) { return archive(r.archive).then(archiveResult); }
             if (r.data.download) {
-                return fetch(normalize(url.resolve(r.base, r.data.download)), pkg.MAX_ZIP, operation).then(pkg.unzip).then(archiveResult);
+                return archive(normalize(url.resolve(r.base, r.data.download))).then(archiveResult);
             }
             const files = { 'manifest.json': r.manifest };
-            return pkg.FILES.filter(n => n !== 'manifest.json').reduce((chain, n) => chain.then(() =>
-                fetch(url.resolve(r.base, n), /\.png$/.test(n) ? 16 * 1024 * 1024 : MAX_METADATA, operation).then(buf => { files[n] = buf; })
+            const names = pkg.FILES.filter(n => n !== 'manifest.json'); let completed = 0;
+            return names.reduce((chain, n) => chain.then(() => {
+                report({ state: 'downloading', percent: completed / names.length * 100, received: 0, total: null });
+                const token = transfer((received, total) => report({ state: 'downloading', received: received, total: total,
+                    percent: (completed + (total ? Math.min(1, received / total) : 0)) / names.length * 100 }));
+                return fetch(url.resolve(r.base, n), /\.png$/.test(n) ? 16 * 1024 * 1024 : MAX_METADATA, token).then(buf => { files[n] = buf; })
                     .catch(err => { if (err.remoteStatus !== 404) { throw err; } })
-            ), Promise.resolve()).then(() => ({ files: files, commit: null, readmeUrl: url.resolve(r.base, 'README.md') }));
+                    .then(() => { completed++; report({ percent: completed / names.length * 100 }); });
+            }), Promise.resolve()).then(() => ({ files: files, commit: null, readmeUrl: url.resolve(r.base, 'README.md') }));
         });
     }
     function banner(value, operation) {

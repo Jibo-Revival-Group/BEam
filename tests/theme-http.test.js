@@ -13,11 +13,17 @@ const sourceFile = path.resolve(__dirname, '../@be/be/beacon/server.js');
 const serverRequire = createRequire(sourceFile);
 const runtime = { status: () => ({ live: true }), prepare: (theme, dir) => Promise.resolve({ theme, dir }),
     apply: (prepared, commit) => { if (commit) commit(); return Promise.resolve(); }, start() {} };
-let downloadMode = 'ok';
+let downloadMode = 'ok', downloadStarted, finishDownload;
 const store = { catalog: () => Promise.resolve([{ name: 'Astra', type: 'theme', url: 'https://example.com/Astra/manifest.json',
     bannerUrl: 'https://example.com/Astra/banner.png', manifest: JSON.parse(fixture.astra()['manifest.json']), readme: '# Astra\n\nDescription.' }]),
     banner: () => Promise.resolve(fixture.png()),
-    download: () => downloadMode === 'hang' ? new Promise(() => {}) : downloadMode === 'error' ? Promise.reject(new Error('Download connection failed')) : Promise.resolve({ files: fixture.astra(), commit: null }) };
+    download: (value, operation) => {
+        if (downloadMode === 'progress') {
+            operation.progress({ state: 'downloading', received: 512, total: 1024, percent: 50 }); downloadStarted();
+            return new Promise(resolve => { finishDownload = () => resolve({ files: fixture.astra(), commit: null }); });
+        }
+        return downloadMode === 'hang' ? new Promise(() => {}) : downloadMode === 'error' ? Promise.reject(new Error('Download connection failed')) : Promise.resolve({ files: fixture.astra(), commit: null });
+    } };
 const manager = themes.create({ root: path.join(temp, 'http'), runtime, version: () => '3.1.6', store, downloadTimeout: 80 });
 const loaded = { exports: {} };
 new Function('require', 'module', 'exports', fs.readFileSync(sourceFile, 'utf8'))(
@@ -70,9 +76,21 @@ async function run() {
         downloadMode = 'hang';
         const timeout = await request(server, 'POST', '/api/themes/install', { entryId: entry.id });
         assert.strictEqual(timeout.status, 504); assert(timeout.data.error.includes('timed out'));
+        const failedProgress = await request(server, 'GET', '/api/themes/progress');
+        assert.strictEqual(failedProgress.data.state, 'failed'); assert(failedProgress.data.error.includes('timed out'));
         assert.strictEqual((await request(server, 'GET', '/api/themes')).data.active, id, 'Failed downloads preserve the selected theme');
         downloadMode = 'ok';
         assert.strictEqual((await request(server, 'POST', '/api/themes/install', { entryId: entry.id })).status, 200, 'Install API recovers without restart');
+        const completedProgress = await request(server, 'GET', '/api/themes/progress');
+        assert.strictEqual(completedProgress.data.state, 'complete'); assert.strictEqual(completedProgress.data.percent, 100);
+        assert.strictEqual((await request(server, 'GET', '/api/themes/progress?id=other-request')).data.state, 'idle');
+        downloadMode = 'progress'; const started = new Promise(resolve => { downloadStarted = resolve; });
+        const pendingInstall = request(server, 'POST', '/api/themes/install', { entryId: entry.id, requestId: 'progress-test' });
+        await started;
+        const activeProgress = await request(server, 'GET', '/api/themes/progress?id=progress-test');
+        assert.strictEqual(activeProgress.data.state, 'downloading'); assert.strictEqual(activeProgress.data.percent, 50);
+        assert.strictEqual(activeProgress.data.entryId, entry.id);
+        finishDownload(); assert.strictEqual((await pendingInstall).status, 200); downloadMode = 'ok';
         const source = sources.data.sources[1]; await request(server, 'DELETE', '/api/store/sources?id=' + source.id);
         assert.strictEqual((await request(server, 'GET', '/api/themes')).data.themes.length, 1);
         const removed = await request(server, 'DELETE', '/api/themes?id=' + id); assert.strictEqual(removed.status, 200);

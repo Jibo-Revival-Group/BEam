@@ -193,6 +193,14 @@ when refresh fails, and late responses from timed-out operations cannot install
 or activate a theme. A browser connection failure can occur after a successful
 commit; reopen or refresh the Store to see the current state before retrying.
 
+Theme cards show a progress bar during download, validation and installation.
+Archive downloads show a percentage when the server supplies a file size;
+otherwise they show an indeterminate bar and downloaded bytes. Storefronts
+serving individual files report progress across those files. Progress survives
+Store refreshes; failures show an error and allow retry. The read-only
+`GET /api/themes/progress?id=<requestId>` endpoint reports the download initiated
+with that `requestId` in `POST /api/themes/install`.
+
 ## Validation and device acceptance
 
 Run `node tests/themes.test.js`, `node tests/theme-runtime.test.js`,

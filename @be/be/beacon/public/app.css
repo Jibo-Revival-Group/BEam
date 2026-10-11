@@ -737,6 +737,13 @@ details.advanced[open] > summary::after { transform: rotate(-90deg); }
 .store-card .store-install { padding: 9px 20px; border-radius: 10px; background: #54b9e6; color: #fff; border-color: #54b9e6; }
 .store-card .store-install:hover:not(:disabled) { background: #329dcd; border-color: #329dcd; }
 .store-card .store-details { padding: 9px 0; border: 0; background: transparent; color: #536978; }
+.theme-download-progress { width: 100%; margin: 8px 0 16px; }
+.theme-download-progress p { margin: 0 0 6px; }
+.theme-download-progress progress { display: block; width: 100%; height: 10px; border: 0; border-radius: 6px; overflow: hidden; accent-color: #54b9e6; }
+.theme-download-progress progress::-webkit-progress-bar { background: #e8f0f5; border-radius: 6px; }
+.theme-download-progress progress::-webkit-progress-value { background: #54b9e6; border-radius: 6px; }
+.theme-download-progress progress::-moz-progress-bar { background: #54b9e6; border-radius: 6px; }
+.theme-download-progress.is-failed p { color: #b33a3a; }
 .store-management-card #store-sources { margin-top: 20px; }
 .store-wip { padding: 72px 16px; text-align: center; font-size: 24px; font-weight: 700; }
 @media (max-width: 1400px) { .store-card { flex-basis: calc(33.333% - 20px); } }
