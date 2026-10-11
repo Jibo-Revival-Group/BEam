@@ -37,19 +37,26 @@ function crc32(buf) {
     for (let i = 0; i < buf.length; i++) { c = crcTable[(c ^ buf[i]) & 255] ^ (c >>> 8); }
     return (c ^ 0xffffffff) >>> 0;
 }
-function inflate(buf, limit, raw) {
+function inflate(buf, limit, raw, name) {
     return new Promise((resolve, reject) => {
-        const stream = raw ? zlib.createInflateRaw() : zlib.createInflate();
+        // Larger output chunks reduce worker/event-loop round trips on Jibo.
+        const options = { chunkSize: 256 * 1024 };
+        const stream = raw ? zlib.createInflateRaw(options) : zlib.createInflate(options);
         const chunks = []; let size = 0; let done = false;
-        const timer = setTimeout(() => abort(fail('Theme image/archive decoding timed out. You can retry.')), 10000);
-        function abort(err) { if (!done) { done = true; clearTimeout(timer); chunks.length = 0; stream.close(); reject(fail(err.message)); } }
+        let timer;
+        function watch() {
+            clearTimeout(timer);
+            timer = setTimeout(() => abort(fail('Theme decoding stalled for 30 seconds. You can retry.')), 30000);
+        }
+        function abort(err) { if (!done) { done = true; clearTimeout(timer); chunks.length = 0; stream.close(); reject(fail((name ? name + ': ' : '') + err.message)); } }
+        watch();
         stream.on('error', abort);
         stream.on('close', () => { if (!done) { abort(fail('Theme image/archive decoding was interrupted')); } });
         stream.on('data', chunk => {
             if (done) { return; }
             size += chunk.length;
             if (size > limit) { abort(fail('Expanded data exceeds the theme limit')); }
-            else { chunks.push(chunk); }
+            else { chunks.push(chunk); watch(); }
         });
         stream.on('end', () => { if (!done) { done = true; clearTimeout(timer); resolve(Buffer.concat(chunks, size)); } });
         stream.end(buf);
@@ -109,7 +116,7 @@ function unzip(buf) {
         const out = Object.create(null);
         return records.reduce((chain, r) => chain.then(() => {
             const packed = buf.slice(r.start, r.end);
-            return (r.method === 8 ? inflate(packed, r.size, true) : Promise.resolve(packed)).then(data => {
+            return (r.method === 8 ? inflate(packed, r.size, true, r.name) : Promise.resolve(packed)).then(data => {
                 if (data.length !== r.size || crc32(data) !== r.crc) { throw fail('ZIP checksum or size mismatch'); }
                 const rel = r.name.slice(prefix.length);
                 if (r.name.indexOf(prefix) === 0 && /^(atex|asfx)\//.test(rel) && !rel.endsWith('/') && !assetPath(rel)) { throw fail('Unsupported animation asset: ' + rel); }
@@ -160,7 +167,7 @@ function config(buf, name, defaults) {
     });
     return out;
 }
-function png(buf) {
+function png(buf, name) {
     try {
         if (!buf || buf.length < 45 || buf.length > 16 * 1024 * 1024 || buf.slice(0, 8).toString('hex') !== '89504e470d0a1a0a') { throw fail('Invalid PNG'); }
         let p = 8; let header = null; let palette = 0; let ended = false; const data = []; let idatEnded = false;
@@ -196,14 +203,17 @@ function png(buf) {
             if (w && h) { const stride = Math.ceil(w * channels * header.depth / 8) + 1; rows.push({ stride: stride, count: h, width: w }); expected += stride * h; }
         });
         if (expected > MAX_EXPANDED) { throw fail('Decoded image exceeds 64 MB'); }
-        return inflate(Buffer.concat(data), expected, false).then(raw => {
+        return inflate(Buffer.concat(data), expected, false, name).then(raw => {
             if (raw.length !== expected) { throw fail('Invalid decoded PNG size'); }
             let offset = 0;
             const bpp = Math.max(1, Math.ceil(channels * header.depth / 8));
             rows.forEach(pass => {
-                let previous = Buffer.alloc(pass.stride - 1);
+                let previous = header.color === 3 ? Buffer.alloc(pass.stride - 1) : null;
                 for (let i = 0; i < pass.count; i++) {
                     const filter = raw[offset++]; if (filter > 4) { throw fail('Invalid PNG filter'); }
+                    // Only palette images need reconstructed pixels to validate
+                    // their indices. Truecolor/grayscale samples cannot be invalid.
+                    if (header.color !== 3) { offset += pass.stride - 1; continue; }
                     const row = Buffer.alloc(pass.stride - 1);
                     for (let x = 0; x < row.length; x++) {
                         const left = x >= bpp ? row[x - bpp] : 0; const above = previous[x]; const corner = x >= bpp ? previous[x - bpp] : 0;
@@ -241,7 +251,7 @@ function validate(files) {
     const images = {}; let decodedSize = 0;
     const animationAssets = Object.keys(files).filter(assetPath);
     animationAssets.filter(n => n.indexOf('asfx/') === 0).forEach(n => audio(files[n], n));
-    return Object.keys(files).filter(n => /\.png$/.test(n)).reduce((chain, n) => chain.then(() => png(files[n]).then(size => {
+    return Object.keys(files).filter(n => /\.png$/.test(n)).reduce((chain, n) => chain.then(() => png(files[n], n).then(size => {
         decodedSize += size.width * size.height * 4;
         if (decodedSize > MAX_EXPANDED) { throw fail('Decoded theme images exceed 64 MB'); }
         images[n] = size;

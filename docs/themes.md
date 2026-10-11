@@ -245,8 +245,11 @@ and image loading failures do not block theme actions.
 
 Failed uploads, downloads and theme actions display an error and release their
 controls so they can be retried without restarting BEacon. Downloads and
-storefront refreshes have a two-minute deadline; texture preparation and local
-theme operations are also bounded. Downloads run separately from local theme
+storefront refreshes and package installations have a two-minute deadline;
+texture preparation and other local theme operations are also bounded. Archive
+and PNG decoding abort after 30 seconds without output progress, rather than
+rejecting a decoder that is still making progress. Decode stall errors identify
+the affected file. Downloads run separately from local theme
 changes, so a slow storefront does not prevent applying an installed theme or
 selecting None. Only one package download runs at a time to bound robot memory.
 Interrupted transfers are rejected, cached storefront entries remain available
@@ -266,7 +269,7 @@ with that `requestId` in `POST /api/themes/install`.
 
 Run `node tests/themes.test.js`, `node tests/theme-runtime.test.js`,
 `node tests/theme-ui.test.js`, `node tests/theme-http.test.js`,
-`node tests/theme-animation-assets.test.js`,
+`node tests/theme-animation-assets.test.js`, `node tests/theme-decoding.test.js`,
 `node tests/theme-recovery.test.js`, and
 `node tests/theme-node6.test.js`. The last
 script also runs under Node 6 to exercise the target runtime's ZIP/PNG decoder.

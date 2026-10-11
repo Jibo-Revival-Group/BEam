@@ -64,8 +64,8 @@ function create(options) {
         } catch (err) { throw packages.fail('Theme state is unreadable; restore state.json before changing themes'); }
     }
     function save(s) { atomic(path.join(root, 'state.json'), s); }
-    function mutate(fn) {
-        const result = queue.then(() => operations.run('Theme operation', opts.operationTimeout || 30000, fn));
+    function mutate(fn, timeout) {
+        const result = queue.then(() => operations.run('Theme operation', opts.operationTimeout || timeout || 30000, fn));
         queue = result.catch(() => {}); return result;
     }
     function dir(revision) {
@@ -145,7 +145,7 @@ function create(options) {
             } catch (err) { try { removeTree(dest); } catch (ignored) { /* preserve the installation error */ } throw err; }
         });
     }
-    function upload(buf, name) { return mutate(operation => packages.unzip(buf).then(files => installFiles(files, { kind: 'zip', name: String(name || 'theme.zip').slice(0, 180) }, operation))); }
+    function upload(buf, name) { return mutate(operation => packages.unzip(buf).then(files => installFiles(files, { kind: 'zip', name: String(name || 'theme.zip').slice(0, 180) }, operation)), 120000); }
     function install(entryId, themeId, requestId) {
         if (requestId !== undefined && (typeof requestId !== 'string' || !/^[A-Za-z0-9_-]{1,80}$/.test(requestId))) {
             return Promise.reject(packages.fail('Invalid download request ID'));
@@ -174,7 +174,7 @@ function create(options) {
                     operation.progress({ state: 'installing', percent: null });
                     return installFiles(result.files, Object.assign({}, origin, { commit: result.commit, readmeUrl: result.readmeUrl }),
                         { check: () => { operation.check(); commit.check(); } });
-                });
+                }, 120000);
             });
         });
         return result.then(value => {
