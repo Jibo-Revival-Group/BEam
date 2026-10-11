@@ -7,6 +7,23 @@ const MAX_ZIP = 32 * 1024 * 1024;
 const MAX_EXPANDED = 64 * 1024 * 1024;
 const FILES = ['manifest.json', 'README.md', 'banner.png', 'face/face.json', 'face/eye.png',
     'face/eyeClosed.png', 'face/eyeListening.png', 'face/background.png', 'menu/menu.json', 'menu/button.png'];
+function assetPath(name) {
+    return typeof name === 'string' && name.length <= 512 && !/[\\:\u0000-\u001f]/.test(name) &&
+        name.split('/').every(p => p && p !== '.' && p !== '..') &&
+        (/^atex\/.+\.png$/.test(name) || /^asfx\/.+\.(wav|mp3|m4a|ogg|oga|aif)$/i.test(name));
+}
+function accepted(name) { return FILES.indexOf(name) !== -1 || assetPath(name); }
+function audio(buf, name) {
+    if (!Buffer.isBuffer(buf) || buf.length < 12 || buf.length > 16 * 1024 * 1024) { throw fail('Invalid or oversized animation sound: ' + name); }
+    const ext = name.split('.').pop().toLowerCase();
+    const tag = buf.toString('ascii', 0, 4);
+    const valid = ext === 'wav' ? tag === 'RIFF' && buf.toString('ascii', 8, 12) === 'WAVE' && buf.readUInt32LE(4) + 8 === buf.length :
+        ext === 'aif' ? tag === 'FORM' && /^(AIFF|AIFC)$/.test(buf.toString('ascii', 8, 12)) :
+        ext === 'ogg' || ext === 'oga' ? tag === 'OggS' && buf[4] === 0 :
+        ext === 'm4a' ? buf.toString('ascii', 4, 8) === 'ftyp' && buf.readUInt32BE(0) >= 12 && buf.readUInt32BE(0) <= buf.length :
+        ext === 'mp3' ? buf.toString('ascii', 0, 3) === 'ID3' || (buf[0] === 255 && (buf[1] & 0xe0) === 0xe0) : false;
+    if (!valid) { throw fail('Invalid animation sound format: ' + name); }
+}
 
 function fail(message) { const e = new Error(message); e.status = 400; return e; }
 const crcTable = [];
@@ -95,7 +112,8 @@ function unzip(buf) {
             return (r.method === 8 ? inflate(packed, r.size, true) : Promise.resolve(packed)).then(data => {
                 if (data.length !== r.size || crc32(data) !== r.crc) { throw fail('ZIP checksum or size mismatch'); }
                 const rel = r.name.slice(prefix.length);
-                if (r.name.indexOf(prefix) === 0 && FILES.indexOf(rel) !== -1) { out[rel] = data; }
+                if (r.name.indexOf(prefix) === 0 && /^(atex|asfx)\//.test(rel) && !rel.endsWith('/') && !assetPath(rel)) { throw fail('Unsupported animation asset: ' + rel); }
+                if (r.name.indexOf(prefix) === 0 && accepted(rel)) { out[rel] = data; }
             });
         }), Promise.resolve()).then(() => out);
     } catch (err) { return Promise.reject(err.status ? err : fail('Malformed ZIP')); }
@@ -213,19 +231,28 @@ function png(buf) {
     } catch (err) { return Promise.reject(err.status ? err : fail('Malformed PNG')); }
 }
 function validate(files) {
+    if (Object.keys(files).length > 1024) { throw fail('Theme has too many files'); }
+    Object.keys(files).forEach(name => { if (!accepted(name)) { throw fail('Unsupported theme file: ' + name); } });
     if (Object.keys(files).reduce((total, name) => total + files[name].length, 0) > MAX_EXPANDED) { return Promise.reject(fail('Theme exceeds 64 MB expanded')); }
     const m = manifest(files['manifest.json']);
     if (m.type !== 'theme') { throw fail('Custom skill installation is not available yet'); }
     const face = config(files['face/face.json'], 'face.json', { backgroundColor: '#000000', eyeSize: 100 });
     const menu = config(files['menu/menu.json'], 'menu.json', { menuType: 'native', buttonColors: false, backgroundColor: '#000000', buttonSize: 42, iconSize: 70, textSize: 15, iconPlacement: 'x0 y0', textPlacement: 'x0 y-40' });
-    const images = {};
-    return Object.keys(files).filter(n => /\.png$/.test(n)).reduce((chain, n) => chain.then(() => png(files[n]).then(size => { images[n] = size; })), Promise.resolve()).then(() => ({
+    const images = {}; let decodedSize = 0;
+    const animationAssets = Object.keys(files).filter(assetPath);
+    animationAssets.filter(n => n.indexOf('asfx/') === 0).forEach(n => audio(files[n], n));
+    return Object.keys(files).filter(n => /\.png$/.test(n)).reduce((chain, n) => chain.then(() => png(files[n]).then(size => {
+        decodedSize += size.width * size.height * 4;
+        if (decodedSize > MAX_EXPANDED) { throw fail('Decoded theme images exceed 64 MB'); }
+        images[n] = size;
+    })), Promise.resolve()).then(() => ({
         id: crypto.createHash('sha256').update(m.name.toLowerCase()).digest('hex').slice(0, 24),
-        manifest: m, face: face, menu: menu, images: images,
+        manifest: m, face: face, menu: menu, images: images, animationAssets: animationAssets,
         hasFace: Object.keys(files).some(n => n.indexOf('face/') === 0),
         hasMenu: Object.keys(files).some(n => n.indexOf('menu/') === 0),
         readme: files['README.md'] ? files['README.md'].toString('utf8').slice(0, 256 * 1024) : ''
     }));
 }
 module.exports = { MAX_ZIP: MAX_ZIP, FILES: FILES, unzip: unzip, validate: validate,
+    accepted: accepted, assetPath: assetPath, audio: audio,
     manifest: manifest, png: png, crc32: crc32, placement: placement, fail: fail };

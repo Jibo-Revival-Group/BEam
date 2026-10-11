@@ -8,6 +8,7 @@ const paths = require('./paths');
 const packages = require('./theme-package');
 const stores = require('./theme-store');
 const runtime = require('./theme-runtime');
+const animationAssets = require('./theme-animation-assets');
 const operations = require('./theme-operation');
 
 function compare(a, b) {
@@ -127,12 +128,13 @@ function create(options) {
     function installFiles(files, origin, operation) {
         return packages.validate(files).then(theme => {
             operation.check();
+            animationAssets.plan(theme);
             check(theme.manifest);
             const s = read(); const revision = crypto.randomBytes(12).toString('hex'); const dest = dir(revision);
             const staged = Object.assign({}, theme, { revision: revision, origin: origin, readmeUrl: origin.readmeUrl || null, installedAt: new Date().toISOString() });
             try {
                 paths.ensureDir(dest);
-                Object.keys(files).forEach(n => { if (packages.FILES.indexOf(n) < 0) { return; } const f = path.join(dest, n); paths.ensureDir(path.dirname(f)); fs.writeFileSync(f, files[n]); });
+                Object.keys(files).forEach(n => { if (!packages.accepted(n)) { return; } const f = path.join(dest, n); paths.ensureDir(path.dirname(f)); fs.writeFileSync(f, files[n]); });
                 atomic(path.join(dest, 'theme.json'), staged);
                 const old = s.themes.filter(t => t.id === theme.id)[0];
                 // A name identifies a theme. Cross-source replacements require explicit user intent.
@@ -211,7 +213,7 @@ function create(options) {
         }));
     }
     function asset(id, name) {
-        if (packages.FILES.indexOf(name) < 0 || !/\.png$/.test(name)) { throw packages.fail('Unknown theme asset'); }
+        if (!packages.accepted(name) || !/\.png$/.test(name)) { throw packages.fail('Unknown theme asset'); }
         const t = read().themes.filter(v => v.id === id)[0]; if (!t) { throw packages.fail('Theme not found'); }
         return path.join(dir(t.revision), name);
     }

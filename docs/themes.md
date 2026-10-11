@@ -24,11 +24,13 @@ face/
 menu/
   menu.json               optional standard menu layout
   button.png              optional button artwork
+atex/                     optional animation texture overrides (PNG)
+asfx/                     optional animation sound overrides
 ```
 
 Place the manifest at the ZIP root or within one enclosing directory. GitHub
 generated ZIPs work. Notes and other inert repository files are ignored; only
-the files above are installed. ZIPs are limited to 32 MB compressed, 64 MB
+the files above, including supported assets in `atex/` and `asfx/`, are installed. ZIPs are limited to 32 MB compressed, 64 MB
 expanded, and 1024 entries. Links, unsafe/duplicate paths, executable files,
 invalid checksums, encrypted archives and ZIP64 are rejected.
 
@@ -130,6 +132,54 @@ updates swipe spacing and touch bounds. Titles are hidden while themed to give
 large buttons the requested screen space. Existing button labels and icons are
 preserved.
 
+## Animation textures and sounds
+
+Themes can include sparse `atex/` and `asfx/` folders. `atex/` overrides PNGs
+from `@be/be/node_modules/jibo-anim-db-animations/animations/textures`, and
+`asfx/` overrides audio from that package's `audio` folder. Include only files
+you want to replace; omitted assets retain stock behavior. For example:
+
+```text
+atex/blackeye_blur1.png
+atex/bg/black.png
+asfx/ds_bloop_01.mp3
+asfx/device/ds_completion_01.m4a
+```
+
+Use the exact stock filename. A flat filename such as `ds_bloop_01.mp3` resolves
+to its unique stock location. If more than one stock asset has that filename,
+include its relative subfolder. Unknown targets and multiple overrides for the
+same stock target are rejected. Texture overrides take priority over stock-eye
+alias resolution; assets from other skills/packages remain unchanged.
+
+Supported audio extensions are `.wav`, `.mp3`, `.m4a`, `.ogg`, `.oga`, and `.aif`.
+Files must match their image/audio format; audio files are limited to 16 MB each.
+Activation preloads textures and decodes sounds before changing appearance.
+Undecodable audio or more than 64 MB of decoded sound retains the prior theme.
+Decoded images together are limited to 64 MB. PNG, archive path, symlink,
+duplicate and extraction limits still apply.
+
+Overrides live in the installed theme's Knowledge package. Stock SDK files are
+never overwritten. Switching themes, selecting None, or removing the active
+theme restores stock assets for subsequent animation frames and sound playback,
+including cached sounds. Sounds already playing finish with their original
+buffer. Overrides survive restarts and BEam updates alongside the theme.
+
+ZIPs and GitHub repository downloads automatically include these folders. For
+a storefront serving individual files instead of a ZIP, list the files in the
+root `manifest.json` so BEacon can discover them without directory browsing:
+
+```json
+{
+  "name": "Example", "version": "1.0.0", "type": "theme",
+  "atex": ["blackeye_blur1.png", "bg/black.png"],
+  "asfx": ["device/ds_completion_01.m4a"]
+}
+```
+
+Listed files are required downloads; missing files report an error. You can
+also use the existing manifest `download` ZIP URL to include these folders.
+
 ## Storefront formats
 
 The preferred manifest is:
@@ -216,6 +266,7 @@ with that `requestId` in `POST /api/themes/install`.
 
 Run `node tests/themes.test.js`, `node tests/theme-runtime.test.js`,
 `node tests/theme-ui.test.js`, `node tests/theme-http.test.js`,
+`node tests/theme-animation-assets.test.js`,
 `node tests/theme-recovery.test.js`, and
 `node tests/theme-node6.test.js`. The last
 script also runs under Node 6 to exercise the target runtime's ZIP/PNG decoder.

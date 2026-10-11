@@ -29,6 +29,13 @@ pkg.unzip(fixture.zip(files)).then(pkg.validate).then(theme => {
         return util.readBody(req, 100, 5).then(() => { throw new Error('Stalled upload accepted'); }, e => { assert.strictEqual(e.status, 408); });
     });
 }).then(() => {
+    const animationFiles = Object.assign({}, files, { 'atex/blackeye_blur1.png': fixture.png() });
+    return pkg.unzip(fixture.zip(animationFiles)).then(pkg.validate).then(theme => {
+        const assets = require('../@be/be/beacon/lib/theme-animation-assets');
+        assert.strictEqual(assets.plan(theme)[0].target, 'blackeye_blur1.png');
+        assert.strictEqual(assets.lookup(assets.plan(theme), 'atex', '/animations/blackeye_blur1.png').name, 'atex/blackeye_blur1.png');
+    });
+}).then(() => {
     require('../@be/be/beacon/server');
     console.log('Node 6 Astra ZIP/PNG decode, bounded inflation, compatibility, cancellation, upload deadlines and server imports passed');
 }).catch(e => { console.error(e); process.exitCode = 1; });

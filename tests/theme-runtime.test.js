@@ -137,7 +137,7 @@ jibo.loader = { addCache(id) { caches.push(id); }, deleteCache() {}, load(descri
 } };
 const loaded = { exports: {} };
 new Function('require', 'module', 'exports', 'window', 'PIXI', fs.readFileSync(path.join(__dirname, '../@be/be/beacon/lib/theme-runtime.js'), 'utf8'))(
-    name => name === 'jibo' ? jibo : name === './paths' ? { pristineEye: () => 'pristine.png' } : name === './theme-package' ? pkg : name === './theme-menu-scroll' ? require('../@be/be/beacon/lib/theme-menu-scroll') : require(name), loaded, loaded.exports, {}, pixi);
+    name => name === 'jibo' ? jibo : name === './paths' ? { pristineEye: () => 'pristine.png' } : name === './theme-package' ? pkg : name === './theme-animation-assets' ? require('../@be/be/beacon/lib/theme-animation-assets') : name === './theme-menu-scroll' ? require('../@be/be/beacon/lib/theme-menu-scroll') : require(name), loaded, loaded.exports, {}, pixi);
 const runtime = loaded.exports;
 function dofs(height = 720) {
     const values = { eyeTextureInfixBn_r: '/animations/White_Eye.png', eyeSubRootBn_t: 20, eyeSubRootBn_t_2: 10, eyeSubRootBn_r: 0.1,
@@ -155,6 +155,15 @@ function recover() {
 }
 async function run() {
     const theme = await pkg.validate(fixture.astra());
+    const animationTheme = await pkg.validate(Object.assign({}, fixture.astra(), { 'atex/blackeye_blur1.png': fixture.png(), 'atex/White_Eye.png': fixture.png() }));
+    await runtime.apply(await runtime.prepare(animationTheme, '/tmp/theme'));
+    assert.strictEqual(c.getTexture('/animations/blackeye_blur1.png').name, 'atex/blackeye_blur1.png');
+    assert.strictEqual(c.getTexture('/animations/White_Eye.png').name, 'atex/White_Eye.png', 'Explicit animation overrides take priority over stock aliases');
+    assert.strictEqual(c.getTexture('/skill/special.png').name, 'special-animation', 'Other skill assets remain unchanged');
+    recover();
+    assert.strictEqual(c.getTexture('/animations/blackeye_blur1.png').name, 'atex/blackeye_blur1.png', 'Animation overrides survive renderer recovery');
+    await runtime.apply(await runtime.prepare(null));
+    assert.strictEqual(c.getTexture('/animations/blackeye_blur1.png'), null, 'None removes overrides and delegates to the stock animation');
     c._currentDofValues = dofs();
     await runtime.apply(await runtime.prepare(theme, '/tmp/theme'));
     const previewTheme = Object.assign({}, theme, { images: Object.assign({}, theme.images, { 'banner.png': { width: 640, height: 360 } }) });

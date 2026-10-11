@@ -185,13 +185,28 @@ function create(fetcher) {
                 return archive(normalize(url.resolve(r.base, r.data.download))).then(archiveResult);
             }
             const files = { 'manifest.json': r.manifest };
-            const names = pkg.FILES.filter(n => n !== 'manifest.json'); let completed = 0;
+            const extra = [];
+            ['atex', 'asfx'].forEach(folder => {
+                if (r.data[folder] === undefined) { return; }
+                if (!Array.isArray(r.data[folder]) || r.data[folder].length > 1024) { throw pkg.fail(folder + ' must be an array of relative asset filenames'); }
+                r.data[folder].forEach(name => {
+                    const file = folder + '/' + name;
+                    if (typeof name !== 'string' || !pkg.assetPath(file) || extra.indexOf(file) >= 0) { throw pkg.fail('Invalid animation asset path: ' + file); }
+                    extra.push(file);
+                });
+            });
+            if (extra.length > 1014) { throw pkg.fail('Too many animation assets'); }
+            const names = pkg.FILES.filter(n => n !== 'manifest.json').concat(extra); let completed = 0; let size = r.manifest.length;
             return names.reduce((chain, n) => chain.then(() => {
                 report({ state: 'downloading', percent: completed / names.length * 100, received: 0, total: null });
                 const token = transfer((received, total) => report({ state: 'downloading', received: received, total: total,
                     percent: (completed + (total ? Math.min(1, received / total) : 0)) / names.length * 100 }));
-                return fetch(url.resolve(r.base, n), /\.png$/.test(n) ? 16 * 1024 * 1024 : MAX_METADATA, token).then(buf => { files[n] = buf; })
-                    .catch(err => { if (err.remoteStatus !== 404) { throw err; } })
+                return fetch(url.resolve(r.base, n.split('/').map(encodeURIComponent).join('/')), pkg.assetPath(n) || /\.png$/.test(n) ? 16 * 1024 * 1024 : MAX_METADATA, token).then(buf => {
+                    size += buf.length;
+                    if (size > 64 * 1024 * 1024) { throw pkg.fail('Theme exceeds 64 MB expanded'); }
+                    files[n] = buf;
+                })
+                    .catch(err => { if (err.remoteStatus !== 404 || extra.indexOf(n) >= 0) { throw err; } })
                     .then(() => { completed++; report({ percent: completed / names.length * 100 }); });
             }), Promise.resolve()).then(() => ({ files: files, commit: null, readmeUrl: url.resolve(r.base, 'README.md') }));
         });

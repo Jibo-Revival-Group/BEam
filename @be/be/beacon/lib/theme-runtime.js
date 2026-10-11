@@ -4,6 +4,7 @@ const path = require('path');
 const paths = require('./paths');
 const fail = require('./theme-package').fail;
 const menuScroll = require('./theme-menu-scroll');
+const animationAssets = require('./theme-animation-assets');
 let current = null;
 let live = { live: false, reason: 'Renderer has not started' };
 let retryTimer = null;
@@ -43,6 +44,8 @@ function jiboRuntime() {
     return require('jibo');
 }
 function prepare(theme, dir) {
+    let overrides;
+    try { overrides = animationAssets.plan(theme); } catch (err) { return Promise.reject(err); }
     let jibo;
     try { jibo = jiboRuntime(); } catch (err) { return Promise.reject(err); }
     if (!jibo) { return Promise.resolve({ theme: theme, live: false }); }
@@ -60,7 +63,7 @@ function prepare(theme, dir) {
     if (theme) {
         Object.keys(theme.images).filter(name => name !== 'banner.png').forEach(name => descriptors.push({ id: name, src: path.join(dir, name), type: 'texture', cache: cache }));
     }
-    return new Promise((resolve, reject) => {
+    return animationAssets.decode(jibo, overrides, dir).then(audio => new Promise((resolve, reject) => {
         jibo.loader.addCache(cache);
         let finished = false;
         const timeout = setTimeout(() => complete(fail('Theme texture loading timed out')), 15000);
@@ -70,10 +73,10 @@ function prepare(theme, dir) {
                 try { jibo.loader.deleteCache(cache); } catch (ignored) { /* already removed */ }
                 reject(err || fail('Theme texture loading failed')); return;
             }
-            resolve({ jibo: jibo, theme: theme, textures: textures, cache: cache, live: true });
+            resolve({ jibo: jibo, theme: theme, textures: textures, audio: audio, animationAssets: overrides, cache: cache, live: true });
         }
         try { jibo.loader.load(descriptors, { complete: complete }); } catch (err) { complete(err); }
-    });
+    }));
 }
 function hookFace(jibo) {
     const container = jibo.face.eye;
@@ -105,8 +108,12 @@ function hookFace(jibo) {
     });
     const originalTexture = container.getTexture;
     container.getTexture = function(value) {
+        const override = current && current.live && animationAssets.lookup(current.animationAssets, 'atex', value);
+        if (override) { return current.textures[override.name]; }
         if (current && current.live && stockEye(value)) { return current.textures['face/eye.png'] || current.textures.stockEye; }
-        return originalTexture.call(this, value);
+        const texture = originalTexture.call(this, value);
+        const resolved = texture && texture.baseTexture && current && animationAssets.lookup(current.animationAssets, 'atex', texture.baseTexture.imageUrl);
+        return resolved ? current.textures[resolved.name] : texture;
     };
     const originalDefault = eye._isDefaultTexture;
     eye._isDefaultTexture = function(texture, value) { return stockEye(value) || originalDefault.call(this, texture, value); };
@@ -370,7 +377,9 @@ function apply(prepared, commit) {
     }
     const previous = current;
     try {
-        hookFace(prepared.jibo); hookMenus(prepared.jibo); current = prepared; refresh(prepared.jibo);
+        hookFace(prepared.jibo); hookMenus(prepared.jibo);
+        animationAssets.hookSound(prepared.jibo, () => current);
+        current = prepared; refresh(prepared.jibo);
         // Persistence belongs in the same transaction: retain old textures until it succeeds.
         if (commit) { commit(); }
         live = { live: true, reason: null };
