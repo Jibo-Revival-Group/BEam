@@ -46,7 +46,7 @@ function inflate(buf, limit, raw, name) {
         let timer;
         function watch() {
             clearTimeout(timer);
-            timer = setTimeout(() => abort(fail('Theme decoding stalled for 30 seconds. You can retry.')), 30000);
+            timer = setTimeout(() => abort(fail('Package decoding stalled for 30 seconds. You can retry.')), 30000);
         }
         function abort(err) { if (!done) { done = true; clearTimeout(timer); chunks.length = 0; stream.close(); reject(fail((name ? name + ': ' : '') + err.message)); } }
         watch();
@@ -62,7 +62,8 @@ function inflate(buf, limit, raw, name) {
         stream.end(buf);
     });
 }
-function unzip(buf) {
+function unzip(buf, options) {
+    const skill = !!(options && options.skill);
     if (!Buffer.isBuffer(buf) || buf.length < 22 || buf.length > MAX_ZIP) {
         return Promise.reject(fail('Theme ZIP must be at most 32 MB'));
     }
@@ -97,7 +98,7 @@ function unzip(buf) {
             if (names[canonical]) { throw fail('Duplicate ZIP path'); } names[canonical] = true;
             const kind = (buf.readUInt32LE(pos + 38) >>> 16) & 0xf000;
             if (kind && kind !== 0x8000 && kind !== 0x4000) { throw fail('ZIP links and special files are not allowed'); }
-            if (/\.(js|mjs|cjs|sh|bash|bat|cmd|exe|dll|so|py|php|html|svg)$/i.test(name)) { throw fail('Executable theme content is not allowed'); }
+            if (!skill && /\.(js|mjs|cjs|sh|bash|bat|cmd|exe|dll|so|py|php|html|svg)$/i.test(name)) { throw fail('Executable theme content is not allowed'); }
             total += size;
             if (total > MAX_EXPANDED || local + 30 > centralStart || buf.readUInt32LE(local) !== 0x04034b50) { throw fail('Invalid or oversized ZIP'); }
             const localLen = buf.readUInt16LE(local + 26); const localExtra = buf.readUInt16LE(local + 28);
@@ -119,8 +120,8 @@ function unzip(buf) {
             return (r.method === 8 ? inflate(packed, r.size, true, r.name) : Promise.resolve(packed)).then(data => {
                 if (data.length !== r.size || crc32(data) !== r.crc) { throw fail('ZIP checksum or size mismatch'); }
                 const rel = r.name.slice(prefix.length);
-                if (r.name.indexOf(prefix) === 0 && /^(atex|asfx)\//.test(rel) && !rel.endsWith('/') && !assetPath(rel)) { throw fail('Unsupported animation asset: ' + rel); }
-                if (r.name.indexOf(prefix) === 0 && accepted(rel)) { out[rel] = data; }
+                if (!skill && r.name.indexOf(prefix) === 0 && /^(atex|asfx)\//.test(rel) && !rel.endsWith('/') && !assetPath(rel)) { throw fail('Unsupported animation asset: ' + rel); }
+                if (r.name.indexOf(prefix) === 0 && !rel.endsWith('/') && (skill || accepted(rel))) { out[rel] = data; }
             });
         }), Promise.resolve()).then(() => out);
     } catch (err) { return Promise.reject(err.status ? err : fail('Malformed ZIP')); }
@@ -140,7 +141,13 @@ function manifest(buf) {
         !version(m.version) || (m.supported !== undefined && !version(m.supported)) || ['theme', 'skill'].indexOf(m.type) < 0) {
         throw fail('Manifest requires name, semantic version, type, and an optional supported minimum jibo-tbd version');
     }
-    return { name: m.name.trim(), version: m.version, supported: m.supported || null, type: m.type };
+    const out = { name: m.name.trim(), version: m.version, supported: m.supported || null, type: m.type };
+    if (m.type === 'skill') {
+        const colors = m.buttonColor === undefined ? ['#58BCEB', '#246487'] : typeof m.buttonColor === 'string' ? m.buttonColor.trim().split(/\s+/) : m.buttonColor;
+        if (!Array.isArray(colors) || colors.length < 1 || colors.length > 2 || colors.some(c => typeof c !== 'string' || !/^#[0-9a-f]{6}$/i.test(c))) { throw fail('buttonColor needs one or two #RRGGBB colors'); }
+        out.buttonColor = colors.length === 1 ? [colors[0], colors[0]] : colors;
+    }
+    return out;
 }
 function placement(value) {
     if (typeof value !== 'string') { throw fail('Placement must look like x0 y45'); }

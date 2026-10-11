@@ -93,6 +93,10 @@ function list () {
         return a.name.localeCompare(b.name);
     });
 
+    require('./custom-skills').inventory().skills.forEach(skill => {
+        entries.push({ name: skill.packageName, dir: require('./custom-skills').resolve(skill.packageName), installed: true, version: skill.manifest.version,
+            displayName: skill.manifest.name, prompt: skill.manifest.name, description: skill.readme, type: 'asset-pack', registered: true, load: 'lazy', roles: [], custom: true });
+    });
     return {
         skillsRoot: root,
         host: {

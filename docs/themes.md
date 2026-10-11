@@ -201,7 +201,8 @@ The example's alternating format also works:
 }
 ```
 
-Skills are parsed but hidden in this release. None is a built-in theme and needs
+Skills are installable through Store → Skills; see [Custom skills](custom-skills.md).
+None is a built-in theme and needs
 no download. Relative URLs resolve against the storefront manifest. A source
 may also point directly at a theme's manifest or its GitHub repository. GitHub
 metadata resolves the default branch to a commit; manifest, README and package
@@ -221,8 +222,8 @@ use the same PNG validation as installed themes. GitHub banners are fetched
 from the resolved commit and cached in Knowledge for offline browsing; the
 banner cache is bounded to 64 MB. Missing banners show a fallback. ZIP installs
 also preserve and validate `banner.png`, which never loads into the robot's face
-renderer. The Store switch selects Themes or the Skills work-in-progress page.
-The Store fills the available width and refreshes every five minutes after it
+renderer. The Store switch selects Themes or installable custom Skills.
+The Store fills the available width and refreshes every one hour after it
 has been opened. Installed themes show Remove when the catalog version matches,
 and Update when it differs, plus Apply/Active controls on the same cards. ZIP
 uploads and installed themes from removed sources stay in this grid. None is

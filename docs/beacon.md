@@ -19,7 +19,7 @@ way the Skills Service Manager on port 8779 is already open.
 | Music | Full library management: albums, uploads, covers, rename, delete |
 | Photos | View saved robot photos, download originals, delete local copies |
 | People | Manage the household Loop: add, rename, remove, profile photos; enrollment badges |
-| Store | Browse and manage installed themes, restore None, and upload ZIPs via the three-dot menu; Skills is a placeholder within the Store |
+| Store | Browse and manage themes and skills, restore None, upload ZIPs, and manage storefronts via the three-dot menu |
 | Setup | First-boot household and BEam/BEnch update after BEetle (API only; UI removed) |
 | More | Bright/System/Dark appearance, weather units and home location |
 | Server | Edit jetstream hub and OTA credentials endpoint (API only; UI removed) |
@@ -155,20 +155,40 @@ the calendar controls are hidden; local Loop editing remains available.
 
 ## Themes and Store
 
+Storefronts automatically refresh once an hour. Attempt timestamps persist across
+restarts, including failed refreshes; cached entries remain available. The
+**Refresh** action still lets you request an immediate refresh.
+
+GitHub sign-in is required to use the Store, including cached browsing, source
+management, refreshes, and downloads. Choose **Sign in with GitHub** on the Store's
+sign-in screen (or in **⋮ → Manage Storefronts**). Open the displayed GitHub link, enter the device code, and
+authorize BEacon. Sign-in uses OAuth client ID `Ov23liRcugb5gNBIZj7z` and requests
+no additional scopes for public repositories. BEacon respects GitHub's polling
+interval and slow-down responses; expired or declined codes can be retried.
+**Disconnect GitHub** cancels a pending sign-in or removes the local credential.
+
+The token stays on the robot in
+`/opt/jibo/Knowledge/beacon/github/auth.json` (file mode `0600`, directory mode
+`0700`), surviving restarts and BEam updates. It is never returned to the browser
+and is sent only to HTTPS requests on `api.github.com`, including checks across
+redirects. Missing or revoked credentials lock the Store until you sign in again;
+GitHub API requests never retry anonymously. Installed themes and skills continue
+working on Jibo independently of Store sign-in.
+
 The Store starts with `https://store.5x1.com/manifest.json`. Add another manifest
 URL or a single GitHub repository such as `https://github.com/ZaneThePython/Astra`.
 Repositories use the default branch and downloads are pinned to the resolved
 commit. Storefront refresh failures preserve cached entries. Removing a source
-preserves its installed themes. Skills are accepted in manifests but hidden;
-custom skill installation remains unavailable.
+preserves its installed themes and skills. Custom skill installation, ZIP testing,
+and the saved menu editor are documented in [Custom skills](custom-skills.md).
 
 The Store's Themes section shows installed packages and **None**, the stock
 appearance, alongside available themes. Installed packages remain visible after
 their source is removed or when uploaded as ZIPs. **None** uses the cancel icon
 and restores the stock face and menus. Use **Upload Theme ZIP** in the three-dot
 menu to test a package. The separate Themes and Skills navigation tabs are gone;
-Skills has a work-in-progress page in the Store. Install or
-upload first, then select **Apply**. Updates and replacement ZIPs are explicit
+Skills has install, update, and removal controls in the Store. For themes, install
+or upload first, then select **Apply**. Updates and replacement ZIPs are explicit
 and leave the current appearance running until Apply. Removing the active theme
 first restores None. Details displays the full README as safe Markdown; store
 cards show the first non-heading paragraph in two lines.
@@ -268,7 +288,11 @@ rather than failing.
 | GET | `/api/status` | Versions, addresses, resolved paths |
 | GET | `/api/store` | Cached theme catalog, source statuses, compatibility |
 | GET | `/api/store/details?id=` | Theme metadata and README (catalog or installed ID) |
-| POST | `/api/store/refresh` | `{id?}` refreshes one or all sources |
+| POST | `/api/store/refresh` | `{id?, automatic?}` refreshes sources; automatic requests respect the hourly interval |
+| GET | `/api/github/auth` | GitHub connection status and pending public device code; no token |
+| POST | `/api/github/auth` | Start GitHub device sign-in |
+| POST | `/api/github/auth/poll` | Check device authorization, respecting GitHub's polling interval |
+| DELETE | `/api/github/auth` | Cancel sign-in and remove the locally saved token |
 | GET | `/api/store/sources` | Configured storefronts |
 | POST | `/api/store/sources` | `{url}` adds and refreshes a manifest/repository |
 | DELETE | `/api/store/sources?id=` | Remove a source, preserve installations |
@@ -279,7 +303,7 @@ rather than failing.
 | DELETE | `/api/themes?id=` | Remove a theme, restoring None if active |
 | GET | `/api/themes/asset?id=&name=` | Serve a validated installed PNG |
 | GET | `/api/skills` | Registered and on-disk skills |
-| POST | `/api/skills/install` | Placeholder, returns 501 |
+| POST | `/api/skills/install` | Install or update a custom skill from a storefront |
 | GET | `/api/jukebox` | Albums, tracks, ignored folders |
 | POST | `/api/jukebox/album` | `{artist, album}` creates a folder |
 | PUT | `/api/jukebox/file?album=&name=` | Raw body upload of a track or cover |

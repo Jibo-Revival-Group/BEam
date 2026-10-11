@@ -75,7 +75,7 @@ function readBody (req, maxBytes, timeoutMs) {
         let size = 0;
         let done = false;
         const timer = timeoutMs ? setTimeout(() => {
-            const err = new Error('Theme upload timed out. You can retry.'); err.status = 408;
+            const err = new Error('Upload timed out. You can retry.'); err.status = 408;
             fail(err); req.resume();
         }, timeoutMs) : null;
 

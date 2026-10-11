@@ -38,6 +38,10 @@ function request(value, limit, hops, operation) {
         let done = false; let response; let unsubscribe = () => {};
         const requestOptions = url.parse(normalized);
         requestOptions.headers = { 'User-Agent': 'BEacon-Themes', Accept: 'application/json, */*' };
+        const auth = require('./github-auth');
+        const token = requestOptions.protocol === 'https:' && requestOptions.hostname === 'api.github.com' ? auth.token() : null;
+        if (requestOptions.hostname === 'api.github.com' && !token) { const e = pkg.fail('Sign in to GitHub to use the Store.'); e.status = 401; reject(e); return; }
+        if (token) { requestOptions.headers.Authorization = 'Bearer ' + token; }
         if (transport === https) {
             requestOptions.ca = certificateAuthorities();
             requestOptions.rejectUnauthorized = true;
@@ -53,6 +57,11 @@ function request(value, limit, hops, operation) {
                 if ((hops || 0) >= 5 || !res.headers.location) { abort(pkg.fail('Too many download redirects')); return; }
                 done = true; clearTimeout(deadline); unsubscribe(); res.resume();
                 request(url.resolve(normalized, res.headers.location), limit, (hops || 0) + 1, operation).then(resolve, reject); return;
+            }
+            if (res.statusCode === 401 && token) {
+                auth.invalidate(token);
+                const e = pkg.fail('GitHub authorization expired or was revoked. Sign in again.'); e.status = 401; e.remoteStatus = 401;
+                res.resume(); abort(e); return;
             }
             if (res.statusCode !== 200) {
                 const e = pkg.fail('Download returned HTTP ' + res.statusCode); e.remoteStatus = res.statusCode; res.resume(); abort(e); return;
@@ -111,23 +120,32 @@ function entries(data, section, base) {
 }
 function create(fetcher) {
     const network = fetcher || request;
+    const repoCache = Object.create(null), commitCache = Object.create(null);
     function fetch(value, limit, operation) {
         return Promise.resolve().then(() => { if (operation) { operation.check(); } return network(value, limit, 0, operation); });
     }
     const opt = (value, operation) => fetch(value, MAX_METADATA, operation).catch(err => { if (err.remoteStatus === 404) { return null; } throw err; });
+    function cached(cache, key, ttl, operation) {
+        const existing = cache[key];
+        if (existing && Date.now() - existing.time < ttl) { return Promise.resolve(existing.data); }
+        return fetch(key, MAX_METADATA, operation).then(json).then(data => { cache[key] = { data: data, time: Date.now() }; return data; });
+    }
     function resolve(value, operation) {
         value = normalize(value); const gh = github(value);
         if (!gh) { return fetch(value, MAX_METADATA, operation).then(buf => ({ url: value, base: value, data: json(buf), manifest: buf })); }
         const api = 'https://api.github.com/repos/' + encodeURIComponent(gh.owner) + '/' + encodeURIComponent(gh.repo);
-        return fetch(api, MAX_METADATA, operation).then(json).then(repo => {
+        return cached(repoCache, api, 60 * 60 * 1000, operation).then(repo => {
             if (!repo.default_branch) { throw pkg.fail('GitHub repository has no default branch'); }
-            return fetch(api + '/commits/' + encodeURIComponent(repo.default_branch), MAX_METADATA, operation).then(json);
+            // Several sources can list the same repo. Cache resolved commits for
+            // ten minutes to reduce GitHub API requests.
+            return cached(commitCache, api + '/commits/' + encodeURIComponent(repo.default_branch), 10 * 60 * 1000, operation).then(commit => Object.assign({}, commit, { developer: repo.owner && repo.owner.login || gh.owner, stars: typeof repo.stargazers_count === 'number' ? repo.stargazers_count : null }));
         }).then(commit => {
             if (!/^[a-f0-9]{40}$/i.test(commit.sha || '')) { throw pkg.fail('GitHub commit could not be resolved'); }
             const base = 'https://raw.githubusercontent.com/' + gh.owner + '/' + gh.repo + '/' + commit.sha + '/';
             return fetch(base + 'manifest.json', MAX_METADATA, operation).then(buf => ({
                 url: value, base: base + 'manifest.json', data: json(buf), manifest: buf, commit: commit.sha,
-                archive: 'https://codeload.github.com/' + gh.owner + '/' + gh.repo + '/zip/' + commit.sha
+                archive: 'https://codeload.github.com/' + gh.owner + '/' + gh.repo + '/zip/' + commit.sha,
+                developer: commit.developer, stars: commit.stars
             }));
         });
     }
@@ -137,7 +155,7 @@ function create(fetcher) {
             return opt(url.resolve(r.base, 'README.md'), operation).then(buf => {
                 const readme = buf ? buf.toString('utf8') : '';
                 return { url: r.url, manifest: manifest, readme: readme, readmeUrl: url.resolve(r.base, 'README.md'), description: paragraph(readme), commit: r.commit || null,
-                    bannerUrl: url.resolve(r.base, 'banner.png') };
+                    bannerUrl: url.resolve(r.base, 'banner.png'), developer: r.developer || null, stars: r.stars == null ? null : r.stars };
             });
         });
     }
@@ -145,14 +163,15 @@ function create(fetcher) {
         return resolve(value, operation).then(r => {
             const items = r.data.type ? [{ name: pkg.manifest(r.manifest).name, type: r.data.type, url: r.url }] :
                 entries(r.data, 'themes', r.base).concat(entries(r.data, 'skills', r.base));
-            const themes = items.filter(item => item.type === 'theme');
+            const themes = items.filter(item => item.type === 'theme' || item.type === 'skill');
             // Small batches avoid overwhelming robot memory/network on large storefronts.
             let chain = Promise.resolve(); const out = [];
             themes.forEach(item => { chain = chain.then(() => {
                 if (item.stock) { out.push(item); return; }
                 return detail(item.url, operation).then(d => {
-                    if (d.manifest.type === 'theme') { out.push(Object.assign({}, item, d, { name: d.manifest.name })); }
-                }).catch(err => { if (operation) { operation.check(); } out.push(Object.assign({}, item, { error: err.message })); });
+                    if (d.manifest.type !== item.type) { throw pkg.fail('Store entry type does not match its manifest'); }
+                    out.push(Object.assign({}, item, d, { name: d.manifest.name }));
+                }).catch(err => { if (operation) { operation.check(); } const repo = github(item.url); out.push(Object.assign({}, item, { developer: repo && repo.owner, stars: null, error: err.message })); });
             }); });
             return chain.then(() => out);
         });
@@ -167,23 +186,23 @@ function create(fetcher) {
         }
         const packageTransfer = transfer((received, total) => report({ state: 'downloading', received: received, total: total,
             percent: total ? Math.min(100, received / total * 100) : null }));
-        function archive(value) {
+        function archive(value, skill) {
             return fetch(value, pkg.MAX_ZIP, packageTransfer).then(buf => {
-                report({ state: 'validating', percent: null }); return pkg.unzip(buf);
+                report({ state: 'validating', percent: null }); return pkg.unzip(buf, { skill: skill });
             });
         }
         return resolve(value, operation).then(r => {
             const declared = pkg.manifest(r.manifest);
-            if (declared.type !== 'theme') { throw pkg.fail('Custom skills are not supported yet'); }
             function archiveResult(files) {
                 const actual = pkg.manifest(files['manifest.json']);
                 if (JSON.stringify(actual) !== JSON.stringify(declared)) { throw pkg.fail('Downloaded theme does not match its published manifest'); }
                 return { files: files, commit: r.commit || null, readmeUrl: url.resolve(r.base, 'README.md') };
             }
-            if (r.archive) { return archive(r.archive).then(archiveResult); }
+            if (r.archive) { return archive(r.archive, declared.type === 'skill').then(archiveResult); }
             if (r.data.download) {
-                return archive(normalize(url.resolve(r.base, r.data.download))).then(archiveResult);
+                return archive(normalize(url.resolve(r.base, r.data.download)), declared.type === 'skill').then(archiveResult);
             }
+            if (declared.type === 'skill') { throw pkg.fail('Skill manifests need a download ZIP URL or a GitHub repository'); }
             const files = { 'manifest.json': r.manifest };
             const extra = [];
             ['atex', 'asfx'].forEach(folder => {

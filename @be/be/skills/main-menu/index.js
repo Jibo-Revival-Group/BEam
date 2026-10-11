@@ -29,6 +29,7 @@ module.exports = function (blackboard, notepad, result, emitter) {
                 'id': 'b32b43a7-5ff2-44c8-a7b3-f7691433934b',
                 'name': 'Main Menu',
                 'transitions': [
+                    { 'frm': 'b32b43a7-5ff2-44c8-a7b3-f7691433934b', 'to': 'b32b43a7-5ff2-44c8-a7b3-f7691433934b', 'value': '__menu' },
                     {
                         'frm': 'b32b43a7-5ff2-44c8-a7b3-f7691433934b',
                         'to': '9b202569-67ce-421f-b9ab-1c601f045f55',
@@ -46,6 +47,7 @@ module.exports = function (blackboard, notepad, result, emitter) {
                     }
                 ],
                 'exceptions': [
+                    { 'frm': 'b32b43a7-5ff2-44c8-a7b3-f7691433934b', 'to': 'b32b43a7-5ff2-44c8-a7b3-f7691433934b', 'value': '__menu' },
                     {
                         'frm': 'b32b43a7-5ff2-44c8-a7b3-f7691433934b',
                         'to': '4922ff2c-16e8-4923-9ede-d6b51afa93af',
@@ -60,13 +62,15 @@ module.exports = function (blackboard, notepad, result, emitter) {
                 'class': 'Menu',
                 'options': {
                     'getConfig': loadCallback => {
-                        jibo.loader.load('resources/views/main-menu-verbal.json', (err, config) => {
-                            loadCallback(config);
-                        });
+                        const layout = require('../../beacon/lib/menu-layout');
+                        const stack = blackboard.skill._beamMenuStack || [];
+                        loadCallback(layout.view(stack[stack.length - 1] || null));
                     },
                     'onMenuClosed': (wasTimeout, menu, overrideMenuTransition, exception) => {
                         overrideMenuTransition('remain');
                         blackboard.log.debug('Menu was closed with exception:', exception);
+                        const stack = blackboard.skill._beamMenuStack || [];
+                        if (stack.length && !wasTimeout) { stack.pop(); return '__menu'; }
                         return exception;
                     },
                     'onItemChosen': (result, menu, overrideMenuTransition) => {
@@ -74,12 +78,12 @@ module.exports = function (blackboard, notepad, result, emitter) {
                         if (menu) {
                             let list = menu.getComponentByIndex(0);
                             let button = list.getComponentById(result.entities.destination);
-                            list.actionHandler({
+                            if (button) { list.actionHandler({
                                 type: 'forceIndex',
                                 data: {}
-                            }, button);
+                            }, button); }
                             blackboard.log.debug('Menu item was chosen with destination: ', result.entities.destination);
-                            return result.entities.destination;
+                            return require('../../beacon/lib/menu-layout').choose(blackboard.skill, result.entities.destination);
                         } else {
                             blackboard.log.warn('onItemChosen supplied an undefined menu parameter');
                             return '~MenuFailed';
@@ -284,6 +288,7 @@ class MainMenu extends be_framework_1.BeSkill {
                 this.track('Menu Opened', { modality: 'return' });
             }
             this.skillChosen = false;
+            this._beamMenuStack = [];
             const options = Object.assign({
                 assetPack: this.assetPack,
                 enableLogging: true,
@@ -406,7 +411,7 @@ class MainMenu extends be_framework_1.BeSkill {
             };
         }
         this.skillChosen = true;
-        const targetSkill = `@be/${skill}`;
+        const targetSkill = skill.indexOf('@be/') === 0 ? skill : `@be/${skill}`;
         this.log.info('redirectToSkill() resolving to', targetSkill, 'isCloud=', isCloud);
         jibo.face.views.changeView({
             remove: true,

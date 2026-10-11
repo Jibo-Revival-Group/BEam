@@ -41,6 +41,7 @@ const WARM_PAUSE_MS = 250;
 
 /** Prevent prepareForOpen from unloading a skill mid-redirect stack. */
 let preparingId = null;
+let host = null;
 
 function log (be) {
     return (be && be.log) || {
@@ -60,7 +61,7 @@ function eagerIds (be) {
 }
 
 function lazyIds (be) {
-    return jiboPkg(be).lazySkills || [];
+    return (jiboPkg(be).lazySkills || []).concat(require('./beacon/lib/custom-skills').ids());
 }
 
 function isEager (be, id) {
@@ -76,7 +77,7 @@ function skillDirFor (id) {
     if (!root) {
         throw new Error('skills-resolve is not installed');
     }
-    return path.join(root, id.replace(/^@be\//, ''));
+    return skillsResolve.getSkillDirectory(id);
 }
 
 function skillMainPath (id) {
@@ -248,6 +249,8 @@ function sourceMtime (id) {
 }
 
 function loadSkill (be, id) {
+    const custom = require('./beacon/lib/custom-skills').inventory().skills.filter(s => s.packageName === id)[0];
+    if (custom && custom.compatibility.status === 'incompatible') { throw new Error(custom.manifest.name + ' needs version ' + custom.manifest.supported + ' or newer'); }
     if (be.skills[id]) {
         return be.skills[id];
     }
@@ -263,7 +266,7 @@ function loadSkill (be, id) {
     const jibo = require('jibo');
     const skill = new Skill({
         assetPack: id,
-        rootPath: path.dirname(jibo.utils.PathUtils.resolve(id))
+        rootPath: custom ? path.resolve(skillsResolve.getSkillDirectory(id)) : path.dirname(jibo.utils.PathUtils.resolve(id))
     });
     if (typeof be._validateSkill === 'function' && !be._validateSkill(skill)) {
         throw new Error('not a valid BeSkill');
@@ -333,6 +336,8 @@ function currentSkillId (be) {
  * Lazy skills stay warm after first load; reload only when index.js mtime changes.
  */
 function prepareForOpen (be, id) {
+    const custom = require('./beacon/lib/custom-skills').inventory().skills.filter(s => s.packageName === id)[0];
+    if (custom && custom.compatibility.status === 'incompatible') { throw new Error(custom.manifest.name + ' needs version ' + custom.manifest.supported + ' or newer'); }
     if (!id) {
         throw new Error('prepareForOpen: missing skill id');
     }
@@ -364,7 +369,7 @@ function prepareForOpen (be, id) {
     if (existing) {
         const mtime = sourceMtime(id);
         // Fast path: same on-disk bundle — reuse instance (postInit may still be in flight).
-        if (mtime != null && existing._beamSourceMtime === mtime) {
+        if (mtime != null && existing._beamSourceMtime === mtime && existing._beamSourceMain === skillMainPath(id)) {
             return existing;
         }
     }
@@ -507,6 +512,7 @@ function startLazyWarmup (be) {
 }
 
 function install (be) {
+    host = be;
     if (!be || be._beamSkillRegistryInstalled) {
         return be;
     }
@@ -539,6 +545,11 @@ function install (be) {
             skill = prepareForOpen(be, name);
         } catch (err) {
             log(be).error('skillRedirect: failed to load \'' + name + '\':', err);
+            // MainMenu may already have closed its view for the redirect. Return
+            // to idle after a failed custom launch instead of leaving a blank face.
+            if (require('./beacon/lib/custom-skills').ids().indexOf(name) >= 0 && be.currentSkill === redirectingSkill) {
+                try { be.exit(redirectingSkill, { noElementsOfSurprise: true }); } catch (recoveryError) { log(be).error('custom skill launch recovery failed:', recoveryError); }
+            }
             return;
         }
         const currentSkill = be.currentSkill;
@@ -642,6 +653,11 @@ function install (be) {
 }
 
 module.exports = {
+    removeCustom: function (id) {
+        if (!host) { return; }
+        if (currentSkillId(host) === id) { throw new Error('Close this skill on Jibo before removing it'); }
+        unloadSkill(host, id);
+    },
     install: install,
     loadSkill: loadSkill,
     unloadSkill: unloadSkill,

@@ -9,6 +9,7 @@
  */
 
 const http = require('http');
+const url = require('url');
 const path = require('path');
 const querystring = require('querystring');
 
@@ -19,6 +20,9 @@ const photos = require('./lib/photos');
 const themes = require('./lib/themes');
 const themePackage = require('./lib/theme-package');
 const skills = require('./lib/skills');
+const customSkills = require('./lib/custom-skills');
+const menuLayout = require('./lib/menu-layout');
+const githubAuth = require('./lib/github-auth');
 const system = require('./lib/system');
 const ota = require('./lib/ota');
 const location = require('./lib/location');
@@ -59,6 +63,10 @@ function fail (message, status) {
 function guard (fn) {
     return function (req, res, query) {
         try {
+            const pathname = url.parse(req.url).pathname;
+            if (/^\/api\/store(?:\/|$)/.test(pathname) || (req.method === 'POST' && /^\/api\/(?:themes|skills)\/install$/.test(pathname))) {
+                if (!githubAuth.token()) { req.resume(); throw fail('Sign in to GitHub to use the Store.', 401); }
+            }
             const result = fn(req, res, query);
             if (result && typeof result.then === 'function') {
                 result.catch((err) => handleError(res, err));
@@ -76,6 +84,10 @@ function sendPeople (res, snapshotPromise) {
 }
 
 const routes = {
+    'GET /api/github/auth': guard((req, res) => { u.sendJson(res, 200, githubAuth.status()); }),
+    'POST /api/github/auth': guard((req, res) => { return githubAuth.start().then(data => u.sendJson(res, 200, data)); }),
+    'POST /api/github/auth/poll': guard((req, res) => { return githubAuth.poll().then(data => u.sendJson(res, 200, data)); }),
+    'DELETE /api/github/auth': guard((req, res) => { u.sendJson(res, 200, githubAuth.disconnect()); }),
     'POST /api/sleep': guard(sleep.sleep),
     'GET /api/camera-stream/settings': guard((req, res) => {
         u.sendJson(res, 200, cameraController.settings());
@@ -100,13 +112,19 @@ const routes = {
     }),
 
     'POST /api/skills/install': guard((req, res) => {
-        u.sendJson(res, 501, {
-            error: 'Installing skills from BEacon is not implemented yet.',
-            detail: 'For now, add the pack under @be/be/skills/ and register it in ' +
-                '@be/be/package.json (jibo.lazySkills for feature skills, or jibo.skills ' +
-                'for boot/role skills), then update BEam.'
-        });
+        return u.readJson(req, 4096).then(body => customSkills.install(body.entryId, body.requestId)).then(data => u.sendJson(res, 200, data));
     }),
+    'GET /api/skills/custom': guard((req, res) => { u.sendJson(res, 200, customSkills.inventory()); }),
+    'GET /api/skills/progress': guard((req, res, query) => { u.sendJson(res, 200, customSkills.progress(query.id)); }),
+    'PUT /api/skills/upload': guard((req, res, query) => {
+        return u.readBody(req, themePackage.MAX_ZIP, 120000).then(buf => customSkills.upload(buf, query.name)).then(data => u.sendJson(res, 200, data));
+    }),
+    'DELETE /api/skills': guard((req, res, query) => { return customSkills.remove(query.id).then(data => u.sendJson(res, 200, data)); }),
+    'GET /api/skills/asset': guard((req, res, query) => { u.serveFile(req, res, customSkills.asset(query.id, query.name), { contentType: 'image/png' }); }),
+    'GET /api/menu': guard((req, res) => { u.sendJson(res, 200, menuLayout.inventory()); }),
+    'POST /api/menu': guard((req, res) => { return u.readJson(req, 128 * 1024).then(body => u.sendJson(res, 200, menuLayout.save(body.tree))); }),
+    'GET /api/menu/icon': guard((req, res, query) => { u.serveFile(req, res, menuLayout.icon(query.name), { contentType: 'image/png' }); }),
+    'PUT /api/menu/icon': guard((req, res) => { return u.readBody(req, 2 * 1024 * 1024).then(buf => menuLayout.uploadIcon(buf)).then(data => u.sendJson(res, 200, data)); }),
 
     'GET /api/jukebox': guard((req, res) => {
         u.sendJson(res, 200, jukebox.scan());
@@ -166,7 +184,8 @@ const routes = {
 
     'GET /api/store': guard((req, res) => { u.sendJson(res, 200, themes.catalog()); }),
     'GET /api/store/details': guard((req, res, query) => {
-        return themes.details(query.id).then(data => u.sendJson(res, 200, data));
+        const skill = customSkills.details(query.id);
+        return Promise.resolve(skill || themes.details(query.id)).then(data => u.sendJson(res, 200, data));
     }),
     'GET /api/store/banner': guard((req, res, query) => {
         return themes.banner(query.id).then(file => {
@@ -175,7 +194,7 @@ const routes = {
         });
     }),
     'POST /api/store/refresh': guard((req, res) => {
-        return u.readJson(req, 4096).then(body => themes.refresh(body.id)).then(data => u.sendJson(res, 200, data));
+        return u.readJson(req, 4096).then(body => themes.refresh(body.id, body.automatic)).then(data => u.sendJson(res, 200, data));
     }),
     'GET /api/store/sources': guard((req, res) => { u.sendJson(res, 200, themes.catalog().sources); }),
     'POST /api/store/sources': guard((req, res) => {

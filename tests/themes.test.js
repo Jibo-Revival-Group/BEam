@@ -88,10 +88,10 @@ async function run() {
     assert(Buffer.isBuffer(await banners.banner('https://example.com/banner.png'))); assert.strictEqual(bannerLimit, 2 * 1024 * 1024);
     await bad(() => stores.create(() => Promise.resolve(Buffer.from('bad png'))).banner('https://example.com/banner.png'));
     assert.strictEqual(await stores.create(() => { const e = new Error('Missing'); e.remoteStatus = 404; return Promise.reject(e); }).banner('https://example.com/banner.png'), null);
-    assert.strictEqual(catalog.length, 2); assert(catalog[1].stock); assert.strictEqual(catalog[0].manifest.type, 'theme');
-    assert.strictEqual((await store.catalog('https://objects.example/manifest.json')).length, 1);
+    assert.strictEqual(catalog.length, 3); assert(catalog[2].type === 'skill' && catalog[2].error); assert(catalog[1].stock); assert.strictEqual(catalog[0].manifest.type, 'theme');
+    assert.strictEqual((await store.catalog('https://objects.example/manifest.json')).length, 2);
     assert.strictEqual((await store.catalog('https://github.com/ZaneThePython/Astra')).length, 1);
-    assert.deepStrictEqual(await store.catalog('https://skill.example/manifest.json'), []);
+    assert.strictEqual((await store.catalog('https://skill.example/manifest.json'))[0].manifest.type, 'skill');
     const downloaded = await store.download('https://github.com/ZaneThePython/Astra');
     assert.strictEqual(downloaded.readmeUrl, base + 'README.md');
     assert.strictEqual(downloaded.commit, sha); assert(urls.includes(base + 'README.md'));
@@ -119,8 +119,8 @@ async function run() {
     version = '3.1.5'; await bad(() => manager.activate(decoded.id)); version = '3.1.6';
     await manager.addSource('https://objects.example/manifest.json');
     await manager.addSource('https://objects.example/manifest.json'); assert.strictEqual(manager.catalog().sources.length, 2);
-    const source = manager.catalog().sources[1]; assert.strictEqual(manager.catalog().entries.length, 1);
-    offline = true; await manager.refresh(source.id); assert.strictEqual(manager.catalog().entries.length, 1); assert.strictEqual(manager.catalog().sources[1].error, 'Offline');
+    const source = manager.catalog().sources[1]; assert.strictEqual(manager.catalog().entries.length, 2);
+    offline = true; await manager.refresh(source.id); assert.strictEqual(manager.catalog().entries.length, 2); assert.strictEqual(manager.catalog().sources[1].error, 'Offline');
     await manager.removeSource(source.id); assert.strictEqual(manager.inventory().themes.length, 1); offline = false;
     await manager.activate(null); assert.strictEqual(active, null);
     await manager.addSource('https://github.com/ZaneThePython/Astra');

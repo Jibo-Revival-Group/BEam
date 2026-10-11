@@ -605,6 +605,7 @@
         });
     }
 
+    var menuUI = window.BEaconMenuEditor.create({ api: api, toast: toast, reportError: reportError });
     var themeUI = window.BEaconThemes.create({ api: api, toast: toast, reportError: reportError, prompt: prompt2 });
 
     /* ------------------------------------------------------------ location */
@@ -1400,6 +1401,7 @@
         }
     };
 
+    panelMeta.menu = { title: 'Main Menu', actions: [] };
     var loaders = {
         status: loadStatus,
         screen: loadScreen,
@@ -1407,6 +1409,7 @@
         photos: loadPhotos,
         people: loadPeople,
         store: themeUI.loadStore,
+        menu: menuUI.load,
         etc: loadEtc,
         server: loadServer
     };

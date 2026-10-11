@@ -47,13 +47,13 @@ function create(options) {
     const version = opts.version || tbdVersion; let queue = Promise.resolve(); let downloading = false;
     let downloadProgress = { state: 'idle' };
     function progress(id) { return Object.assign({}, !id || downloadProgress.id === id ? downloadProgress : { id: id, state: 'idle' }); }
-    let bannerQueue = Promise.resolve(); const bannerPending = Object.create(null);
+    let bannerQueue = Promise.resolve(); const bannerPending = Object.create(null), refreshingSources = Object.create(null);
     function atomic(file, data) {
         paths.ensureDir(path.dirname(file)); const temp = file + '.tmp-' + crypto.randomBytes(6).toString('hex');
         try { fs.writeFileSync(temp, JSON.stringify(data, null, 2)); fs.renameSync(temp, file); }
         finally { if (fs.existsSync(temp)) { fs.unlinkSync(temp); } }
     }
-    function defaults() { return { themes: [], active: null, migratedEye: false,
+    function defaults() { return { themes: [], active: null, migratedEye: false, catalogVersion: 2,
         sources: [{ id: stores.hash(stores.DEFAULT_SOURCE), url: stores.DEFAULT_SOURCE, entries: [], refreshedAt: null, error: null }] }; }
     function read() {
         const file = path.join(root, 'state.json');
@@ -85,17 +85,23 @@ function create(options) {
     function catalog() {
         const s = read(); const entries = [];
         s.sources.forEach(source => (source.entries || []).forEach(e => {
-            if (e.type === 'skill' || e.stock) { return; }
+            if (e.stock) { return; }
             const id = stores.hash(source.id + ':' + e.url);
             entries.push(Object.assign({}, e, { id: id, sourceId: source.id,
                 compatibility: e.manifest ? compat(e.manifest) : null }));
         }));
-        return { sources: s.sources, entries: entries, jiboTbdVersion: version() };
+        return { sources: s.sources, entries: entries, jiboTbdVersion: version(), catalogVersion: s.catalogVersion || 1 };
     }
-    function refreshSources(id) {
-        const s = read(); const selected = id ? s.sources.filter(v => v.id === id) : s.sources;
+    function refreshSources(id, automatic) {
+        const s = read(); let selected = id ? s.sources.filter(v => v.id === id) : s.sources;
         if (id && !selected.length) { throw packages.fail('Storefront not found'); }
+        if (automatic === true) {
+            selected = selected.filter(source => { const time = Date.parse(source.attemptedAt || source.refreshedAt || ''); return !refreshingSources[source.id] && (!isFinite(time) || Date.now() - time >= 60 * 60 * 1000); });
+            if (!selected.length) { return Promise.resolve(catalog()); }
+        }
         // Fetch outside the mutation queue so a slow storefront cannot block offline theme use.
+        selected.forEach(source => { refreshingSources[source.id] = (refreshingSources[source.id] || 0) + 1; });
+        function release() { selected.forEach(source => { if (--refreshingSources[source.id] === 0) { delete refreshingSources[source.id]; } }); }
         const results = [];
         return operations.run('Storefront refresh', opts.refreshTimeout || 120000, operation => selected.reduce((chain, source) => chain.then(() => {
             operation.check(); return Promise.resolve().then(() => store.catalog(source.url, operation)).then(entries => {
@@ -108,10 +114,11 @@ function create(options) {
             const fresh = read();
             results.forEach(result => {
                 const source = fresh.sources.filter(v => v.id === result.id)[0];
-                if (source) { Object.assign(source, result); }
+                if (source) { Object.assign(source, result, { attemptedAt: new Date().toISOString() }); }
             });
+            if (!id) { fresh.catalogVersion = 2; }
             save(fresh); return catalog();
-        }));
+        })).then(value => { release(); return value; }, err => { release(); throw err; });
     }
     function addSource(value) {
         return mutate(() => {
@@ -164,7 +171,7 @@ function create(options) {
             } else {
                 const entry = catalog().entries.filter(v => v.id === entryId)[0];
                 if (!entry || entry.error) { throw packages.fail('Refresh this storefront before installing its theme'); }
-                origin = { kind: 'store', url: entry.url, sourceId: entry.sourceId };
+                origin = { kind: 'store', url: entry.url, sourceId: entry.sourceId, developer: entry.developer, stars: entry.stars };
             }
             return Promise.resolve().then(() => store.download(origin.url, operation)).then(result => {
                 operation.check();

@@ -17,7 +17,7 @@ class Node {
 }
 function all(node) { return node.children.reduce((list, c) => list.concat(c, all(c)), []); }
 const ids = {}; const body = new Node('body');
-for (const id of ['themes-summary', 'theme-file', 'upload-store-theme', 'store-sources', 'store-list', 'store-switch', 'store-tab-themes', 'store-tab-skills', 'store-themes', 'store-skills', 'store-options', 'store-options-menu', 'store-options-button', 'manage-storefronts', 'store-management', 'close-store-management', 'theme-details', 'theme-details-title', 'theme-details-meta', 'theme-details-readme']) {
+for (const id of ['store-content', 'store-auth-required', 'store-sign-in', 'themes-summary', 'theme-file', 'skill-file', 'upload-store-skill', 'edit-main-menu', 'store-skill-list', 'upload-store-theme', 'store-sources', 'store-list', 'store-switch', 'store-tab-themes', 'store-tab-skills', 'store-themes', 'store-skills', 'store-options', 'store-options-menu', 'store-options-button', 'manage-storefronts', 'store-management', 'close-store-management', 'theme-details', 'theme-details-title', 'theme-details-meta', 'theme-details-readme']) {
     ids[id] = body.appendChild(new Node('div'));
 }
 const close = ids['theme-details'].appendChild(new Node('button'));
@@ -27,15 +27,17 @@ ids['store-options-menu'].appendChild(ids['manage-storefronts']); ids['store-man
 const documentEvents = {};
 const document = { body, activeElement: close, createElement: tag => new Node(tag), createTextNode: text => Object.assign(new Node('#text'), { textContent: text }),
     addEventListener: (type, handler) => documentEvents[type] = handler,
+    querySelectorAll: () => [],
     querySelector: selector => selector === '#theme-details [data-action="close-theme-details"]' ? close : ids[selector.slice(1)] };
-const timers = []; const window = { setInterval: (fn, delay) => { timers.push({ fn, delay }); return timers.length; } }; const calls = [], errors = [], messages = [];
+const timers = []; const window = { clearInterval: () => {}, setInterval: (fn, delay) => { timers.push({ fn, delay }); return timers.length; } }; const calls = [], errors = [], messages = [];
 const theme = { id: 'theme-id', revision: 'revision', manifest: { name: 'Astra', version: '1.0.0', supported: '3.1.6' }, compatibility: { status: 'compatible' },
     images: { 'face/eye.png': { width: 500, height: 500 } }, active: false, pending: false, origin: { kind: 'zip' } };
-let inventory = { active: null, live: { live: true }, themes: [theme] };
+let connected = false, inventory = { active: null, live: { live: true }, themes: [theme] };
 const catalog = { sources: [{ id: 'source-id', url: 'https://example.com/manifest.json', refreshedAt: '2026-10-10T12:00:00Z' }],
     entries: [{ id: 'entry-id', name: 'Astra', description: 'A description', bannerUrl: 'https://example.com/banner.png', manifest: theme.manifest, compatibility: { status: 'compatible' } }] };
 async function api(method, url, data) {
     calls.push({ method, url, data });
+    if (url === '/api/github/auth') return { connected: connected };
     if (url === '/api/themes') return inventory;
     if (url === '/api/store') return catalog;
     if (url.startsWith('/api/store/details')) return { manifest: theme.manifest, readmeUrl: 'https://raw.githubusercontent.com/owner/Astra/commit/README.md',
@@ -64,8 +66,16 @@ const ui = window.BEaconThemes.create({ api: (method, url, data) => {
     return api(method, url, data);
 }, requestTimeout: 100, progressPollInterval: 5, toast: text => messages.push(text), reportError: error => errors.push(error), prompt: () => Promise.resolve('https://github.com/ZaneThePython/Astra') });
 async function run() {
+    await ui.loadStore(false); await ui.refreshStore(null, true);
+    assert.strictEqual(ids['store-content'].hidden, true);
+    assert.strictEqual(ids['store-auth-required'].hidden, false);
+    assert(ids['upload-store-theme'].disabled && ids['store-tab-skills'].disabled);
+    assert(!calls.some(call => call.url.indexOf('/api/store') === 0), 'Signed-out Store never fetches or refreshes the catalog');
+    assert.strictEqual(timers.length, 0, 'No automatic refresh timer before authentication');
+    connected = true;
     await ui.loadStore(false);
-    assert.strictEqual(timers.length, 1); assert.strictEqual(timers[0].delay, 300000, 'Refresh every five minutes');
+    assert.strictEqual(ids['store-content'].hidden, false);
+    assert.strictEqual(timers.length, 1); assert.strictEqual(timers[0].delay, 3600000, 'Refresh every hour');
     assert.strictEqual(ids['store-list'].children.length, 2, 'Installed/catalog matches appear once, alongside None');
     const stock = ids['store-list'].children[0]; assert(stock.textContent.includes('None'));
     assert.strictEqual(all(stock).find(n => n.tagName === 'img').src, 'theme-none.svg');
@@ -200,7 +210,7 @@ async function run() {
     assert(html.includes('Upload Theme ZIP') && app.includes("name === 'themes' || name === 'skills'"));
     assert(html.indexOf('src="themes.js"') < html.indexOf('src="app.js"'));
     assert(!/panel-eye|eye-file|\/api\/eye/.test(html + app));
-    assert(html.includes('WORK IN PROGRESS!!!!') && html.includes('role="tablist"'));
+    assert(html.includes('potential malware') && html.includes('store-skill-list') && html.includes('role="tablist"'));
     const css = fs.readFileSync(path.join(__dirname, '../@be/be/beacon/public/app.css'), 'utf8');
     assert(css.includes('transform: translateX(100%)') && css.includes('prefers-reduced-motion'));
     assert(css.includes('main.is-store { max-width: none') && app.includes("classList.toggle('is-store', name === 'store')"));

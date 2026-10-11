@@ -81,11 +81,14 @@
             });
         }
         function api(method, path, body) {
-            var label = path.indexOf('/api/themes/install') === 0 ? 'Theme download/install' :
+            var label = path.indexOf('/api/skills/install') === 0 ? 'Skill download/install' : path.indexOf('/api/themes/install') === 0 ? 'Theme download/install' :
                 path.indexOf('/api/themes/apply') === 0 ? 'Applying theme' :
                 method === 'DELETE' ? 'Removal' : path.indexOf('/api/store/refresh') === 0 ? 'Storefront refresh' : 'Theme/store request';
             return request(function (signal) { return options.api(method, path, body, { signal: signal }); }, label,
-                path.indexOf('/api/themes/progress') === 0 ? Math.min(options.requestTimeout || 5000, 5000) : null);
+                /\/api\/(?:themes|skills)\/progress/.test(path) ? Math.min(options.requestTimeout || 5000, 5000) : null).catch(function (err) {
+                    if (err.status === 401) { setStoreAuth({ connected: false }); }
+                    throw err;
+                });
         }
         function storeErrors(data) {
             var errors = (data.sources || []).concat(data.entries || []).filter(function (item) { return item.error; });
@@ -93,6 +96,21 @@
                 (errors.length > 1 ? ' (' + errors.length + ' errors)' : '') + '. Cached themes are still available.')); }
         }
         var opener = null, managementOpener = null, refreshing = null, refreshTimer = null, uploading = false, inventory = { themes: [], active: null, live: { live: false } };
+        var skillInventory = { skills: [] };
+        function setStoreAuth(data) {
+            var connected = !!data.connected;
+            $('#store-auth-required').hidden = connected; $('#store-content').hidden = !connected;
+            ['store-tab-themes', 'store-tab-skills', 'upload-store-theme', 'upload-store-skill'].forEach(function (id) { $('#' + id).disabled = !connected; });
+            Array.prototype.forEach.call(document.querySelectorAll('[data-action="add-store"]'), function (button) { button.disabled = !connected; });
+            if (!connected) {
+                if (refreshTimer !== null) { window.clearInterval(refreshTimer); refreshTimer = null; }
+                $('#store-list').textContent = ''; $('#store-skill-list').textContent = ''; $('#store-sources').textContent = '';
+                $('#theme-details').hidden = true;
+            }
+            return connected;
+        }
+        var githubUI = window.BEaconGithub ? window.BEaconGithub.create({ api: api, reportError: reportError, toast: toast, refresh: refreshStore, onChange: setStoreAuth }) : null;
+        setStoreAuth({ connected: false });
         var downloads = Object.create(null);
         function downloadFor(entry) {
             return Object.keys(downloads).map(function (id) { return downloads[id]; }).filter(function (item) {
@@ -123,7 +141,8 @@
             item.nodes.push({ box: box, label: label, bar: bar }); updateProgress(item);
         }
         function installTheme(entry, existing, content, button) {
-            var item = { id: 'theme-' + Date.now() + '-' + Math.random().toString(16).slice(2),
+            var isSkill = entry.type === 'skill', kind = isSkill ? 'skill' : 'theme';
+            var item = { kind: kind, id: kind + '-' + Date.now() + '-' + Math.random().toString(16).slice(2),
                 entryId: entry.id, themeId: existing && existing.id, nodes: [], buttons: [{ node: button, disabled: false }], stopped: false, timer: null, data: { state: 'resolving', percent: null } };
             Object.keys(downloads).forEach(function (id) {
                 var prior = downloads[id];
@@ -131,10 +150,10 @@
                     prior.nodes.forEach(function (node) { node.box.hidden = true; }); delete downloads[id];
                 }
             });
-            downloads[item.id] = item; attachProgress(content, item); toast('Downloading theme…');
+            downloads[item.id] = item; attachProgress(content, item); toast('Downloading ' + kind + '…');
             function poll() {
                 if (item.stopped) { return; }
-                api('GET', '/api/themes/progress?id=' + encodeURIComponent(item.id)).then(function (data) {
+                api('GET', '/api/' + (isSkill ? 'skills' : 'themes') + '/progress?id=' + encodeURIComponent(item.id)).then(function (data) {
                     if (!item.stopped && data.id === item.id && data.state !== 'idle') { item.data = data; updateProgress(item); }
                 }).catch(function () { /* The install request reports failures; retry progress independently. */ }).then(function () {
                     if (!item.stopped) { item.timer = setTimeout(poll, options.progressPollInterval || 500); }
@@ -142,8 +161,8 @@
             }
             item.timer = setTimeout(poll, options.progressPollInterval || 500);
             function stop(data) { item.stopped = true; clearTimeout(item.timer); item.data = data; updateProgress(item); }
-            return api('POST', '/api/themes/install', { entryId: entry.id, requestId: item.id }).then(function () {
-                stop({ state: 'complete', percent: 100 }); toast('Theme installed. Choose Apply to use it.', 'ok');
+            return api('POST', '/api/' + (isSkill ? 'skills' : 'themes') + '/install', { entryId: entry.id, requestId: item.id }).then(function () {
+                stop({ state: 'complete', percent: 100 }); toast(isSkill ? 'Skill installed. It is now first in the main menu.' : 'Theme installed. Choose Apply to use it.', 'ok');
                 delete downloads[item.id]; return loadStore(false);
             }, function (err) { stop({ state: 'failed', percent: item.data.percent, error: err.message }); throw err; });
         }
@@ -167,16 +186,21 @@
         $('#manage-storefronts').onclick = function () {
             managementOpener = $('#store-options-button'); closeOptions();
             $('#store-management').hidden = false; $('#close-store-management').focus();
+            if (githubUI) { githubUI.load(); }
         };
+        $('#store-sign-in').onclick = function () { $('#manage-storefronts').onclick(); };
         function closeManagement() {
             $('#store-management').hidden = true;
             if (managementOpener && document.body.contains(managementOpener)) { managementOpener.focus(); }
         }
         $('#close-store-management').onclick = closeManagement;
         $('#upload-store-theme').onclick = function () { closeOptions(); $('#theme-file').click(); };
+        $('#upload-store-skill').onclick = function () { closeOptions(); $('#skill-file').click(); };
+        $('#skill-file').onchange = function () { var file = this.files[0]; if (file) { upload(file, true); } this.value = ''; };
+        $('#edit-main-menu').onclick = function () { closeOptions(); window.location.hash = 'menu'; };
         function startStoreRefresh() {
             if (refreshTimer !== null) { return; }
-            refreshTimer = window.setInterval(function () { return refreshStore(null, true).catch(reportError); }, 5 * 60 * 1000);
+            refreshTimer = window.setInterval(function () { return refreshStore(null, true).catch(reportError); }, 60 * 60 * 1000);
         }
         function selectStoreTab(category, focus) {
             var skills = category === 'skills';
@@ -224,14 +248,15 @@
                     (m.supported ? 'Needs version ' + m.supported + ' or newer' : 'No minimum version declared');
                 markdown($('#theme-details-readme'), data.readme || 'No README is available.', {
                     baseUrl: data.readmeUrl || (data.origin && data.origin.readmeUrl) || data.bannerUrl, images: data.images,
-                    assetBase: data.revision ? '/api/themes/asset?id=' + encodeURIComponent(data.id) + '&name=' : null
+                    assetBase: data.revision ? '/api/' + (m.type === 'skill' ? 'skills' : 'themes') + '/asset?id=' + encodeURIComponent(data.id) + '&name=' : null
                 });
                 $('#theme-details').hidden = false;
                 $('#theme-details [data-action="close-theme-details"]').focus();
             });
         }
         function loadThemes() {
-            return api('GET', '/api/themes').then(function (data) {
+            return Promise.all([api('GET', '/api/themes'), api('GET', '/api/skills/custom')]).then(function (values) {
+                var data = values[0]; skillInventory = values[1] && values[1].skills ? values[1] : { skills: [] };
                 var summary = 'Active theme: None';
                 data.themes.forEach(function (t) {
                     if (t.active) { summary = 'Active theme: ' + t.manifest.name + (t.pending ? ' (new version ready to apply)' : ''); }
@@ -253,20 +278,24 @@
                 button(row, 'Remove', function () { return action('DELETE', '/api/store/sources?id=' + encodeURIComponent(source.id)); });
                 sources.appendChild(row);
             });
-            var list = $('#store-list'); list.textContent = '';
-            var entries = [{ name: 'None', stock: true }], seen = Object.create(null);
-            inventory.themes.forEach(function (theme) {
-                var matches = data.entries.filter(function (entry) { return (entry.name || '').toLowerCase() === theme.manifest.name.toLowerCase(); });
+            ['theme', 'skill'].forEach(function (category) {
+            var isSkill = category === 'skill';
+            var remoteEntries = data.entries.filter(function (entry) { return (entry.type || 'theme') === category; });
+            var list = $(isSkill ? '#store-skill-list' : '#store-list'); list.textContent = '';
+            var entries = isSkill ? [] : [{ name: 'None', stock: true }], seen = Object.create(null);
+            (isSkill ? skillInventory.skills : inventory.themes).forEach(function (theme) {
+                var matches = remoteEntries.filter(function (entry) { return (entry.name || '').toLowerCase() === theme.manifest.name.toLowerCase(); });
                 var remote = theme.origin && theme.origin.url ? matches.filter(function (entry) { return entry.url === theme.origin.url; })[0] : matches[0];
                 var entry = Object.assign({}, remote || { name: theme.manifest.name, manifest: theme.manifest });
-                entry.local = theme;
+                entry.local = theme; entry.type = category;
+                if (!entry.developer && theme.origin) { var owner = /^https:\/\/github\.com\/([^/]+)\//.exec(theme.origin.url || ''); entry.developer = theme.origin.developer || (owner && owner[1]); entry.stars = theme.origin.stars == null ? entry.stars : theme.origin.stars; }
                 if (!entry.description) {
                     entry.description = theme.readme ? theme.readme.split(/\r?\n\s*\r?\n/).filter(function (text) { return text.trim() && !/^\s*#/.test(text); })[0] : '';
-                    entry.description = (entry.description || 'Installed theme. Choose Apply to use it.').replace(/[*_`]/g, '');
+                    entry.description = (entry.description || (isSkill ? 'Installed skill. Launch it from Jibo’s main menu.' : 'Installed theme. Choose Apply to use it.')).replace(/[*_`]/g, '');
                 }
                 entries.push(entry); seen[theme.manifest.name.toLowerCase()] = true;
             });
-            data.entries.forEach(function (entry) {
+            remoteEntries.forEach(function (entry) {
                 var key = (entry.name || entry.url).toLowerCase();
                 if (!seen[key]) { entries.push(entry); seen[key] = true; }
             });
@@ -282,13 +311,16 @@
                     var image = el('img', 'store-banner-image'); image.alt = (entry.name || 'Theme') + ' banner'; image.loading = 'lazy';
                     image.onload = function () { fallback.hidden = true; };
                     image.onerror = function () { image.hidden = true; fallback.hidden = false; };
-                    image.src = entry.local && entry.local.images['banner.png'] ? '/api/themes/asset?id=' + encodeURIComponent(entry.local.id) + '&name=banner.png&t=' + entry.local.revision :
+                    image.src = entry.local && entry.local.images['banner.png'] ? '/api/' + (isSkill ? 'skills' : 'themes') + '/asset?id=' + encodeURIComponent(entry.local.id) + '&name=banner.png&t=' + entry.local.revision :
                         '/api/store/banner?id=' + encodeURIComponent(entry.id) + '&v=' + encodeURIComponent(entry.commit || data.sources.filter(function (s) { return s.id === entry.sourceId; }).map(function (s) { return s.refreshedAt; })[0] || '');
                     media.appendChild(image);
                 }
                 card.appendChild(media);
                 var content = el('div', 'store-card-content'); content.appendChild(el('h3', 'store-card-name', entry.name || entry.url));
-                content.appendChild(el('p', 'store-description', entry.stock ? 'Jibo’s stock face and menus.' : entry.description || entry.error || 'A new look for Jibo.'));
+                if (!entry.stock) {
+                    var publisher = el('p', 'store-publisher'); publisher.appendChild(el('span', null, entry.developer || 'Local package')); publisher.appendChild(el('span', null, '★ ' + (typeof entry.stars === 'number' ? entry.stars.toLocaleString() : '—'))); content.appendChild(publisher);
+                }
+                content.appendChild(el('p', 'store-description', entry.stock ? 'Jibo’s stock face and menus.' : entry.description || entry.error || (isSkill ? 'A new skill for Jibo.' : 'A new look for Jibo.')));
                 if (entry.compatibility && entry.compatibility.status === 'incompatible') {
                     content.appendChild(el('p', 'hint', 'Needs version ' + entry.manifest.supported + ' or newer'));
                 }
@@ -302,8 +334,8 @@
                 }
                 if (existing) {
                     var active = existing.active && !existing.pending && inventory.live.live;
-                    var apply = button(actions, active ? 'Active' : 'Apply', function () { return action('POST', '/api/themes/apply', { id: existing.id }); }, active || existing.compatibility.status === 'incompatible');
-                    apply.className = 'btn btn-primary store-apply';
+                    var apply = !isSkill && button(actions, active ? 'Active' : 'Apply', function () { return action('POST', '/api/themes/apply', { id: existing.id }); }, active || existing.compatibility.status === 'incompatible');
+                    if (apply) { apply.className = 'btn btn-primary store-apply'; }
                     content.appendChild(el('p', 'hint', 'Installed v' + existing.manifest.version + (existing.pending ? ' · New version ready to apply' : '')));
                     if (existing.compatibility.status === 'unverified') { content.appendChild(el('p', 'hint', 'Compatibility unverified')); }
                     if (existing.compatibility.status === 'incompatible' && (!entry.compatibility || entry.compatibility.status !== 'incompatible')) {
@@ -315,7 +347,7 @@
                 var install = button(actions, remove ? 'Remove' : existing ? 'Update' : 'Install', function () {
                     if (remove) {
                         if (!confirm('Remove ' + existing.manifest.name + '?')) { return; }
-                        return action('DELETE', '/api/themes?id=' + encodeURIComponent(existing.id));
+                        return action('DELETE', '/api/' + (isSkill ? 'skills' : 'themes') + '?id=' + encodeURIComponent(existing.id));
                     }
                     return installTheme(entry, existing, content, install);
                 }, !remove && (!!entry.error || (entry.compatibility && entry.compatibility.status === 'incompatible')));
@@ -328,13 +360,19 @@
                 detailButton.className = 'btn store-details';
                 content.appendChild(actions); card.appendChild(content); list.appendChild(card);
             });
+            if (!entries.length) { list.appendChild(el('p', 'hint', 'No skills are listed yet. Add a storefront or upload a Skill ZIP.')); }
+            });
         }
         function refreshStore(id, silent) {
             if (refreshing) { return refreshing; }
             if (!silent) { toast('Refreshing storefront…'); }
-            refreshing = api('POST', '/api/store/refresh', id ? { id: id } : {}).then(function (data) {
-                return loadThemes().then(function () {
-                    refreshing = null; renderStore(data); storeErrors(data);
+            refreshing = api('GET', '/api/github/auth').then(function (auth) {
+                if (!setStoreAuth(auth)) { return null; }
+                return api('POST', '/api/store/refresh', silent ? { id: id || undefined, automatic: true } : id ? { id: id } : {});
+            }).then(function (data) {
+                if (!data) { refreshing = null; return; }
+                return loadStore(false).then(function () {
+                    refreshing = null; storeErrors(data);
                     if (!silent && !(data.sources || []).concat(data.entries || []).some(function (item) { return item.error; })) { toast('Storefront refreshed.', 'ok'); }
                     return data;
                 });
@@ -343,29 +381,34 @@
             return refreshing;
         }
         function loadStore(autoRefresh) {
-            startStoreRefresh();
-            return loadThemes().then(function () { return api('GET', '/api/store'); }).then(function (data) {
+            return api('GET', '/api/github/auth').then(function (auth) {
+                if (!setStoreAuth(auth)) { return null; }
+                startStoreRefresh();
+                return loadThemes().then(function () { return api('GET', '/api/store'); });
+            }).then(function (data) {
+                if (!data) { return; }
                 renderStore(data);
-                if (autoRefresh !== false && data.sources.some(function (s) { return !s.refreshedAt && !s.error; })) { return refreshStore(); }
+                if (autoRefresh !== false && (data.catalogVersion === 1 || data.sources.some(function (s) { return !s.refreshedAt && !s.error; }))) { return refreshStore(); }
                 return data;
             });
         }
-        function upload(file) {
+        function upload(file, isSkill) {
+            var kind = isSkill ? 'skill' : 'theme';
             if (uploading) { return; }
-            if (!/\.zip$/i.test(file.name) || file.size > 32 * 1024 * 1024) { reportError(new Error('Choose a theme ZIP up to 32 MB')); return; }
-            uploading = true; toast('Validating and installing theme…');
+            if (!/\.zip$/i.test(file.name) || file.size > 32 * 1024 * 1024) { reportError(new Error('Choose a ' + kind + ' ZIP up to 32 MB')); return; }
+            uploading = true; toast('Validating and installing ' + kind + '…');
             return request(function (signal) {
                 var uploadOptions = { method: 'PUT', headers: { 'Content-Type': 'application/zip' }, body: file };
                 if (signal) { uploadOptions.signal = signal; }
-                return fetch('/api/themes/upload?name=' + encodeURIComponent(file.name), uploadOptions).then(function (res) {
+                return fetch('/api/' + (isSkill ? 'skills' : 'themes') + '/upload?name=' + encodeURIComponent(file.name), uploadOptions).then(function (res) {
                     return res.text().then(function (text) {
                         var data;
                         try { data = JSON.parse(text); } catch (err) { throw new Error('BEacon returned an invalid upload response (HTTP ' + res.status + ')'); }
                         if (!res.ok) { throw new Error(data.error || 'Upload failed (HTTP ' + res.status + ')'); } return data;
                     });
                 });
-            }, 'Theme upload')
-                .then(function () { uploading = false; toast('Theme installed. Choose Apply to test it.', 'ok'); return loadStore(false); })
+            }, (isSkill ? 'Skill' : 'Theme') + ' upload')
+                .then(function () { uploading = false; toast(isSkill ? 'Skill installed. It is now first in the main menu.' : 'Theme installed. Choose Apply to test it.', 'ok'); return loadStore(false); })
                 .catch(function (err) { uploading = false; reportError(err); });
         }
         function addSource() {

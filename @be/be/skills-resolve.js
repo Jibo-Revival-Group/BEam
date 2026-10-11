@@ -62,6 +62,11 @@ function getBeRoot() {
     return beRoot;
 }
 
+function getSkillDirectory(id) {
+    const custom = require('./beacon/lib/custom-skills').resolve(id);
+    return custom || path.join(skillsRoot || path.join(__dirname, 'skills'), id.replace(/^@be\//, ''));
+}
+
 function install() {
     if (installed) {
         return getSkillsRoot();
@@ -81,7 +86,7 @@ function install() {
     Module._resolveFilename = function (request, parent, isMain, options) {
         const parsed = parseBeRequest(request);
         if (parsed) {
-            const pkgDir = path.join(skillsRoot, parsed.pkg);
+            const pkgDir = getSkillDirectory('@be/' + parsed.pkg);
             const pkgJsonPath = path.join(pkgDir, 'package.json');
             if (fs.existsSync(pkgJsonPath)) {
                 if (!parsed.subpath) {
@@ -116,6 +121,7 @@ function install() {
 }
 
 module.exports = {
+    getSkillDirectory: getSkillDirectory,
     install: install,
     getSkillsRoot: getSkillsRoot,
     getBeRoot: getBeRoot
