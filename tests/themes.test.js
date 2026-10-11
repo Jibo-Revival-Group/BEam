@@ -74,6 +74,7 @@ async function run() {
     });
     const catalog = await store.catalog('https://store.example/manifest.json');
     assert.strictEqual(catalog[0].bannerUrl, base + 'banner.png', 'GitHub banners use the resolved commit');
+    assert.strictEqual(catalog[0].readmeUrl, base + 'README.md', 'README images resolve against the pinned repository commit');
     let bannerLimit;
     const banners = stores.create((value, limit) => { bannerLimit = limit; return Promise.resolve(fixture.png()); });
     assert(Buffer.isBuffer(await banners.banner('https://example.com/banner.png'))); assert.strictEqual(bannerLimit, 2 * 1024 * 1024);
@@ -84,6 +85,7 @@ async function run() {
     assert.strictEqual((await store.catalog('https://github.com/ZaneThePython/Astra')).length, 1);
     assert.deepStrictEqual(await store.catalog('https://skill.example/manifest.json'), []);
     const downloaded = await store.download('https://github.com/ZaneThePython/Astra');
+    assert.strictEqual(downloaded.readmeUrl, base + 'README.md');
     assert.strictEqual(downloaded.commit, sha); assert(urls.includes(base + 'README.md'));
     assert(!urls.some(u => /\/main\/|\/master\//.test(u)));
 
@@ -115,6 +117,9 @@ async function run() {
     await manager.activate(null); assert.strictEqual(active, null);
     await manager.addSource('https://github.com/ZaneThePython/Astra');
     await manager.install(manager.catalog().entries[0].id); assert.strictEqual(manager.inventory().themes[0].origin.commit, sha);
+    assert.strictEqual((await manager.details(decoded.id)).readmeUrl, base + 'README.md');
+    const installedRestart = themes.create({ root, version: () => version, runtime, store: fakeStore });
+    assert.strictEqual((await installedRestart.details(decoded.id)).readmeUrl, base + 'README.md', 'Installed README image bases persist across restart');
     await manager.install(null, decoded.id); assert.strictEqual(manager.inventory().active, null);
     await manager.activate(decoded.id); await manager.remove(decoded.id); assert.strictEqual(manager.inventory().active, null); assert.strictEqual(active, null);
     assert.strictEqual(manager.inventory().themes.length, 0);

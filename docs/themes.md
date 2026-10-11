@@ -172,9 +172,15 @@ Both management and theme details close on a backdrop click,
 Escape, or Close. User-facing compatibility notices say "Needs version …";
 the underlying minimum-version check still reads the installed `jibo-tbd` package.
 
-Details renders headings, paragraphs, lists, fenced code, emphasis and
-HTTP/HTTPS links using DOM nodes; raw HTML and executable link schemes cannot
-run.
+Details renders headings, paragraphs, lists, fenced code, emphasis, HTTP/HTTPS
+links and Markdown images using DOM nodes; raw HTML and executable link schemes
+cannot run. For example: `![Theme preview](https://example.com/preview.png)`.
+Images fit the popup width while preserving their proportions. Relative image
+URLs resolve against the README location (at the pinned commit for GitHub
+themes), including after installation. ZIP READMEs can reference packaged theme
+images such as `![Eye](face/eye.png)` or `![Banner](banner.png)`; external images
+need an absolute HTTP/HTTPS URL. Invalid image URLs render their description,
+and image loading failures do not block theme actions.
 
 Failed uploads, downloads and theme actions display an error and release their
 controls so they can be retried without restarting BEacon. Downloads and

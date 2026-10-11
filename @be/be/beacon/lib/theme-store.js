@@ -132,7 +132,7 @@ function create(fetcher) {
             const manifest = pkg.manifest(r.manifest);
             return opt(url.resolve(r.base, 'README.md'), operation).then(buf => {
                 const readme = buf ? buf.toString('utf8') : '';
-                return { url: r.url, manifest: manifest, readme: readme, description: paragraph(readme), commit: r.commit || null,
+                return { url: r.url, manifest: manifest, readme: readme, readmeUrl: url.resolve(r.base, 'README.md'), description: paragraph(readme), commit: r.commit || null,
                     bannerUrl: url.resolve(r.base, 'banner.png') };
             });
         });
@@ -160,7 +160,7 @@ function create(fetcher) {
             function archiveResult(files) {
                 const actual = pkg.manifest(files['manifest.json']);
                 if (JSON.stringify(actual) !== JSON.stringify(declared)) { throw pkg.fail('Downloaded theme does not match its published manifest'); }
-                return { files: files, commit: r.commit || null };
+                return { files: files, commit: r.commit || null, readmeUrl: url.resolve(r.base, 'README.md') };
             }
             if (r.archive) { return fetch(r.archive, pkg.MAX_ZIP, operation).then(pkg.unzip).then(archiveResult); }
             if (r.data.download) {
@@ -170,7 +170,7 @@ function create(fetcher) {
             return pkg.FILES.filter(n => n !== 'manifest.json').reduce((chain, n) => chain.then(() =>
                 fetch(url.resolve(r.base, n), /\.png$/.test(n) ? 16 * 1024 * 1024 : MAX_METADATA, operation).then(buf => { files[n] = buf; })
                     .catch(err => { if (err.remoteStatus !== 404) { throw err; } })
-            ), Promise.resolve()).then(() => ({ files: files, commit: null }));
+            ), Promise.resolve()).then(() => ({ files: files, commit: null, readmeUrl: url.resolve(r.base, 'README.md') }));
         });
     }
     function banner(value, operation) {

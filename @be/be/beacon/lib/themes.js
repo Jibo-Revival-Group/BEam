@@ -3,6 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const url = require('url');
 const paths = require('./paths');
 const packages = require('./theme-package');
 const stores = require('./theme-store');
@@ -126,7 +127,7 @@ function create(options) {
             operation.check();
             check(theme.manifest);
             const s = read(); const revision = crypto.randomBytes(12).toString('hex'); const dest = dir(revision);
-            const staged = Object.assign({}, theme, { revision: revision, origin: origin, installedAt: new Date().toISOString() });
+            const staged = Object.assign({}, theme, { revision: revision, origin: origin, readmeUrl: origin.readmeUrl || null, installedAt: new Date().toISOString() });
             try {
                 paths.ensureDir(dest);
                 Object.keys(files).forEach(n => { if (packages.FILES.indexOf(n) < 0) { return; } const f = path.join(dest, n); paths.ensureDir(path.dirname(f)); fs.writeFileSync(f, files[n]); });
@@ -159,7 +160,7 @@ function create(options) {
                 operation.check();
                 return mutate(commit => {
                     operation.check();
-                    return installFiles(result.files, Object.assign({}, origin, { commit: result.commit }),
+                    return installFiles(result.files, Object.assign({}, origin, { commit: result.commit, readmeUrl: result.readmeUrl }),
                         { check: () => { operation.check(); commit.check(); } });
                 });
             });
@@ -203,7 +204,18 @@ function create(options) {
         return path.join(dir(t.revision), name);
     }
     function details(id) {
-        const t = read().themes.filter(v => v.id === id)[0]; if (t) { return Promise.resolve(Object.assign({}, t, { compatibility: compat(t.manifest) })); }
+        const t = read().themes.filter(v => v.id === id)[0];
+        if (t) {
+            let readmeUrl = t.readmeUrl || (t.origin && t.origin.readmeUrl) || null;
+            // Older installed packages predate README URL metadata.
+            if (!readmeUrl && t.origin && t.origin.url) {
+                const repo = /^https:\/\/github\.com\/([^/]+)\/([^/]+)$/.exec(t.origin.url);
+                if (repo && /^[a-f0-9]{40}$/i.test(t.origin.commit || '')) {
+                    readmeUrl = 'https://raw.githubusercontent.com/' + repo[1] + '/' + repo[2] + '/' + t.origin.commit + '/README.md';
+                } else if (!repo) { readmeUrl = url.resolve(t.origin.url, 'README.md'); }
+            }
+            return Promise.resolve(Object.assign({}, t, { readmeUrl: readmeUrl, compatibility: compat(t.manifest) }));
+        }
         const entry = catalog().entries.filter(v => v.id === id)[0]; if (!entry) { return Promise.reject(packages.fail('Store entry not found')); }
         return Promise.resolve(entry);
     }

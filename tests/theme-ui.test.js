@@ -37,7 +37,8 @@ async function api(method, url, data) {
     calls.push({ method, url, data });
     if (url === '/api/themes') return inventory;
     if (url === '/api/store') return catalog;
-    if (url.startsWith('/api/store/details')) return { manifest: theme.manifest, readme: '# Astra\n\n<script>alert(1)</script>\n\n[bad](javascript:alert) [safe](https://example.com)\n\n```\n<img onerror=alert(1)>\n```' };
+    if (url.startsWith('/api/store/details')) return { manifest: theme.manifest, readmeUrl: 'https://raw.githubusercontent.com/owner/Astra/commit/README.md',
+        readme: '# Astra\n\n<script>alert(1)</script>\n\n[bad](javascript:alert) [safe](https://example.com)\n\n![Preview](https://example.com/preview.png)\n\n![Relative](images/preview.png)\n\n```\n<img onerror=alert(1)>\n```' };
     if (url === '/api/themes/apply') { inventory = Object.assign({}, inventory, { active: data.id, themes: inventory.themes.map(t => Object.assign({}, t, { active: t.id === data.id })) }); return inventory; }
     if (url === '/api/store/refresh') return catalog;
     return {};
@@ -110,7 +111,11 @@ async function run() {
     ids['theme-details'].events.click({ target: ids['theme-details'] }); assert.strictEqual(ids['theme-details'].hidden, true);
     await details.onclick();
     const nodes = all(ids['theme-details-readme']);
-    assert(!nodes.some(n => n.tagName === 'script' || n.tagName === 'img'));
+    assert(!nodes.some(n => n.tagName === 'script'));
+    const readmeImages = nodes.filter(n => n.tagName === 'img'); assert.strictEqual(readmeImages.length, 2);
+    assert.strictEqual(readmeImages[0].src, 'https://example.com/preview.png'); assert.strictEqual(readmeImages[0].alt, 'Preview');
+    assert.strictEqual(readmeImages[1].src, 'https://raw.githubusercontent.com/owner/Astra/commit/images/preview.png');
+    assert.strictEqual(readmeImages[0].loading, 'lazy'); readmeImages[0].onerror(); assert(readmeImages[0].hidden);
     assert.strictEqual(nodes.filter(n => n.tagName === 'a').length, 1);
     assert.strictEqual(nodes.find(n => n.tagName === 'a').href, 'https://example.com');
     assert(ids['theme-details-readme'].textContent.includes('<script>alert(1)</script>'));
@@ -151,6 +156,15 @@ async function run() {
     assert.strictEqual(errors.length, beforeStoreError + 1, 'Source errors returned with cached entries are reported');
     assert(errors[errors.length - 1].message.includes('Unable to download manifest'));
     delete catalog.sources[0].error;
+    const imageTest = new Node('div');
+    window.BEaconThemes.markdown(imageTest, 'Before ![](https://example.com/empty.png) after\n\n' +
+        '- ![Local eye](./face/eye.png)\n\n![Unsafe](javascript:alert) ![Data](data:image/png;base64,test) ![File](file:///tmp/x.png)\n\n' +
+        '![Unresolved](missing.png)\n\n`![Code](https://example.com/code.png)`\n\n```\n![Fenced](https://example.com/fenced.png)\n```',
+        { images: { 'face/eye.png': {} }, assetBase: '/api/themes/asset?id=theme-id&name=' });
+    const safeImages = all(imageTest).filter(n => n.tagName === 'img'); assert.strictEqual(safeImages.length, 2);
+    assert.strictEqual(safeImages[0].alt, '');
+    assert.strictEqual(safeImages[1].src, '/api/themes/asset?id=theme-id&name=face%2Feye.png');
+    assert(imageTest.textContent.includes('Unsafe') && imageTest.textContent.includes('Unresolved'));
     const html = fs.readFileSync(path.join(__dirname, '../@be/be/beacon/public/index.html'), 'utf8');
     const app = fs.readFileSync(path.join(__dirname, '../@be/be/beacon/public/app.js'), 'utf8');
     assert(html.includes('data-panel="store"'));

@@ -749,6 +749,7 @@ details.advanced[open] > summary::after { transform: rotate(-90deg); }
 .theme-readme { line-height: 1.6; overflow-wrap: break-word; }
 .theme-readme pre { padding: 12px; background: var(--pearl); overflow-x: auto; white-space: pre-wrap; }
 .theme-readme a { color: #087c98; }
+.theme-readme-image { display: block; max-width: 100%; height: auto; margin: 12px 0; border-radius: 8px; }
 
 /* ----------------------------------------------------------------- skills */
 
