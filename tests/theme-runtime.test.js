@@ -82,9 +82,12 @@ class Label {
     open() { this.display.alpha = 1; }
 }
 class List {
-    constructor(buttons) { this.componentList = buttons; this.elementDimensions = { width: 330, height: 300 }; this.elementsPerPage = 3; this.elementBuffer = 30; this.pageIndex = 0; this.axisPosition = 0; this.noPan = false; }
-    calculateReferenceValues() { this.elementSpacing = this.elementDimensions.width + this.elementBuffer; this.listStartPosition = new Point((1280 - this.elementsPerPage * this.elementSpacing) / 2, this.axisPosition - this.elementDimensions.height / 2); }
-    setActivePage(i) { this.pageIndex = i; }
+    constructor(buttons) { this.componentList = buttons; this.elementDimensions = { width: 330, height: 300 }; this.elementsPerPage = 3; this.elementBuffer = 30; this._pageIndex = 0; this.axisPosition = 0; this.noPan = false; }
+    get elementSpacing() { return this._elementSpacing; }
+    get listStartPosition() { return this._listStartPosition; }
+    get pageIndex() { return this._pageIndex; }
+    calculateReferenceValues() { this._elementSpacing = this.elementDimensions.width + this.elementBuffer; this._listStartPosition = new Point((1280 - this.elementsPerPage * this.elementSpacing) / 2, this.axisPosition - this.elementDimensions.height / 2); }
+    setActivePage(i) { this._pageIndex = i; }
     getPagesCount() { return Math.ceil(this.componentList.length / this.elementsPerPage); }
     getStartIndexByPage(i) { return i * this.elementsPerPage; }
     getElementsByPage() { return this.componentList.slice(this.getStartIndexByPage(this.pageIndex), this.getStartIndexByPage(this.pageIndex) + this.elementsPerPage); }
@@ -124,7 +127,7 @@ jibo.loader = { addCache(id) { caches.push(id); }, deleteCache() {}, load(descri
 } };
 const loaded = { exports: {} };
 new Function('require', 'module', 'exports', 'window', 'PIXI', fs.readFileSync(path.join(__dirname, '../@be/be/beacon/lib/theme-runtime.js'), 'utf8'))(
-    name => name === 'jibo' ? jibo : name === './paths' ? { pristineEye: () => 'pristine.png' } : name === './theme-package' ? pkg : require(name), loaded, loaded.exports, {}, pixi);
+    name => name === 'jibo' ? jibo : name === './paths' ? { pristineEye: () => 'pristine.png' } : name === './theme-package' ? pkg : name === './theme-menu-scroll' ? require('../@be/be/beacon/lib/theme-menu-scroll') : require(name), loaded, loaded.exports, {}, pixi);
 const runtime = loaded.exports;
 function dofs(height = 720) {
     const values = { eyeTextureInfixBn_r: '/animations/White_Eye.png', eyeSubRootBn_t: 20, eyeSubRootBn_t_2: 10, eyeSubRootBn_r: 0.1,
@@ -160,6 +163,18 @@ async function run() {
     const specialized = menu(); specialized._list.componentList.forEach(b => { b._type = 'ContactButton'; }); specialized.loaded();
     assert.strictEqual(specialized._list.elementsPerPage, 3); assert(!specialized._beamThemeBackground);
     assert(specialized._buttonLabels.every(l => l.display.visible), 'Specialized interfaces keep their labels');
+    const dynamic = Object.assign({}, theme, { menu: Object.assign({}, theme.menu, { menuType: 'dynamic' }) });
+    nativeMenu._listProgress = { display: new Container(), targetPosition: new Point(), getHeight() { return 20; }, updatePage() {} };
+    await runtime.apply(await runtime.prepare(dynamic, '/tmp/theme'));
+    assert(nativeMenu._list._beamThemeScroll, 'Dynamic mode updates an already-open menu');
+    assert.strictEqual(nativeMenu._listProgress.display.visible, false, 'Hide paginated indicators in dynamic mode');
+    assert.strictEqual(nativeMenu._list.elementSpacing, 714, 'Use a continuous row with fixed gaps');
+    assert.strictEqual(nativeMenu._list.componentList[0].display.x, 30);
+    assert(nativeMenu._list.componentList[1].display.x < 1280, 'The next button is partially visible');
+    const dynamicNext = menu(); dynamicNext.loaded(); assert(dynamicNext._list._beamThemeScroll, 'Future menus use dynamic mode');
+    await runtime.apply(await runtime.prepare(theme, '/tmp/theme'));
+    assert(!nativeMenu._list._beamThemeScroll, 'Native mode removes dynamic gesture and frame overrides');
+    assert.strictEqual(nativeMenu._listProgress.display.visible, true, 'Restore native pagination indicators');
     const withBackground = Object.assign({}, theme, { face: Object.assign({}, theme.face, { backgroundColor: '#123456' }),
         images: Object.assign({}, theme.images, { 'face/background.png': { width: 640, height: 480 } }) });
     await runtime.apply(await runtime.prepare(withBackground, '/tmp/theme'));
@@ -176,7 +191,9 @@ async function run() {
     const failedCommit = Object.assign({}, theme, { face: Object.assign({}, theme.face, { eyeSize: 50 }) });
     await assert.rejects(runtime.apply(await runtime.prepare(failedCommit, '/tmp/theme'), () => { throw new Error('State write failed'); }), /State write/);
     assert.strictEqual(c.eye.scale.x, 3, 'Failed persistence restores the prior live appearance');
+    await runtime.apply(await runtime.prepare(dynamic, '/tmp/theme'));
     await runtime.apply(await runtime.prepare(null));
+    assert(!nativeMenu._list._beamThemeScroll, 'None restores native menu behavior');
     c.eye.display(1, dofs()); assert.strictEqual(c.eye.scale.x, 1); assert.strictEqual(c.eye.eyeMesh.alpha, 1);
     assert.strictEqual(c.eye._beamClosedMesh.visible, false); assert.strictEqual(c.getTexture('White_Eye.png').name, 'stockEye');
     assert.strictEqual(c.background.sprite.visible, true); assert.strictEqual(nativeMenu._list.elementsPerPage, 3);

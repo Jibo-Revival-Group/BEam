@@ -3,6 +3,7 @@
 const path = require('path');
 const paths = require('./paths');
 const fail = require('./theme-package').fail;
+const menuScroll = require('./theme-menu-scroll');
 let current = null;
 let live = { live: false, reason: 'Renderer has not started' };
 let retryTimer = null;
@@ -176,6 +177,8 @@ function remember(view) {
 function layout(view) {
     const list = view._list; if (!list || !list.componentList || !list.componentList.length) { return; }
     const theme = current && current.theme; const themed = theme && theme.hasMenu && standardMenu(view);
+    const dynamic = themed && theme.menu.menuType === 'dynamic';
+    if (!dynamic) { menuScroll.disable(list); }
     if (themed) {
         remember(view); const d = geometry(theme, current.textures['menu/button.png'] || list.componentList[0].dimensions);
         list.elementDimensions = { width: d.width, height: d.height }; list.elementBuffer = 30;
@@ -188,6 +191,7 @@ function layout(view) {
         if (view._title && view._title.display) { view._title.display.visible = s.title !== false; }
         view._beamThemeLayout = null;
     }
+    if (dynamic) { menuScroll.enable(list); }
     list.calculateReferenceValues();
     if (list.container) {
         list.setActivePage(Math.min(list.pageIndex, Math.max(0, list.getPagesCount() - 1)));
@@ -200,8 +204,18 @@ function layout(view) {
         });
         if (list.dynamicElements && list.dynamicElementsPageChange) { list.dynamicElementsPageChange(list.pageIndex); }
         if (typeof list.ready === 'function') { list.ready(); }
+        if (dynamic) { menuScroll.refresh(list); }
     }
-    if (view._listProgress) { view._listProgress.updatePage(list.pageIndex, list.getPagesCount()); }
+    if (view._listProgress) {
+        const display = view._listProgress.display;
+        if (display && dynamic) {
+            if (!view._beamThemeProgress) { view._beamThemeProgress = { visible: display.visible }; }
+            display.visible = false;
+        } else if (display && view._beamThemeProgress) {
+            display.visible = view._beamThemeProgress.visible; delete view._beamThemeProgress;
+        }
+        view._listProgress.updatePage(list.pageIndex, list.getPagesCount());
+    }
     (view._buttonLabels || []).forEach(label => { if (label.display) { label.display.visible = !themed; } });
 }
 function hookMenus(jibo) {

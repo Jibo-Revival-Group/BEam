@@ -72,6 +72,7 @@ stock eye while retaining the supplied scale/background.
 
 ```json
 {
+  "menuType": "native",
   "buttonSize": 95,
   "iconSize": 90,
   "iconPlacement": "x0 y0",
@@ -87,6 +88,18 @@ button height. Placement is relative to the button center: +X moves right, +Y
 moves up. Values range from −50 to 50, where 50 reaches the corresponding edge.
 Sizes must be finite numbers greater than zero and at most 1000; colors use
 `#RRGGBB`. Unknown configuration fields are rejected.
+
+`menuType` is optional and accepts `"native"` (the default) or `"dynamic"`.
+Native keeps Jibo's existing page-based swipe behavior. Dynamic lays buttons
+out in one continuous horizontal row with 30-pixel gaps: drag to slide the row,
+release to coast gently, and stop at any position without snapping to a page.
+Buttons may be partially visible at the screen edges. Scrolling stops at the
+first and last buttons; short rows are centered. Button labels, touch targets
+and actions move together. Page indicators are hidden in dynamic mode.
+Changing themes updates open standard menus; None restores native paging.
+
+For example, add `"menuType": "dynamic"` to `menu/menu.json` and upload the
+theme ZIP again, then Apply it to test continuous scrolling.
 
 Missing values default to a black background, eye size 100, button size 42,
 icon size 70, text size 15, centered icons and `x0 y-40` text placement. An

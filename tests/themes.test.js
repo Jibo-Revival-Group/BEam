@@ -15,6 +15,12 @@ async function run() {
     const decoded = await pkg.validate(await pkg.unzip(packed));
     assert.strictEqual(decoded.manifest.name, 'Astra'); assert.strictEqual(decoded.images['face/eye.png'].width, 500);
     assert.deepStrictEqual(decoded.menu.textPlacement, { x: 0, y: 45 });
+    assert.strictEqual(decoded.menu.menuType, 'native', 'Existing themes keep native paging');
+    const dynamic = await pkg.validate(Object.assign({}, files, { 'menu/menu.json': Buffer.from('{"menuType":"dynamic"}') }));
+    assert.strictEqual(dynamic.menu.menuType, 'dynamic');
+    for (const menuType of ['paged', 'Dynamic', '', null, true, 1, {}, []]) {
+        await bad(() => pkg.validate(Object.assign({}, files, { 'menu/menu.json': Buffer.from(JSON.stringify({ menuType })) })));
+    }
     const nested = {}; Object.keys(files).forEach(n => { nested['Astra-main/' + n] = files[n]; });
     assert.strictEqual((await pkg.validate(await pkg.unzip(fixture.zip(nested)))).id, decoded.id);
     await pkg.unzip(fixture.zip(files, { stored: true }));

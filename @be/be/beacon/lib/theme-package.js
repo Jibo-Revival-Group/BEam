@@ -134,6 +134,7 @@ function config(buf, name, defaults) {
         if (/Size$/.test(k) && (typeof out[k] !== 'number' || !isFinite(out[k]) || out[k] <= 0 || out[k] > 1000)) { throw fail(k + ' must be greater than 0 and at most 1000'); }
         if (/Placement$/.test(k)) { out[k] = placement(out[k]); }
         if (k === 'backgroundColor' && !/^#[0-9a-f]{6}$/i.test(out[k])) { throw fail('backgroundColor must be #RRGGBB'); }
+        if (k === 'menuType' && out[k] !== 'native' && out[k] !== 'dynamic') { throw fail('menuType must be native or dynamic'); }
     });
     return out;
 }
@@ -212,7 +213,7 @@ function validate(files) {
     const m = manifest(files['manifest.json']);
     if (m.type !== 'theme') { throw fail('Custom skill installation is not available yet'); }
     const face = config(files['face/face.json'], 'face.json', { backgroundColor: '#000000', eyeSize: 100 });
-    const menu = config(files['menu/menu.json'], 'menu.json', { backgroundColor: '#000000', buttonSize: 42, iconSize: 70, textSize: 15, iconPlacement: 'x0 y0', textPlacement: 'x0 y-40' });
+    const menu = config(files['menu/menu.json'], 'menu.json', { menuType: 'native', backgroundColor: '#000000', buttonSize: 42, iconSize: 70, textSize: 15, iconPlacement: 'x0 y0', textPlacement: 'x0 y-40' });
     const images = {};
     return Object.keys(files).filter(n => /\.png$/.test(n)).reduce((chain, n) => chain.then(() => png(files[n]).then(size => { images[n] = size; })), Promise.resolve()).then(() => ({
         id: crypto.createHash('sha256').update(m.name.toLowerCase()).digest('hex').slice(0, 24),
