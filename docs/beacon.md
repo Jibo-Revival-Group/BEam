@@ -140,7 +140,7 @@ BEacon signs the save with `/var/jibo/credentials.json` and sends it to BEefy as
 `Loop_20160324.SetCalendarFeed`. The saved URL is not shown again; the card
 shows the host, whether the feed is enabled, and the last error. A Google
 secret ICS address is a normal https link. If the credentials file is missing,
-the card says calendar setup needs the robot's cloud credentials.
+the calendar controls are hidden; local Loop editing remains available.
 
 ## Themes and Store
 

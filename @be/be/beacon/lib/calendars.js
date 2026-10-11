@@ -164,7 +164,9 @@ function blankCalendar () {
 
 function attachStatus (snapshot) {
     if (!snapshot) return Promise.resolve(snapshot);
-    return callCloud('GetCalendarFeeds', {}, robotIdFrom(snapshot)).then(function (payload) {
+    return Promise.resolve().then(function () {
+        return callCloud('GetCalendarFeeds', {}, robotIdFrom(snapshot));
+    }).then(function (payload) {
         const byId = {};
         (payload.members || []).forEach(function (item) {
             if (item && item.memberId) byId[String(item.memberId)] = item;

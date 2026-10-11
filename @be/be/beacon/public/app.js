@@ -841,9 +841,6 @@
         if (data.loopId) {
             parts.push('Loop ' + data.loopId);
         }
-        if (data.calendarAvailable === false && data.calendarError) {
-            parts.push(data.calendarError);
-        }
         sync.textContent = parts.join(' · ');
         if (data.lastSyncErrorMessage) {
             sync.classList.add('error');
@@ -974,7 +971,7 @@
                     actionsRow.appendChild(remove);
                 }
                 card.appendChild(actionsRow);
-                card.appendChild(renderPersonCalendar(member, data));
+                if (data.calendarAvailable === true) { card.appendChild(renderPersonCalendar(member, data)); }
             }
 
             list.appendChild(card);
@@ -982,9 +979,6 @@
     }
 
     function calendarStatusText (member, data) {
-        if (data && data.calendarAvailable === false) {
-            return data.calendarError || 'Calendar setup needs the robot\'s cloud credentials.';
-        }
         var calendar = member.calendar || {};
         if (!calendar.configured) { return 'No personal calendar yet.'; }
         var parts = [];
