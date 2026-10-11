@@ -21,9 +21,20 @@ way the Skills Service Manager on port 8779 is already open.
 | People | Manage the household Loop: add, rename, remove, profile photos; enrollment badges |
 | Store | Browse and manage installed themes, restore None, and upload ZIPs via the three-dot menu; Skills is a placeholder within the Store |
 | Setup | First-boot household and BEam/BEnch update after BEetle (API only; UI removed) |
-| More | Weather units and home location |
+| More | Bright/System/Dark appearance, weather units and home location |
 | Server | Edit jetstream hub and OTA credentials endpoint (API only; UI removed) |
 | Update | Check / download / apply `@be/be` via jibo OTA tools (API only; UI removed) |
+
+The More (Etc) panel has **Bright / System / Dark** appearance options. System is
+the default and follows the viewing device's light/dark preference, including
+changes while BEacon is open. Manual choices are saved in that browser and
+restored before the page draws. Appearance and weather units use the same
+sliding selector as the Store; weather units still use Save to update Jibo.
+
+The WebUI uses rounded cards, consistent form spacing, and a floating navigation
+bar. Status and photos use responsive grids; narrow screens stack controls while
+all navigation buttons fit without scrolling. Keyboard focus is visible, and reduced-motion
+preferences disable decorative transitions.
 
 ## How it starts
 
@@ -335,3 +346,5 @@ rather than failing.
   assets/orchestra/       Symphony.wav placeholder; replace to change the clip
   public/                 the UI (no build step)
 ```
+
+BEacon uses Google Material Icons bundled in `public/icons/material/`, with their Apache 2.0 license and attribution. Icons inherit the UI colors in bright and dark modes and require no external font or network connection.

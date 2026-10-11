@@ -742,21 +742,16 @@
 
     /* --------------------------------------------------------------- units */
 
+    window.BEaconAppearance.bind($('#appearance-choices'));
+    var unitsSwitch = window.BEaconAppearance.createSwitch($('#units-choices'));
+
     function renderUnits () {
         var value = state.units.temperature === 'celsius' ? 'celsius' : 'fahrenheit';
-        var inputs = document.querySelectorAll('input[name="temperature-unit"]');
-        for (var i = 0; i < inputs.length; i++) {
-            inputs[i].checked = inputs[i].value === value;
-            var label = inputs[i].parentNode;
-            if (label && label.classList) {
-                label.classList.toggle('is-selected', inputs[i].checked);
-            }
-        }
+        unitsSwitch.set(value);
     }
 
     function selectedTemperatureUnit () {
-        var checked = $('input[name="temperature-unit"]:checked');
-        return checked ? checked.value : 'fahrenheit';
+        return unitsSwitch.get() || 'fahrenheit';
     }
 
     function loadUnits () {

@@ -1,0 +1,3 @@
+Google Material Icons
+Source: https://github.com/google/material-design-icons
+Unmodified official SVG assets, licensed under the Apache License, Version 2.0. See LICENSE.

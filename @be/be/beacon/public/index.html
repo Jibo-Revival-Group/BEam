@@ -14,6 +14,7 @@
 <link rel="icon" href="favicon-32.png" type="image/png" sizes="32x32">
 <link rel="apple-touch-icon" href="apple-touch-icon.png" sizes="180x180">
 <link rel="manifest" href="manifest.webmanifest">
+<script src="appearance.js"></script>
 <link rel="stylesheet" href="app.css">
 </head>
 <body>
@@ -98,7 +99,7 @@
             <button id="store-tab-skills" class="store-switch-tab" type="button" role="tab" aria-selected="false" aria-controls="store-skills" tabindex="-1">Skills</button>
         </div>
         <div class="store-options" id="store-options">
-            <button class="store-options-button" id="store-options-button" type="button" aria-label="Store options" aria-haspopup="menu" aria-expanded="false" aria-controls="store-options-menu">&#8942;</button>
+            <button class="store-options-button" id="store-options-button" type="button" aria-label="Store options" aria-haspopup="menu" aria-expanded="false" aria-controls="store-options-menu"><span class="icon icon-sm icon-more" aria-hidden="true"></span></button>
             <div class="store-options-menu" id="store-options-menu" role="menu" hidden>
                 <button id="manage-storefronts" type="button" role="menuitem">Manage Storefronts</button>
                 <button id="upload-store-theme" type="button" role="menuitem">Upload Theme ZIP</button>
@@ -116,6 +117,16 @@
 
 
 <section class="panel" id="panel-etc">
+    <p class="section-header">Appearance</p>
+    <div class="setting-block">
+        <p class="hint">Choose BEacon&rsquo;s appearance. System follows your device.</p>
+        <div class="store-switch settings-switch" id="appearance-choices" role="radiogroup" aria-label="BEacon appearance">
+            <span class="store-switch-slider" aria-hidden="true"></span>
+            <button class="store-switch-tab" type="button" role="radio" data-value="bright" aria-checked="false">Bright</button>
+            <button class="store-switch-tab" type="button" role="radio" data-value="system" aria-checked="true">System</button>
+            <button class="store-switch-tab" type="button" role="radio" data-value="dark" aria-checked="false">Dark</button>
+        </div>
+    </div>
     <p class="section-header">Camera streaming</p>
     <div class="setting-block">
         <label class="unit-choice">
@@ -134,15 +145,10 @@
         </div>
     </div>
     <div class="setting-block">
-        <div class="unit-choices" id="units-choices">
-            <label class="unit-choice">
-                <input type="radio" name="temperature-unit" value="fahrenheit">
-                <span>Fahrenheit (&deg;F)</span>
-            </label>
-            <label class="unit-choice">
-                <input type="radio" name="temperature-unit" value="celsius">
-                <span>Celsius (&deg;C)</span>
-            </label>
+        <div class="store-switch settings-switch" id="units-choices" role="radiogroup" aria-label="Temperature units">
+            <span class="store-switch-slider" aria-hidden="true"></span>
+            <button class="store-switch-tab" type="button" role="radio" data-value="fahrenheit" aria-checked="true">Fahrenheit (&deg;F)</button>
+            <button class="store-switch-tab" type="button" role="radio" data-value="celsius" aria-checked="false">Celsius (&deg;C)</button>
         </div>
         <div class="form-row form-row-centered">
             <button class="btn btn-primary btn-cta" data-action="save-units">Save</button>
@@ -222,7 +228,7 @@
         <span>Status</span>
     </button>
     <button class="tab" data-panel="server">
-        <span class="icon icon-sm icon-settings" aria-hidden="true"></span>
+        <span class="icon icon-sm icon-server" aria-hidden="true"></span>
         <span>Server</span>
     </button>
     <button class="tab" data-panel="screen">
@@ -238,11 +244,11 @@
         <span>Photos</span>
     </button>
     <button class="tab" data-panel="people">
-        <span class="icon icon-sm icon-about" aria-hidden="true"></span>
+        <span class="icon icon-sm icon-people" aria-hidden="true"></span>
         <span>People</span>
     </button>
     <button class="tab" data-panel="store">
-        <span class="icon icon-sm icon-skills" aria-hidden="true"></span><span>Store</span>
+        <span class="icon icon-sm icon-store" aria-hidden="true"></span><span>Store</span>
     </button>
     <button class="tab" data-panel="etc">
         <span class="icon icon-sm icon-settings" aria-hidden="true"></span>
