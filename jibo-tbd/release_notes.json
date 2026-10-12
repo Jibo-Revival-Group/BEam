@@ -1,4 +1,4 @@
 {
-    "spoken": "Home assistant has more sensors exposed and a new pairing system, meaning you might have to reconnect me to home assistant. A lot of things have also been updated on the server side, so that I act a little bit more like I used to.",
+    "spoken": "I now have support for custom themes and skills! Developers will be at work creating new features for me so I can do more things. You can also rearrange the order of skills on my menu using beacon.",
     "enableProactive": true
 }
