@@ -179,7 +179,7 @@ function create(options) {
                 return mutate(commit => {
                     operation.check();
                     operation.progress({ state: 'installing', percent: null });
-                    return installFiles(result.files, Object.assign({}, origin, { commit: result.commit, readmeUrl: result.readmeUrl }),
+                    return installFiles(result.files, Object.assign({}, origin, { commit: result.commit, release: result.release || null, readmeUrl: result.readmeUrl }),
                         { check: () => { operation.check(); commit.check(); } });
                 }, 120000);
             });

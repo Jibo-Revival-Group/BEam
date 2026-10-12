@@ -120,7 +120,7 @@ function entries(data, section, base) {
 }
 function create(fetcher) {
     const network = fetcher || request;
-    const repoCache = Object.create(null), commitCache = Object.create(null);
+    const repoCache = Object.create(null), releaseCache = Object.create(null);
     function fetch(value, limit, operation) {
         return Promise.resolve().then(() => { if (operation) { operation.check(); } return network(value, limit, 0, operation); });
     }
@@ -135,17 +135,33 @@ function create(fetcher) {
         if (!gh) { return fetch(value, MAX_METADATA, operation).then(buf => ({ url: value, base: value, data: json(buf), manifest: buf })); }
         const api = 'https://api.github.com/repos/' + encodeURIComponent(gh.owner) + '/' + encodeURIComponent(gh.repo);
         return cached(repoCache, api, 60 * 60 * 1000, operation).then(repo => {
-            if (!repo.default_branch) { throw pkg.fail('GitHub repository has no default branch'); }
-            // Several sources can list the same repo. Cache resolved commits for
-            // ten minutes to reduce GitHub API requests.
-            return cached(commitCache, api + '/commits/' + encodeURIComponent(repo.default_branch), 10 * 60 * 1000, operation).then(commit => Object.assign({}, commit, { developer: repo.owner && repo.owner.login || gh.owner, stars: typeof repo.stargazers_count === 'number' ? repo.stargazers_count : null }));
-        }).then(commit => {
-            if (!/^[a-f0-9]{40}$/i.test(commit.sha || '')) { throw pkg.fail('GitHub commit could not be resolved'); }
-            const base = 'https://raw.githubusercontent.com/' + gh.owner + '/' + gh.repo + '/' + commit.sha + '/';
+            return cached(releaseCache, api + '/releases/latest', 10 * 60 * 1000, operation).catch(err => {
+                if (err.remoteStatus === 404) { throw pkg.fail('No published GitHub release found for ' + gh.owner + '/' + gh.repo); }
+                throw err;
+            }).then(release => ({ repo: repo, release: release }));
+        }).then(resolved => {
+            const release = resolved.release, repo = resolved.repo;
+            if (release.draft || release.prerelease || typeof release.tag_name !== 'string' || !release.tag_name.trim()) {
+                throw pkg.fail('GitHub repository needs a published stable release');
+            }
+            const tag = encodeURIComponent(release.tag_name);
+            const base = 'https://raw.githubusercontent.com/' + gh.owner + '/' + gh.repo + '/' + tag + '/';
+            if (release.assets !== undefined && !Array.isArray(release.assets)) { throw pkg.fail('GitHub release assets are invalid'); }
+            const zipAssets = (release.assets || []).filter(asset => asset && /\.zip$/i.test(asset.name || '') && asset.state === 'uploaded');
+            // Prefer the repository-named package if a release contains other ZIPs.
+            const named = zipAssets.filter(asset => String(asset.name).toLowerCase() === gh.repo.toLowerCase() + '.zip');
+            const candidates = named.length ? named : zipAssets;
+            if (candidates.length > 1) { throw pkg.fail('Release has multiple ZIP packages; name the installable package ' + gh.repo + '.zip'); }
+            const asset = candidates[0];
+            const archive = asset ? asset.browser_download_url : release.zipball_url;
+            if (!archive) { throw pkg.fail('GitHub release has no downloadable ZIP'); }
+            const origin = { id: release.id, tag: release.tag_name, name: release.name || release.tag_name,
+                url: release.html_url || value + '/releases/tag/' + tag, publishedAt: release.published_at || null,
+                asset: asset ? asset.name : null };
             return fetch(base + 'manifest.json', MAX_METADATA, operation).then(buf => ({
-                url: value, base: base + 'manifest.json', data: json(buf), manifest: buf, commit: commit.sha,
-                archive: 'https://codeload.github.com/' + gh.owner + '/' + gh.repo + '/zip/' + commit.sha,
-                developer: commit.developer, stars: commit.stars
+                url: value, base: base + 'manifest.json', data: json(buf), manifest: buf, release: origin,
+                archive: normalize(archive), developer: repo.owner && repo.owner.login || gh.owner,
+                stars: typeof repo.stargazers_count === 'number' ? repo.stargazers_count : null
             }));
         });
     }
@@ -154,7 +170,7 @@ function create(fetcher) {
             const manifest = pkg.manifest(r.manifest);
             return opt(url.resolve(r.base, 'README.md'), operation).then(buf => {
                 const readme = buf ? buf.toString('utf8') : '';
-                return { url: r.url, manifest: manifest, readme: readme, readmeUrl: url.resolve(r.base, 'README.md'), description: paragraph(readme), commit: r.commit || null,
+                return { url: r.url, manifest: manifest, readme: readme, readmeUrl: url.resolve(r.base, 'README.md'), description: paragraph(readme), commit: null, release: r.release || null,
                     bannerUrl: url.resolve(r.base, 'banner.png'), developer: r.developer || null, stars: r.stars == null ? null : r.stars };
             });
         });
@@ -195,8 +211,8 @@ function create(fetcher) {
             const declared = pkg.manifest(r.manifest);
             function archiveResult(files) {
                 const actual = pkg.manifest(files['manifest.json']);
-                if (JSON.stringify(actual) !== JSON.stringify(declared)) { throw pkg.fail('Downloaded theme does not match its published manifest'); }
-                return { files: files, commit: r.commit || null, readmeUrl: url.resolve(r.base, 'README.md') };
+                if (JSON.stringify(actual) !== JSON.stringify(declared)) { throw pkg.fail('Downloaded package does not match its published manifest'); }
+                return { files: files, commit: null, release: r.release || null, readmeUrl: url.resolve(r.base, 'README.md') };
             }
             if (r.archive) { return archive(r.archive, declared.type === 'skill').then(archiveResult); }
             if (r.data.download) {

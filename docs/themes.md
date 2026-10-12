@@ -53,7 +53,7 @@ an installation with the same name for local testing.
 
 Install/upload does not apply. If a theme is active while a new revision is
 installed, the previous revision stays active until Apply. Installed themes
-work offline and survive BEam updates. Store Update downloads the latest commit;
+work offline and survive BEam updates. Store Update downloads the latest published stable release;
 ZIP themes are updated by uploading another ZIP. None restores stock appearance.
 
 ## Face configuration
@@ -205,8 +205,13 @@ Skills are installable through Store → Skills; see [Custom skills](custom-skil
 None is a built-in theme and needs
 no download. Relative URLs resolve against the storefront manifest. A source
 may also point directly at a theme's manifest or its GitHub repository. GitHub
-metadata resolves the default branch to a commit; manifest, README and package
-are fetched from that commit. Public repositories need no token. Rate-limit or
+metadata uses the latest published stable release. Manifest, README, and banner
+are read from its tag. Downloads prefer an attached ZIP; when several ZIPs
+are attached, name the installable ZIP `<repository>.zip`. With no attached
+ZIP, the release tag's source archive is used. The archive manifest must match
+the published manifest. Repositories without a release report an error;
+there is no fallback to the default branch. Drafts and prereleases are excluded.
+GitHub sign-in is required. Rate-limit or
 network failures appear on the source; previously cached entries remain usable.
 
 For non-GitHub hosting, link entries to a theme's `manifest.json`. The installer
@@ -219,7 +224,7 @@ Store cards use the first non-heading README paragraph, visually limited to two
 lines, beneath the optional root `banner.png`. A 16:9 image is recommended;
 cards crop it to fill the banner area. Store previews are limited to 2 MB and
 use the same PNG validation as installed themes. GitHub banners are fetched
-from the resolved commit and cached in Knowledge for offline browsing; the
+from the release tag and cached in Knowledge for offline browsing; the
 banner cache is bounded to 64 MB. Missing banners show a fallback. ZIP installs
 also preserve and validate `banner.png`, which never loads into the robot's face
 renderer. The Store switch selects Themes or installable custom Skills.
@@ -238,7 +243,7 @@ Details renders headings, paragraphs, lists, fenced code, emphasis, HTTP/HTTPS
 links and Markdown images using DOM nodes; raw HTML and executable link schemes
 cannot run. For example: `![Theme preview](https://example.com/preview.png)`.
 Images fit the popup width while preserving their proportions. Relative image
-URLs resolve against the README location (at the pinned commit for GitHub
+URLs resolve against the README location (at the release tag for GitHub
 themes), including after installation. ZIP READMEs can reference packaged theme
 images such as `![Eye](face/eye.png)` or `![Banner](banner.png)`; external images
 need an absolute HTTP/HTTPS URL. Invalid image URLs render their description,

@@ -95,7 +95,7 @@ function create(options) {
             const entry = (opts.catalog ? opts.catalog() : require('./themes').catalog()).entries.filter(e => e.id === entryId && e.type === 'skill')[0];
             if (!entry || entry.error) { throw packages.fail('Refresh the storefront before installing this skill'); }
             return store.download(entry.url, operation).then(result => mutate(commit => installFiles(result.files,
-                { kind: 'store', url: entry.url, commit: result.commit, readmeUrl: result.readmeUrl, developer: entry.developer, stars: entry.stars },
+                { kind: 'store', url: entry.url, commit: result.commit, release: result.release || null, readmeUrl: result.readmeUrl, developer: entry.developer, stars: entry.stars },
                 { check: () => { operation.check(); commit.check(); } })));
         }).then(value => { downloading = false; Object.assign(progressState, { state: 'complete', percent: 100 }); return value; }, err => {
             downloading = false; Object.assign(progressState, { state: 'failed', error: err.message }); throw err;

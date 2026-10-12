@@ -312,7 +312,7 @@
                     image.onload = function () { fallback.hidden = true; };
                     image.onerror = function () { image.hidden = true; fallback.hidden = false; };
                     image.src = entry.local && entry.local.images['banner.png'] ? '/api/' + (isSkill ? 'skills' : 'themes') + '/asset?id=' + encodeURIComponent(entry.local.id) + '&name=banner.png&t=' + entry.local.revision :
-                        '/api/store/banner?id=' + encodeURIComponent(entry.id) + '&v=' + encodeURIComponent(entry.commit || data.sources.filter(function (s) { return s.id === entry.sourceId; }).map(function (s) { return s.refreshedAt; })[0] || '');
+                        '/api/store/banner?id=' + encodeURIComponent(entry.id) + '&v=' + encodeURIComponent(entry.release && entry.release.tag || entry.commit || data.sources.filter(function (s) { return s.id === entry.sourceId; }).map(function (s) { return s.refreshedAt; })[0] || '');
                     media.appendChild(image);
                 }
                 card.appendChild(media);
@@ -342,7 +342,9 @@
                         content.appendChild(el('p', 'hint', 'Needs version ' + existing.manifest.supported + ' or newer'));
                     }
                 }
-                var different = existing && entry.manifest && existing.manifest.version !== entry.manifest.version;
+                var installedRelease = existing && existing.origin && existing.origin.release;
+                var different = existing && entry.manifest && (existing.manifest.version !== entry.manifest.version ||
+                    (entry.release && (!installedRelease || installedRelease.tag !== entry.release.tag || installedRelease.id !== entry.release.id)));
                 var remove = existing && !different;
                 var install = button(actions, remove ? 'Remove' : existing ? 'Update' : 'Install', function () {
                     if (remove) {

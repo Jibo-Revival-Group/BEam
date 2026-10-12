@@ -2,7 +2,7 @@
 
 Open **Store → Skills** in BEacon to install a skill. It becomes the first
 button in Jibo's main menu. An installed card offers **Remove**, or **Update**
-when the online manifest version differs. Skills launch from the robot menu;
+when a new published release or manifest version is available. Skills launch from the robot menu;
 they have no theme Apply step. An open skill must be closed before removal.
 Updates take effect on the next launch after leaving that skill.
 
@@ -77,10 +77,14 @@ and newer versions are accepted; known older versions block installation and
 launch. Missing version metadata is shown as unverified. User-facing messages
 say "Needs version …" without exposing the internal package name.
 
-Downloads resolve the repository's default branch and use a commit-pinned
-archive. GitHub sign-in is required to access the Store, and API errors are
+GitHub downloads use the latest published stable release. The Store prefers
+an attached ZIP (name it `<repository>.zip` when attaching several ZIPs), or
+uses the release tag's source ZIP if there is no attached ZIP. The manifest,
+README, and banner are read from that release tag, and the package manifest
+must match. Repositories without a published release report an error.
+Drafts, prereleases, and unreleased branch changes are excluded. GitHub sign-in is required to access the Store, and API errors are
 reported without falling back to anonymous Git requests. Repository metadata/stars are
-cached for an hour and commits for ten minutes; Store automatically refreshes
+cached for an hour and release metadata for ten minutes; Store automatically refreshes
 hourly. Unavailable stars display `—`. GitHub owners are shown beneath
 theme and skill titles. The Skills page displays the requested malware and
 official-store review notice; custom sources/uploads are not claimed to be

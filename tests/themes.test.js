@@ -65,24 +65,24 @@ async function run() {
     assert.throws(() => stores.normalize('file:///tmp/foo'), /HTTP/);
     assert.throws(() => stores.normalize('https://user:password@example.com'), /credentials/);
 
-    const sha = 'a'.repeat(40); const base = 'https://raw.githubusercontent.com/ZaneThePython/Astra/' + sha + '/';
+    const tag = 'v1.0.0'; const base = 'https://raw.githubusercontent.com/ZaneThePython/Astra/' + tag + '/';
     const urls = []; const responses = {
         'https://api.github.com/repos/ZaneThePython/Astra': { default_branch: 'a-custom-branch' },
-        'https://api.github.com/repos/ZaneThePython/Astra/commits/a-custom-branch': { sha: sha },
+        'https://api.github.com/repos/ZaneThePython/Astra/releases/latest': { id: 10, tag_name: tag, draft: false, prerelease: false, assets: [], zipball_url: 'https://api.github.com/repos/ZaneThePython/Astra/zipball/' + tag },
         'https://store.example/manifest.json': { themes: ['Astra', { url: 'https://github.com/ZaneThePython/Astra' }, 'None', { url: '.' }], skills: ['Placeholder note', 'APOD', { url: 'https://github.com/TTL/APOD' }] },
         'https://objects.example/manifest.json': { themes: [{ name: 'Astra', url: 'https://github.com/ZaneThePython/Astra' }], skills: [{ name: 'Skill', url: 'https://github.com/owner/skill' }] },
         'https://skill.example/manifest.json': { name: 'Example skill', version: '1.0.0', type: 'skill' }
     };
     Object.keys(files).forEach(n => { responses[base + n] = files[n]; });
-    responses['https://codeload.github.com/ZaneThePython/Astra/zip/' + sha] = fixture.zip(nested);
+    responses['https://api.github.com/repos/ZaneThePython/Astra/zipball/' + tag] = fixture.zip(nested);
     const store = stores.create((u, limit) => {
         urls.push(u); assert(limit > 0);
         if (responses[u] === undefined) { const e = pkg.fail('Not found'); e.remoteStatus = 404; return Promise.reject(e); }
         return Promise.resolve(Buffer.isBuffer(responses[u]) ? responses[u] : Buffer.from(JSON.stringify(responses[u])));
     });
     const catalog = await store.catalog('https://store.example/manifest.json');
-    assert.strictEqual(catalog[0].bannerUrl, base + 'banner.png', 'GitHub banners use the resolved commit');
-    assert.strictEqual(catalog[0].readmeUrl, base + 'README.md', 'README images resolve against the pinned repository commit');
+    assert.strictEqual(catalog[0].bannerUrl, base + 'banner.png', 'GitHub banners use the published release tag');
+    assert.strictEqual(catalog[0].readmeUrl, base + 'README.md', 'README images resolve against the published release tag');
     let bannerLimit;
     const banners = stores.create((value, limit) => { bannerLimit = limit; return Promise.resolve(fixture.png()); });
     assert(Buffer.isBuffer(await banners.banner('https://example.com/banner.png'))); assert.strictEqual(bannerLimit, 2 * 1024 * 1024);
@@ -94,8 +94,8 @@ async function run() {
     assert.strictEqual((await store.catalog('https://skill.example/manifest.json'))[0].manifest.type, 'skill');
     const downloaded = await store.download('https://github.com/ZaneThePython/Astra');
     assert.strictEqual(downloaded.readmeUrl, base + 'README.md');
-    assert.strictEqual(downloaded.commit, sha); assert(urls.includes(base + 'README.md'));
-    assert(!urls.some(u => /\/main\/|\/master\//.test(u)));
+    assert.strictEqual(downloaded.release.tag, tag); assert(urls.includes(base + 'README.md'));
+    assert(!urls.some(u => /\/main\/|\/master\/|\/commits\//.test(u)));
 
     let version = '3.1.5', active = null, failApply = false, offline = false;
     const runtime = { status: () => ({ live: true }), prepare: (theme, directory) => Promise.resolve({ theme, directory }),
@@ -124,7 +124,7 @@ async function run() {
     await manager.removeSource(source.id); assert.strictEqual(manager.inventory().themes.length, 1); offline = false;
     await manager.activate(null); assert.strictEqual(active, null);
     await manager.addSource('https://github.com/ZaneThePython/Astra');
-    await manager.install(manager.catalog().entries[0].id); assert.strictEqual(manager.inventory().themes[0].origin.commit, sha);
+    await manager.install(manager.catalog().entries[0].id); assert.strictEqual(manager.inventory().themes[0].origin.release.tag, tag);
     assert.strictEqual((await manager.details(decoded.id)).readmeUrl, base + 'README.md');
     const installedRestart = themes.create({ root, version: () => version, runtime, store: fakeStore });
     assert.strictEqual((await installedRestart.details(decoded.id)).readmeUrl, base + 'README.md', 'Installed README image bases persist across restart');

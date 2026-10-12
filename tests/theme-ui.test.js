@@ -94,6 +94,14 @@ async function run() {
     const remove = all(ids['store-list']).find(n => n.tagName === 'button' && n.textContent === 'Remove');
     assert(remove && !remove.disabled, 'Matching installed version offers Remove');
     await remove.onclick(); assert(calls.some(c => c.method === 'DELETE' && c.url === '/api/themes?id=theme-id'));
+    catalog.entries[0].release = { id: 20, tag: 'v2.0.0' };
+    theme.origin = Object.assign({}, theme.origin, { release: { id: 10, tag: 'v1.0.0' } });
+    await ui.loadStore(false);
+    assert(all(ids['store-list']).some(n => n.textContent === 'Update'), 'New release offers Update without a manifest-version change');
+    theme.origin.release = { id: 20, tag: 'v2.0.0' };
+    await ui.loadStore(false);
+    assert(all(ids['store-list']).some(n => n.textContent === 'Remove'), 'Current installed release does not offer Update');
+    delete catalog.entries[0].release;
     catalog.entries[0].manifest = Object.assign({}, theme.manifest, { version: '1.1.0' });
     await ui.loadStore(false);
     const install = all(ids['store-list']).find(n => n.tagName === 'button' && n.textContent === 'Update');

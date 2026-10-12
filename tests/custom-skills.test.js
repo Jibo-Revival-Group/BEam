@@ -14,7 +14,7 @@ const files = { 'manifest.json': Buffer.from(JSON.stringify({ name: 'Test Skill'
 let version = '3.1.6', downloadMode = 'success', finish;
 const compatibility = m => ({ status: !version ? 'unverified' : themes.compare(version, m.supported) < 0 ? 'incompatible' : 'compatible', minimum: m.supported, current: version });
 const options = { root: path.join(root, 'skills'), compatibility, onChange() {}, timeout: 80, catalog: () => ({ entries: [{ id: 'entry', type: 'skill', url: 'https://example.com/manifest.json' }] }),
-    store: { download(url, op) { op.progress({ state: 'downloading', percent: 50 }); return downloadMode === 'hang' ? new Promise(resolve => { finish = resolve; }) : downloadMode === 'error' ? Promise.reject(new Error('Download failed')) : Promise.resolve({ files, commit: 'a'.repeat(40) }); } } };
+    store: { download(url, op) { op.progress({ state: 'downloading', percent: 50 }); return downloadMode === 'hang' ? new Promise(resolve => { finish = resolve; }) : downloadMode === 'error' ? Promise.reject(new Error('Download failed')) : Promise.resolve({ files, commit: null, release: { id: 30, tag: 'v1.0.0' } }); } } };
 async function run() {
     const service = custom.create(options);
     const manifest = JSON.parse(files['manifest.json']);
@@ -59,7 +59,7 @@ async function run() {
     assert.strictEqual(custom.create(options).inventory().skills[0].revision, old, 'Skills survive restart');
     downloadMode = 'error'; await assert.rejects(() => service.install('entry', 'error'), /Download failed/); assert.strictEqual(service.progress('error').state, 'failed');
     downloadMode = 'hang'; await assert.rejects(() => service.install('entry', 'timeout'), /timed out/); finish({ files }); await new Promise(r => setImmediate(r)); assert.strictEqual(service.inventory().skills[0].revision, old, 'Late results cannot commit');
-    downloadMode = 'success'; await service.install('entry', 'retry'); assert.strictEqual(service.progress('retry').state, 'complete');
+    downloadMode = 'success'; await service.install('entry', 'retry'); assert.strictEqual(service.progress('retry').state, 'complete'); assert.strictEqual(service.inventory().skills[0].origin.release.tag, 'v1.0.0');
     await service.remove(item.id); layout.sync(); assert(!JSON.stringify(layout.inventory().tree).includes('@be/test-skill'));
     tree = layout.inventory().tree; const empty = { type: 'folder', id: 'folder-empty', name: 'Empty', colors: ['#123456', '#234567'], icon: 'resources/icons/fun-stuff.png', children: [] };
     layout.save(tree.concat(empty)); assert(!layout.inventory().tree.some(n => n.id === empty.id));
@@ -73,7 +73,6 @@ async function run() {
     const responses = { 'https://example.com/manifest.json': files['manifest.json'], 'https://example.com/README.md': files['README.md'] };
     const store = stores.create(url => responses[url] ? Promise.resolve(responses[url]) : Promise.reject(Object.assign(new Error('Missing'), { remoteStatus: 404 })));
     const catalog = await store.catalog('https://example.com/manifest.json'); assert.strictEqual(catalog[0].type, 'skill');
-    const sha = 'b'.repeat(40), base = 'https://raw.githubusercontent.com/example/skill/' + sha + '/';
     const requested = [];
     const rateLimited = stores.create(url => {
         requested.push(url);
@@ -82,7 +81,7 @@ async function run() {
     await assert.rejects(rateLimited.catalog('https://github.com/example/skill'), /Rate limit/);
     await assert.rejects(rateLimited.download('https://github.com/example/skill'), /Rate limit/);
     assert(requested.every(url => url.indexOf('https://api.github.com/') === 0), 'Rate limits never fall back to anonymous Git requests');
-    const metadata = stores.create(url => url.indexOf('/commits/') > 0 ? Promise.resolve(Buffer.from(JSON.stringify({ sha }))) :
+    const metadata = stores.create(url => url.endsWith('/releases/latest') ? Promise.resolve(Buffer.from(JSON.stringify({ id: 20, tag_name: 'v1.0.0', assets: [], zipball_url: 'https://api.github.com/repos/example/skill/zipball/v1.0.0' }))) :
         url.indexOf('https://api.github.com/') === 0 ? Promise.resolve(Buffer.from(JSON.stringify({ default_branch: 'custom-branch', owner: { login: 'example' }, stargazers_count: 42 }))) :
         Promise.resolve(url.endsWith('/manifest.json') ? files['manifest.json'] : files['README.md']));
     const popular = await metadata.catalog('https://github.com/example/skill'); assert.strictEqual(popular[0].stars, 42); assert.strictEqual(popular[0].developer, 'example');
