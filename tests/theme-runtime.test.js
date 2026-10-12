@@ -135,6 +135,15 @@ jibo.loader = { addCache(id) { caches.push(id); }, deleteCache() {}, load(descri
     if (loadError) { options.complete(new Error('GPU load failed')); return; }
     const out = {}; descriptors.forEach(d => { out[d.id] = texture(d.id, d.id === 'menu/button.png' ? 500 : 720, d.id === 'menu/button.png' ? 500 : 720); }); options.complete(null, out);
 } };
+class Sound {
+    constructor() {
+        this.src = '/opt/be/node_modules/jibo-anim-db-animations/audio/device/ds_bloop_01.mp3';
+        const nodes = { bufferSource: { buffer: { name: 'stock' }, playbackRate: { value: 1 }, loop: false } };
+        this._chain = { nodes: () => nodes, cloneBufferSource: () => ({ buffer: nodes.bufferSource.buffer }) };
+    }
+    play() { return this._chain.cloneBufferSource(); }
+}
+jibo.sound = { Sound };
 const loaded = { exports: {} };
 new Function('require', 'module', 'exports', 'window', 'PIXI', fs.readFileSync(path.join(__dirname, '../@be/be/beacon/lib/theme-runtime.js'), 'utf8'))(
     name => name === 'jibo' ? jibo : name === './paths' ? { pristineEye: () => 'pristine.png' } : name === './theme-package' ? pkg : name === './theme-animation-assets' ? require('../@be/be/beacon/lib/theme-animation-assets') : name === './theme-menu-scroll' ? require('../@be/be/beacon/lib/theme-menu-scroll') : require(name), loaded, loaded.exports, {}, pixi);
@@ -165,6 +174,43 @@ async function run() {
     await runtime.apply(await runtime.prepare(null));
     assert.strictEqual(c.getTexture('/animations/blackeye_blur1.png'), null, 'None removes overrides and delegates to the stock animation');
     c._currentDofValues = dofs();
+    const withSound = await runtime.prepare(Object.assign({}, animationTheme, { face: Object.assign({}, animationTheme.face, { eyeSize: 300 }) }), '/tmp/theme');
+    withSound.animationAssets.push({ name: 'asfx/ds_bloop_01.mp3', type: 'asfx', target: 'device/ds_bloop_01.mp3' });
+    withSound.audio['asfx/ds_bloop_01.mp3'] = { name: 'themed' };
+    await runtime.apply(withSound);
+    const sound = new Sound(); assert.strictEqual(sound.play().buffer.name, 'themed');
+    const scope = runtime.enterSkill({ assetPack: '@be/quizzical' }, false);
+    c._currentDofValues = dofs(); c.eye.display(1, dofs());
+    assert.strictEqual(c.eye.eyeMesh.texture.name, 'face/eye.png', 'Opt-out retains the selected eye');
+    assert.strictEqual(c.eye.scale.x, 3, 'Opt-out retains theme eye size');
+    assert.strictEqual(c.background._defaultTexture.name, 'stockBackground');
+    assert.strictEqual(c.background._beamSolid, null, 'Opt-out removes theme background color');
+    assert.strictEqual(c.background.sprite.visible, true);
+    assert.strictEqual(nativeMenu._list.elementDimensions.height, 300);
+    assert(nativeMenu._buttonLabels.every(label => label.display.visible));
+    assert.strictEqual(nativeMenu._list.componentList[0]._beamThemeDisplay, null, 'Existing stock button art is restored');
+    assert.strictEqual(sound.play().buffer.name, 'stock', 'Opt-out disables themed animation sounds');
+    assert.strictEqual(c.getTexture('/animations/blackeye_blur1.png'), null, 'Animation artwork overrides are disabled');
+    const gameButton = new Button(); gameButton.assignConfig({ id: 'game-answer', iconSrc: 'icon' }); gameButton.setupDisplay(assets);
+    assert(!gameButton._beamThemeDisplay, 'Buttons created during gameplay remain stock');
+    const gameView = { componentList: [gameButton], pausedParent: nativeMenu };
+    jibo.face.views.currentView = gameView;
+    await runtime.apply(await runtime.prepare(Object.assign({}, theme, { face: Object.assign({}, theme.face, { eyeSize: 300 }) }), '/tmp/theme'));
+    assert(!gameButton._beamThemeDisplay, 'Applying a new theme during an opted-out game preserves stock controls');
+    assert.strictEqual(c.background._beamSolid, null);
+    recover(); c._currentDofValues = dofs(); c.eye.display(1, dofs());
+    assert.strictEqual(c.eye.scale.x, 3, 'Recovery preserves the themed eye during opt-out');
+    assert.strictEqual(c.background._defaultTexture.name, 'stockBackground', 'Recovery preserves stock backgrounds');
+    const newerScope = runtime.enterSkill({ assetPack: '@be/another-game' }, false);
+    runtime.leaveSkill(scope); assert(!gameButton._beamThemeDisplay, 'A stale scope cannot restore themes over a newer game');
+    runtime.leaveSkill(newerScope);
+    assert(gameButton._beamThemeDisplay, 'Leaving restores controls in custom views without a MenuView list');
+    assert(nativeMenu._list.componentList[0]._beamThemeDisplay, 'Leaving restores paused menu controls');
+    assert(c.background._beamSolid);
+    jibo.face.views.currentView = nativeMenu;
+    const allowedScope = runtime.enterSkill({ assetPack: '@be/ordinary' }, true);
+    assert(nativeMenu._list.componentList[0]._beamThemeDisplay, 'Explicit true preserves the normal theme');
+    runtime.leaveSkill(allowedScope);
     await runtime.apply(await runtime.prepare(theme, '/tmp/theme'));
     const previewTheme = Object.assign({}, theme, { images: Object.assign({}, theme.images, { 'banner.png': { width: 640, height: 360 } }) });
     const previewPrepared = await runtime.prepare(previewTheme, '/tmp/theme');
@@ -288,6 +334,8 @@ async function run() {
     await runtime.apply(await runtime.prepare(listeningTheme, '/tmp/theme'));
     const otherFilter = {}; c.eye.filters.push(otherFilter);
     const normalFilters = c.eye.filters;
+    const listeningScope = runtime.enterSkill({ assetPack: '@be/listening-game' }, false);
+    assert.strictEqual(c.background._beamSolid, null);
     for (const height of [720, 360, 0]) {
         c.eye.display(1, blue(height));
         assert.strictEqual(c.eye.eyeMesh.texture.name, 'face/eyeListening.png');
@@ -296,6 +344,7 @@ async function run() {
         assert.deepStrictEqual(c.eye.filters, [otherFilter], 'Bypass native lighting/glow while keeping other filters');
         assert.strictEqual(c.eye._beamClosedMesh.alpha, 1 - height / 720);
     }
+    runtime.leaveSkill(listeningScope);
     c.eye.display(1, dofs());
     assert.strictEqual(c.eye.eyeMesh.texture.name, 'face/eye.png', 'Same texture path returns to normal after listening');
     assert.strictEqual(c.eye.filters, normalFilters);

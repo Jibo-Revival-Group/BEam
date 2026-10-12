@@ -8,6 +8,21 @@ const animationAssets = require('./theme-animation-assets');
 let current = null;
 let live = { live: false, reason: 'Renderer has not started' };
 let retryTimer = null;
+let skillScope = null;
+function nonEyeThemesEnabled() { return !skillScope || skillScope.enabled; }
+function menuTheme() { return nonEyeThemesEnabled() && current && current.theme; }
+function setSkillScope(scope) {
+    const previous = nonEyeThemesEnabled(); skillScope = scope;
+    if (previous !== nonEyeThemesEnabled() && current && current.live) {
+        try { refresh(current.jibo); } catch (err) { console.warn('[themes] skill appearance refresh:', err.message); }
+    }
+}
+function enterSkill(skill, enabled) {
+    const scope = { skill: skill, enabled: enabled !== false };
+    setSkillScope(scope); return scope;
+}
+function leaveSkill(scope) { if (scope && skillScope === scope) { setSkillScope(null); } }
+
 
 function stockEye(value) {
     return /^(default_eye|white_eye|white-eye|jibo_eye_customizer_00|jibo_eye_customizer_38)\.png$/i.test(String(value || '').split(/[/\\]/).pop());
@@ -98,7 +113,7 @@ function hookFace(jibo) {
         layer.init = function(texture) {
             if (current && current.live && current.jibo === jibo) {
                 texture = index === 0 ? current.textures['face/eye.png'] || current.textures.stockEye :
-                    current.textures['face/background.png'] || current.textures.stockBackground;
+                    nonEyeThemesEnabled() && current.textures['face/background.png'] || current.textures.stockBackground;
             }
             const result = init.call(this, texture);
             if (current && current.live && current.jibo === jibo && jibo.face.eye === container &&
@@ -108,11 +123,11 @@ function hookFace(jibo) {
     });
     const originalTexture = container.getTexture;
     container.getTexture = function(value) {
-        const override = current && current.live && animationAssets.lookup(current.animationAssets, 'atex', value);
+        const override = nonEyeThemesEnabled() && current && current.live && animationAssets.lookup(current.animationAssets, 'atex', value);
         if (override) { return current.textures[override.name]; }
         if (current && current.live && stockEye(value)) { return current.textures['face/eye.png'] || current.textures.stockEye; }
         const texture = originalTexture.call(this, value);
-        const resolved = texture && texture.baseTexture && current && animationAssets.lookup(current.animationAssets, 'atex', texture.baseTexture.imageUrl);
+        const resolved = texture && texture.baseTexture && nonEyeThemesEnabled() && current && animationAssets.lookup(current.animationAssets, 'atex', texture.baseTexture.imageUrl);
         return resolved ? current.textures[resolved.name] : texture;
     };
     const originalDefault = eye._isDefaultTexture;
@@ -152,7 +167,7 @@ function hookFace(jibo) {
     const originalBackground = background.display;
     background.display = function(timestamp, dofs) {
         const result = originalBackground.call(this, timestamp, dofs);
-        if (result && current && current.theme && current.theme.hasFace) {
+        if (result && nonEyeThemesEnabled() && current && current.theme && current.theme.hasFace) {
             const tex = current.textures['face/background.png'];
             if (tex) { this.sprite.texture = tex; this.sprite.tint = 0xffffff; }
             this.sprite.visible = !!tex;
@@ -203,7 +218,7 @@ function colorButton(button) {
 }
 function styleButton(button, assets) {
     restoreButton(button);
-    const theme = current && current.theme;
+    const theme = menuTheme();
     if (!theme || !theme.hasMenu || !standardButton(button) || !button.display || !button._content) { return; }
     const texture = current.textures['menu/button.png'];
     const dimensions = geometry(theme, texture || button.dimensions);
@@ -253,7 +268,7 @@ function remember(view) {
 }
 function layout(view) {
     const list = view._list; if (!list || !list.componentList || !list.componentList.length) { return; }
-    const theme = current && current.theme; const themed = theme && theme.hasMenu && standardMenu(view);
+    const theme = menuTheme(); const themed = theme && theme.hasMenu && standardMenu(view);
     const dynamic = themed && theme.menu.menuType === 'dynamic';
     if (!dynamic) { menuScroll.disable(list); }
     if (themed) {
@@ -314,12 +329,12 @@ function hookMenus(jibo) {
     Button.prototype.destroy = function() { restoreButton(this); return destroy.call(this); };
     const position = Menu.prototype.positionComponents;
     Menu.prototype.positionComponents = function(height) {
-        if (current && current.theme && current.theme.hasMenu && standardMenu(this)) { remember(this); layout(this); }
+        if (menuTheme() && current.theme.hasMenu && standardMenu(this)) { remember(this); layout(this); }
         else { layout(this); position.call(this, height); layout(this); }
     };
     const labels = Menu.prototype.updateButtonLabels;
     Menu.prototype.updateButtonLabels = function() {
-        if (current && current.theme && current.theme.hasMenu && standardMenu(this)) { (this._buttonLabels || []).forEach(l => { if (l.display) { l.display.visible = false; } }); return; }
+        if (menuTheme() && current.theme.hasMenu && standardMenu(this)) { (this._buttonLabels || []).forEach(l => { if (l.display) { l.display.visible = false; } }); return; }
         return labels.apply(this, arguments);
     };
     const loaded = Menu.prototype.loaded;
@@ -329,7 +344,7 @@ function hookMenus(jibo) {
 function menuBackground(view) {
     if (!view._stage) { return; }
     if (view._beamThemeBackground) { view._stage.removeChild(view._beamThemeBackground); view._beamThemeBackground.destroy(); view._beamThemeBackground = null; }
-    if (current && current.theme && current.theme.hasMenu && standardMenu(view)) {
+    if (menuTheme() && current.theme.hasMenu && standardMenu(view)) {
         const bg = new PIXI.Graphics(); bg.beginFill(parseInt(current.theme.menu.backgroundColor.slice(1), 16)); bg.drawRect(0, 0, 1280, 720); bg.endFill();
         view._stage.addChildAt(bg, 0); view._beamThemeBackground = bg;
     }
@@ -338,28 +353,34 @@ function refreshFace(jibo) {
     const c = jibo.face.eye; const themed = current && current.theme && current.theme.hasFace;
     restoreListeningFilters(c.eye);
     c.eye._defaultTexture = current.textures['face/eye.png'] || current.textures.stockEye;
-    c.background._defaultTexture = current.textures['face/background.png'] || current.textures.stockBackground;
+    c.background._defaultTexture = nonEyeThemesEnabled() && current.textures['face/background.png'] || current.textures.stockBackground;
     c.eye.reset(); c.background.reset(); c.eye.scale.set(1, 1); c.eye.eyeMesh.alpha = 1;
     if (c.eye._beamClosedMesh) { c.eye._beamClosedMesh.visible = false; }
     if (c.background._beamSolid) { c.background.removeChild(c.background._beamSolid); c.background._beamSolid.destroy(); c.background._beamSolid = null; }
     c.background.sprite.visible = true;
-    if (themed) {
+    if (themed && nonEyeThemesEnabled()) {
         const bg = new PIXI.Graphics(); bg.beginFill(parseInt(current.theme.face.backgroundColor.slice(1), 16)); bg.drawRect(0, 0, 1280, 720); bg.endFill();
         c.background.addChildAt(bg, 0); c.background._beamSolid = bg; c.background.sprite.visible = !!current.textures['face/background.png'];
     }
-    if (!themed) { c.background.sprite.scale.set(1, 1); }
+    if (!themed || !nonEyeThemesEnabled()) { c.background.sprite.scale.set(1, 1); }
     c._previousDofValues = null;
     if (c._currentDofValues) { c.eye.display(Date.now(), c._currentDofValues); c.background.display(Date.now(), c._currentDofValues); }
 }
 function refresh(jibo) {
     refreshFace(jibo);
     const views = jibo.face.views; const visited = [];
+    const components = [];
+    function updateComponents(group) {
+        if (!group || components.indexOf(group) >= 0) { return; } components.push(group);
+        if (standardButton(group) && group.display && group._content) { styleButton(group); }
+        (group.componentList || []).forEach(updateComponents);
+    }
     function update(view) {
         if (!view || visited.indexOf(view) >= 0) { return; } visited.push(view);
+        updateComponents(view); updateComponents(view._list);
         if (view instanceof views.MenuView && view._list) {
-            view._list.componentList.forEach(b => { if (b.display && b._content) { styleButton(b); } });
             layout(view);
-            if (!current.theme || !current.theme.hasMenu) { view.positionComponents(); view.updateButtonLabels(false, false); }
+            if (!menuTheme() || !current.theme.hasMenu) { view.positionComponents(); view.updateButtonLabels(false, false); }
             menuBackground(view);
         }
         update(view.pausedParent);
@@ -378,7 +399,7 @@ function apply(prepared, commit) {
     const previous = current;
     try {
         hookFace(prepared.jibo); hookMenus(prepared.jibo);
-        animationAssets.hookSound(prepared.jibo, () => current);
+        animationAssets.hookSound(prepared.jibo, () => nonEyeThemesEnabled() ? current : null);
         current = prepared; refresh(prepared.jibo);
         // Persistence belongs in the same transaction: retain old textures until it succeeds.
         if (commit) { commit(); }
@@ -409,4 +430,4 @@ function discard(prepared) {
     if (prepared && prepared.cache && prepared !== current) { prepared.jibo.loader.deleteCache(prepared.cache); }
 }
 module.exports = { prepare: prepare, apply: apply, discard: discard, start: start, status: () => live,
-    closedAmount: closedAmount, geometry: geometry, stockEye: stockEye };
+    closedAmount: closedAmount, geometry: geometry, stockEye: stockEye, enterSkill: enterSkill, leaveSkill: leaveSkill };

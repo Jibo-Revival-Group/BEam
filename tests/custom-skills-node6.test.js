@@ -7,7 +7,7 @@ const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'custom-skill-node6-'));
 let current = '3.1.6';
 const service = custom.create({ root: path.join(temp, 'skills'), onChange: function () {}, compatibility: function (m) { return { status: current < m.supported ? 'incompatible' : 'compatible' }; } });
 const files = {
-    'manifest.json': Buffer.from('{"name":"Node 6 Skill","type":"skill","version":"1.0.0","supported":"3.1.6","buttonColor":"#58586D #282735"}'),
+    'manifest.json': Buffer.from('{"name":"Node 6 Skill","type":"skill","version":"1.0.0","supported":"3.1.6","buttonColor":"#58586D #282735","themes":false}'),
     'icon.png': fixture.png(),
     'pack/package.json': Buffer.from('{"name":"@be/node6-test","main":"index.js","jibo":{"type":"asset-pack"}}'),
     'pack/index.js': Buffer.from('const EventEmitter=require("events"); module.exports=class Skill extends EventEmitter { constructor(opts) { super(); this.assetPack=opts.assetPack; this.rootPath=opts.rootPath; } };')
@@ -33,7 +33,7 @@ service.upload(fixture.zip(wrapped)).then(function () {
     let recovered = false;
     const registry = module.exports, be = { packageInfo: { jibo: { skills: [], lazySkills: [] } }, skills: {}, _validateSkill: () => true, redirect() {}, exit(skill, opts) { recovered = opts.noElementsOfSurprise; } };
     registry.install(be);
-    const first = registry.prepareForOpen(be, '@be/node6-test'); assert.strictEqual(first.assetPack, '@be/node6-test');
+    const first = registry.prepareForOpen(be, '@be/node6-test'); assert.strictEqual(first.assetPack, '@be/node6-test'); assert.strictEqual(first._beamThemesEnabled, false); assert.strictEqual(service.inventory().skills[0].manifest.themes, false);
     assert.strictEqual(first.rootPath, service.resolve('@be/node6-test').replace(/\/$/, ''));
     current = '3.1.5'; assert.throws(() => registry.prepareForOpen(be, '@be/node6-test'), /needs version/);
     be.currentSkill = { assetPack: '@be/main-menu' }; be.skillRedirect(be.currentSkill, '@be/node6-test'); assert(recovered, 'Failed custom launch returns to idle'); current = '3.1.6';

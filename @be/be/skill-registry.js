@@ -274,6 +274,8 @@ function loadSkill (be, id) {
     // Reserve the slot before async postInit so concurrent prepare/bootstrap
     // cannot double-construct the same id.
     be.skills[id] = skill;
+    // Snapshot the installed manifest with this revision; warmup does not affect themes.
+    skill._beamThemesEnabled = !custom || custom.manifest.themes !== false;
     skill._beamSourceMtime = mtime;
     skill._beamSourceMain = main;
     wireSkill(be, skill);

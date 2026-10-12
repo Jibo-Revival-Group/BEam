@@ -152,6 +152,8 @@ function manifest(buf) {
     }
     const out = { name: m.name.trim(), version: m.version, supported: m.supported || null, type: m.type };
     if (m.type === 'skill') {
+        if (m.themes !== undefined && typeof m.themes !== 'boolean') { throw fail('themes must be true or false'); }
+        out.themes = m.themes !== false;
         const colors = m.buttonColor === undefined ? ['#58BCEB', '#246487'] : typeof m.buttonColor === 'string' ? m.buttonColor.trim().split(/\s+/) : m.buttonColor;
         if (!Array.isArray(colors) || colors.length < 1 || colors.length > 2 || colors.some(c => typeof c !== 'string' || !/^#[0-9a-f]{6}$/i.test(c))) { throw fail('buttonColor needs one or two #RRGGBB colors'); }
         out.buttonColor = colors.length === 1 ? [colors[0], colors[0]] : colors;

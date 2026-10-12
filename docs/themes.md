@@ -286,3 +286,14 @@ For device acceptance, use a robot/simulator with jibo-tbd 3.1.6 or newer:
    selected appearance survive without network access.
 6. Start with a prior custom eye and verify its aliases restore to stock and its
    upload remains inactive. `/api/eye` must return 404.
+
+## Skill theme opt-out
+
+Custom skills may set `"themes": false` in their root `manifest.json`. While
+that skill is running, the active theme applies only to the eye. Button art,
+menu geometry, backgrounds, `atex` animation artwork, and `asfx` sounds use
+their stock or skill-authored assets. Eye size, blink/closed-eye art, and
+listening-eye art remain themed. Missing `themes` or `"themes": true` keeps
+the default behavior. Theme selection persists normally and resumes in full
+after the skill closes; changing themes during the game still respects the
+skill's opt-out.

@@ -17,6 +17,16 @@ const options = { root: path.join(root, 'skills'), compatibility, onChange() {},
     store: { download(url, op) { op.progress({ state: 'downloading', percent: 50 }); return downloadMode === 'hang' ? new Promise(resolve => { finish = resolve; }) : downloadMode === 'error' ? Promise.reject(new Error('Download failed')) : Promise.resolve({ files, commit: 'a'.repeat(40) }); } } };
 async function run() {
     const service = custom.create(options);
+    const manifest = JSON.parse(files['manifest.json']);
+    assert.strictEqual(pkg.manifest(files['manifest.json']).themes, true, 'Missing themes defaults to true');
+    for (const themes of [false, true]) {
+        const validated = await service.validate(Object.assign({}, files, { 'manifest.json': Buffer.from(JSON.stringify(Object.assign({}, manifest, { themes }))) }));
+        assert.strictEqual(validated.manifest.themes, themes);
+    }
+    for (const themes of ['false', 0, null, [], {}]) {
+        assert.throws(() => pkg.manifest(Buffer.from(JSON.stringify(Object.assign({}, manifest, { themes })))), /themes must/);
+    }
+
     await assert.rejects(() => pkg.unzip(fixture.zip(files)), /Executable/);
     for (const name of ['../escape', '/escape', 'x\\escape']) { await assert.rejects(() => service.upload(fixture.zip(Object.assign({}, files, { [name]: Buffer.from('x') }))), /Unsafe/); }
     await assert.rejects(() => service.upload(fixture.zip(files, { symlink: 'test-skill/index.js' })), /links/);

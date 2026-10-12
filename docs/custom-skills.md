@@ -38,6 +38,7 @@ formats and single-repository sources. Bad Apple is the reference package:
   "version": "1.0.0",
   "supported": "3.1.6",
   "type": "skill",
+  "themes": false,
   "buttonColor": "#58586D #282735"
 }
 ```
@@ -45,6 +46,17 @@ formats and single-repository sources. Bad Apple is the reference package:
 `buttonColor` is a string containing one or two `#RRGGBB` colors, or an array
 with the same values. The first is the highlight, the second the shadow. One
 color applies to both; omission uses the default blue pair.
+
+`themes` is an optional boolean. Omission or `true` allows the active custom
+theme as usual. Set `"themes": false` to use stock buttons, menu layouts,
+backgrounds, animation artwork, and animation sounds while the skill runs.
+The custom eye remains active, including its size, closed/blinking artwork,
+and listening variant. A skill's own colors and assets are preserved.
+The selected theme resumes when the skill closes, including forced closes
+and failed launches. This is temporary runtime behavior; it does not change
+the user's saved theme selection. The policy begins before preload so the
+first view loads with the correct styling. Updating a skill's manifest takes
+effect when the new installed revision is launched.
 
 The ZIP contains `manifest.json`, a required `icon.png`, optional `banner.png`
 and `README.md`, and the built skill. Its `package.json` may sit beside the

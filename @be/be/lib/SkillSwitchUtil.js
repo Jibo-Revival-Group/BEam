@@ -7,6 +7,11 @@ const TimerSpy_1 = require("./TimerSpy");
 const log_1 = require("./log");
 const log = log_1.default.createChild("SkillSwitchUtil");
 const packageInfo = require(path.join(jibo.utils.PathUtils.findRoot(), 'package.json'));
+const themeRuntime = require('../beacon/lib/theme-runtime');
+function leaveThemes(skill, scope) {
+    themeRuntime.leaveSkill(scope);
+    if (skill && skill._beamThemeScope === scope) { delete skill._beamThemeScope; }
+}
 const closeSkillTimeoutMS = 5000;
 const openSkillTimeoutMS = 5000;
 class SkillSwitchUtil {
@@ -26,6 +31,7 @@ class SkillSwitchUtil {
     }
     static closeSkill(skill, pendingSkillName) {
         let closeTimeout = null;
+        const themeScope = skill && skill._beamThemeScope;
         return new Promise((resolve, reject) => {
             closeTimeout = setTimeout(() => {
                 return reject('skill took too long to close. Force closing.');
@@ -70,7 +76,7 @@ class SkillSwitchUtil {
                 TimerSpy_1.default.instance.checkSkillCleanup();
             }
             be_framework_1.BeSkill.plugins.analytics.skillExit(pendingSkillName);
-        });
+        }).then(value => { leaveThemes(skill, themeScope); return value; }, err => { leaveThemes(skill, themeScope); throw err; });
     }
     static openNewSkill(currentSkillLifecycle, newSkillLifecycle) {
         const newSkillName = newSkillLifecycle.skillSwitchData.name;
@@ -78,6 +84,7 @@ class SkillSwitchUtil {
         let openTimeout = null;
         let oldSkillName = null;
         const skill = newSkillLifecycle.skillSwitchData.skill;
+        let themeScope = null;
         // Wait for async postInit (KB roots, etc.) before preload/open — otherwise
         // skills like word-of-the-day throw on undefined _mainRoot and fall back to idle.
         const postInitReady = (skill && skill._beamPostInitPromise)
@@ -85,6 +92,8 @@ class SkillSwitchUtil {
             : Promise.resolve();
         return postInitReady
             .then(() => {
+            themeScope = themeRuntime.enterSkill(skill, skill._beamThemesEnabled);
+            skill._beamThemeScope = themeScope;
             return new Promise((resolve, reject) => {
                 openTimeout = setTimeout(() => {
                     return reject('skill took too long to open. Force closing.');
@@ -142,7 +151,7 @@ class SkillSwitchUtil {
                     return reject(err);
                 }
             });
-        });
+        }).catch(err => { leaveThemes(skill, themeScope); throw err; });
     }
 }
 SkillSwitchUtil.log = log;
