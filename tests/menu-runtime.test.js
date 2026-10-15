@@ -29,5 +29,26 @@ try {
     new Function('require', 'module', 'exports', source.slice(start, end))(name => name === '@be/be-framework' ? { BeSkill } : name === 'jibo' ? jibo : name === './flows/main' ? flowModule.exports : require(name), skillModule, skillModule.exports);
     const main = new skillModule.exports(); main.redirectToSkill('@be/bad-apple'); assert.strictEqual(redirected.id, '@be/bad-apple');
     main.skillChosen = false; main.redirectToSkill('clock'); assert.strictEqual(redirected.id, '@be/clock');
-    console.log('Shipped main-menu flow folder/back routing, layout refresh IDs and custom/built-in skill redirects passed');
+    // All cloud menu buttons use the same synthetic-turn path. Runtime context
+    // is attached by JetStream and must be honored by the cloud before execution.
+    let cloudRequest, listenDisabled = 0;
+    jibo.embodied = { listen: { disableOnce() { listenDisabled++; } } };
+    jibo.jetstream = { mimicGlobalTurn(options) { cloudRequest = options; return Promise.resolve(); } };
+    const cloudButtons = {
+        'full-report': 'personal report',
+        weather: 'tell me about the weather',
+        news: 'tell me about the news',
+        calendar: 'tell me about my calendar',
+        commute: 'what does my commute look like',
+        joke: 'tell me a joke',
+        dance: 'do a dance',
+        surprise: 'surprise me'
+    };
+    Object.keys(cloudButtons).forEach(button => {
+        main.skillChosen = false;
+        assert.strictEqual(main.redirectToSkill(button), true);
+        assert.deepStrictEqual(cloudRequest, { clientASR: cloudButtons[button] });
+    });
+    assert.strictEqual(listenDisabled, Object.keys(cloudButtons).length);
+    console.log('Shipped main-menu folder/back routing, layout refresh, skill redirects and cloud button requests passed');
 } finally { fs.rmSync(root, { recursive: true, force: true }); }
