@@ -12,7 +12,7 @@ const FILES = ['manifest.json', 'README.md', 'banner.png', 'face/face.json', 'fa
 function assetPath(name) {
     return typeof name === 'string' && name.length <= 512 && !/[\\:\u0000-\u001f]/.test(name) &&
         name.split('/').every(p => p && p !== '.' && p !== '..') &&
-        (/^atex\/.+\.png$/.test(name) || /^asfx\/.+\.(wav|mp3|m4a|ogg|oga|aif)$/i.test(name));
+        (/^icons\/[^/]+\.(png|svg)$/.test(name) || /^atex\/.+\.png$/.test(name) || /^asfx\/.+\.(wav|mp3|m4a|ogg|oga|aif)$/i.test(name));
 }
 function accepted(name) { return FILES.indexOf(name) !== -1 || assetPath(name); }
 function audio(buf, name) {
@@ -102,7 +102,7 @@ function unzip(buf, options) {
             if (kind && kind !== 0x8000 && kind !== 0x4000) { throw fail('ZIP links and special files are not allowed'); }
             const directory = kind === 0x4000 || name.endsWith('/') || !!(buf.readUInt32LE(pos + 38) & 16);
             names[canonical] = { directory: directory };
-            if (!skill && /\.(js|mjs|cjs|sh|bash|bat|cmd|exe|dll|so|py|php|html|svg)$/i.test(name)) { throw fail('Executable theme content is not allowed'); }
+            if (!skill && /\.(js|mjs|cjs|sh|bash|bat|cmd|exe|dll|so|py|php|html)$/i.test(name)) { throw fail('Executable theme content is not allowed'); }
             total += size;
             if (total > MAX_EXPANDED || local + 30 > centralStart || buf.readUInt32LE(local) !== 0x04034b50) { throw fail('Invalid or oversized ZIP'); }
             const localLen = buf.readUInt16LE(local + 26); const localExtra = buf.readUInt16LE(local + 28);
@@ -125,13 +125,14 @@ function unzip(buf, options) {
         const roots = records.filter(r => !r.directory && (r.name === 'manifest.json' || /^[^/]+\/manifest\.json$/.test(r.name)));
         if (roots.length !== 1) { throw fail('ZIP needs one root manifest.json, optionally inside one folder'); }
         const prefix = roots[0].name.slice(0, -'manifest.json'.length);
+        if (!skill && records.some(r => /\.svg$/i.test(r.name) && (r.name.indexOf(prefix) !== 0 || !/^icons\/[^/]+\.svg$/.test(r.name.slice(prefix.length))))) { throw fail('SVGs are only supported in icons/'); }
         const out = Object.create(null);
         return records.reduce((chain, r) => chain.then(() => {
             const packed = buf.slice(r.start, r.end);
             return (r.method === 8 ? inflate(packed, r.size, true, r.name) : Promise.resolve(packed)).then(data => {
                 if (data.length !== r.size || crc32(data) !== r.crc) { throw fail('ZIP checksum or size mismatch'); }
                 const rel = r.name.slice(prefix.length);
-                if (!skill && r.name.indexOf(prefix) === 0 && /^(atex|asfx)\//.test(rel) && !rel.endsWith('/') && !assetPath(rel)) { throw fail('Unsupported animation asset: ' + rel); }
+                if (!skill && r.name.indexOf(prefix) === 0 && /^(atex|asfx|icons)\//.test(rel) && !rel.endsWith('/') && !assetPath(rel)) { throw fail('Unsupported animation asset: ' + rel); }
                 if (r.name.indexOf(prefix) === 0 && rel && !r.directory && (skill || accepted(rel))) { out[rel] = data; }
             });
         }), Promise.resolve()).then(() => out);
@@ -269,9 +270,15 @@ function validate(files) {
     const face = config(files['face/face.json'], 'face.json', { backgroundColor: '#000000', eyeSize: 100 });
     const menu = config(files['menu/menu.json'], 'menu.json', { menuType: 'native', buttonColors: false, backgroundColor: '#000000', buttonSize: 42, iconSize: 70, textSize: 15, iconPlacement: 'x0 y0', textPlacement: 'x0 y-40' });
     const images = {}; let decodedSize = 0;
-    const animationAssets = Object.keys(files).filter(assetPath);
+    const animationAssets = Object.keys(files).filter(n => assetPath(n) && !n.startsWith('icons/'));
+    const icons = Object.keys(files).filter(n => n.startsWith('icons/'));
+    const targets = Object.create(null);
+    icons.forEach(n => {
+        const target = n.slice(6).replace(/\.(png|svg)$/, '');
+        if (targets[target]) { throw fail('Duplicate icon target: ' + n); } targets[target] = true;
+    });
     animationAssets.filter(n => n.indexOf('asfx/') === 0).forEach(n => audio(files[n], n));
-    return Object.keys(files).filter(n => /\.png$/.test(n)).reduce((chain, n) => chain.then(() => png(files[n], n).then(size => {
+    return Object.keys(files).filter(n => /\.(png|svg)$/.test(n)).reduce((chain, n) => chain.then(() => Promise.resolve().then(() => /\.svg$/.test(n) ? require('./theme-svg')(files[n], n) : png(files[n], n)).then(size => {
         decodedSize += size.width * size.height * 4;
         if (decodedSize > MAX_DECODED_IMAGES) {
             throw fail('Decoded theme images exceed the 256 MB limit (' + Math.ceil(decodedSize / (1024 * 1024)) + ' MB at ' + n + '). Reduce image dimensions or remove unused textures.');
@@ -279,7 +286,7 @@ function validate(files) {
         images[n] = size;
     })), Promise.resolve()).then(() => ({
         id: crypto.createHash('sha256').update(m.name.toLowerCase()).digest('hex').slice(0, 24),
-        manifest: m, face: face, menu: menu, images: images, animationAssets: animationAssets,
+        manifest: m, face: face, menu: menu, images: images, animationAssets: animationAssets, icons: icons,
         hasFace: Object.keys(files).some(n => n.indexOf('face/') === 0),
         hasMenu: Object.keys(files).some(n => n.indexOf('menu/') === 0),
         readme: files['README.md'] ? files['README.md'].toString('utf8').slice(0, 256 * 1024) : ''

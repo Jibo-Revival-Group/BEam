@@ -25,6 +25,8 @@ class Container {
 class Mesh extends Container { constructor(texture) { super(); this.texture = texture; } }
 Mesh.DRAW_MODES = { TRIANGLES: 0 };
 class Sprite extends Container {
+    get texture() { return this._texture; }
+    set texture(value) { this._texture = value; }
     constructor(texture) { super(); this.texture = texture; this.anchor = new Point(); this.width = texture ? texture.width : 1; this.height = texture ? texture.height : 1; }
 }
 class Text extends Sprite { constructor(text, style) { super(); this.text = text; this.style = style; this.height = style.fontSize; this.width = text.length * style.fontSize / 2; } }
@@ -146,7 +148,7 @@ class Sound {
 jibo.sound = { Sound };
 const loaded = { exports: {} };
 new Function('require', 'module', 'exports', 'window', 'PIXI', fs.readFileSync(path.join(__dirname, '../@be/be/beacon/lib/theme-runtime.js'), 'utf8'))(
-    name => name === 'jibo' ? jibo : name === './paths' ? { pristineEye: () => 'pristine.png' } : name === './theme-package' ? pkg : name === './theme-animation-assets' ? require('../@be/be/beacon/lib/theme-animation-assets') : name === './theme-menu-scroll' ? require('../@be/be/beacon/lib/theme-menu-scroll') : require(name), loaded, loaded.exports, {}, pixi);
+    name => name === 'jibo' ? jibo : name === './paths' ? { pristineEye: () => 'pristine.png' } : name === './theme-package' ? pkg : name === './theme-icons' ? require('../@be/be/beacon/lib/theme-icons') : name === './theme-animation-assets' ? require('../@be/be/beacon/lib/theme-animation-assets') : name === './theme-menu-scroll' ? require('../@be/be/beacon/lib/theme-menu-scroll') : require(name), loaded, loaded.exports, {}, pixi);
 const runtime = loaded.exports;
 function dofs(height = 720) {
     const values = { eyeTextureInfixBn_r: '/animations/White_Eye.png', eyeSubRootBn_t: 20, eyeSubRootBn_t_2: 10, eyeSubRootBn_r: 0.1,
@@ -164,6 +166,22 @@ function recover() {
 }
 async function run() {
     const theme = await pkg.validate(fixture.astra());
+    const iconTheme = await pkg.validate({ 'manifest.json': fixture.astra()['manifest.json'], 'icons/bad-apple.png': fixture.png() });
+    assets['icon.png'] = assets.icon;
+    const customIconButton = new Button(); customIconButton.assignConfig({id:'@be/bad-apple',iconSrc:'/custom-package/icon.png'});
+    assets['/custom-package/icon.png'] = assets.icon;
+    customIconButton.setupDisplay(assets);
+    nativeMenu._list.componentList.push(customIconButton);
+    await runtime.apply(await runtime.prepare(iconTheme, '/tmp/theme'));
+    assert.strictEqual(customIconButton._content.icon.children[0].texture.name, 'icons/bad-apple.png', 'Custom skill root icon uses its package name');
+    assert(!customIconButton._beamThemeDisplay, 'Icon-only themes preserve menu layout');
+    const iconScope = runtime.enterSkill({}, false);
+    assert.strictEqual(customIconButton._content.icon.children[0].texture.name, 'skill-icon', 'Skill opt-out restores authored icons');
+    runtime.leaveSkill(iconScope);
+    assert.strictEqual(customIconButton._content.icon.children[0].texture.name, 'icons/bad-apple.png');
+    await runtime.apply(await runtime.prepare(null));
+    assert.strictEqual(customIconButton._content.icon.children[0].texture.name, 'skill-icon');
+    nativeMenu._list.componentList.pop(); customIconButton.destroy();
     const animationTheme = await pkg.validate(Object.assign({}, fixture.astra(), { 'atex/blackeye_blur1.png': fixture.png(), 'atex/White_Eye.png': fixture.png() }));
     await runtime.apply(await runtime.prepare(animationTheme, '/tmp/theme'));
     assert.strictEqual(c.getTexture('/animations/blackeye_blur1.png').name, 'atex/blackeye_blur1.png');

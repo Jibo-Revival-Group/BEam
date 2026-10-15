@@ -218,7 +218,7 @@ const routes = {
         return themes.remove(query.id).then(data => u.sendJson(res, 200, data));
     }),
     'GET /api/themes/asset': guard((req, res, query) => {
-        u.serveFile(req, res, themes.asset(query.id, query.name), { contentType: 'image/png' });
+        u.serveFile(req, res, themes.asset(query.id, query.name), { contentType: /\.svg$/.test(query.name) ? 'image/svg+xml' : 'image/png' });
     }),
 
     'GET /api/server': guard((req, res) => {

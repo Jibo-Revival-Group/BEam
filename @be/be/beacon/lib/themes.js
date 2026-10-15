@@ -220,7 +220,7 @@ function create(options) {
         }));
     }
     function asset(id, name) {
-        if (!packages.accepted(name) || !/\.png$/.test(name)) { throw packages.fail('Unknown theme asset'); }
+        if (!packages.accepted(name) || !/\.(png|svg)$/.test(name)) { throw packages.fail('Unknown theme asset'); }
         const t = read().themes.filter(v => v.id === id)[0]; if (!t) { throw packages.fail('Theme not found'); }
         return path.join(dir(t.revision), name);
     }

@@ -27,13 +27,13 @@ const store = { catalog: () => Promise.resolve([{ name: 'Astra', type: 'theme', 
 const manager = themes.create({ root: path.join(temp, 'http'), runtime, version: () => '3.1.6', store, downloadTimeout: 80 });
 const loaded = { exports: {} };
 new Function('require', 'module', 'exports', fs.readFileSync(sourceFile, 'utf8'))(
-    name => name === './lib/themes' ? manager : serverRequire(name), loaded, loaded.exports);
+    name => name === './lib/themes' ? manager : name === './lib/github-auth' ? { token: () => 'test-token' } : serverRequire(name), loaded, loaded.exports);
 function request(server, method, url, body) {
     const bytes = Buffer.isBuffer(body) ? body : body === undefined ? null : Buffer.from(JSON.stringify(body));
     return new Promise((resolve, reject) => {
         const req = http.request({ hostname: '127.0.0.1', port: server.address().port, method, path: url }, res => {
             const parts = []; res.on('data', p => parts.push(p)); res.on('error', reject);
-            res.on('end', () => { const buf = Buffer.concat(parts); let data; try { data = JSON.parse(buf); } catch (err) { data = buf; } resolve({ status: res.statusCode, data }); });
+            res.on('end', () => { const buf = Buffer.concat(parts); let data; try { data = JSON.parse(buf); } catch (err) { data = buf; } resolve({ status: res.statusCode, headers: res.headers, data }); });
         });
         req.on('error', reject); req.end(bytes);
     });
@@ -44,10 +44,13 @@ async function run() {
         const initial = await request(server, 'GET', '/api/themes'); assert.strictEqual(initial.status, 200); assert.strictEqual(initial.data.active, null);
         const stockIcon = await request(server, 'GET', '/theme-none.svg'); assert.strictEqual(stockIcon.status, 200);
         assert(stockIcon.data.toString().includes('viewBox="0 -960 960 960"'), 'The stock theme icon ships with BEacon');
-        const upload = await request(server, 'PUT', '/api/themes/upload?name=Astra.zip', fixture.zip(fixture.astra()));
+        const upload = await request(server, 'PUT', '/api/themes/upload?name=Astra.zip', fixture.zip(Object.assign({}, fixture.astra(), { 'icons/radio.svg': Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><circle cx="32" cy="32" r="30"/></svg>') })));
         assert.strictEqual(upload.status, 200); const id = upload.data.installed; assert.strictEqual(upload.data.themes.active, null);
         const image = await request(server, 'GET', '/api/themes/asset?id=' + id + '&name=face%2Feye.png');
         assert.strictEqual(image.status, 200); assert.strictEqual(image.data.slice(0, 8).toString('hex'), '89504e470d0a1a0a');
+        const svgIcon = await request(server, 'GET', '/api/themes/asset?id=' + id + '&name=icons%2Fradio.svg');
+        assert.strictEqual(svgIcon.status, 200); assert.strictEqual(svgIcon.headers['content-type'], 'image/svg+xml');
+        assert(svgIcon.data.toString().includes('<svg'));
         assert.strictEqual((await request(server, 'GET', '/api/themes/asset?id=' + id + '&name=..%2Fmanifest.json')).status, 400);
         assert.strictEqual((await request(server, 'POST', '/api/themes/apply', { id: 0 })).status, 400);
         assert.strictEqual((await request(server, 'POST', '/api/themes/apply', { id })).data.active, id);

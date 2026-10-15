@@ -7,9 +7,11 @@ const themes = require('../@be/be/beacon/lib/themes');
 const operations = require('../@be/be/beacon/lib/theme-operation');
 const util = require('../@be/be/beacon/lib/http-util');
 const EventEmitter = require('events');
-const files = fixture.astra();
+const files = Object.assign({}, fixture.astra(), { 'icons/bad-apple.png': fixture.png(), 'icons/radio.svg': Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><path d="M0 0h64v64z"/></svg>') });
 pkg.unzip(fixture.zip(files)).then(pkg.validate).then(theme => {
     assert.strictEqual(theme.manifest.name, 'Astra');
+    assert.deepStrictEqual(theme.icons, ['icons/bad-apple.png', 'icons/radio.svg']);
+    assert.strictEqual(theme.images['icons/radio.svg'].width, 64);
     assert.strictEqual(theme.menu.textPlacement.y, 45);
     assert.strictEqual(themes.compare('3.1.5', '3.1.6'), -1);
     return pkg.png(fixture.png(5)).then(() => { throw new Error('Invalid PNG accepted'); }, e => { assert.strictEqual(e.status, 400); });

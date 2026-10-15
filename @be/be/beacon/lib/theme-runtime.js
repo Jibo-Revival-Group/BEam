@@ -5,6 +5,8 @@ const paths = require('./paths');
 const fail = require('./theme-package').fail;
 const menuScroll = require('./theme-menu-scroll');
 const animationAssets = require('./theme-animation-assets');
+const themeIcons = require('./theme-icons');
+let iconHook = null;
 let current = null;
 let live = { live: false, reason: 'Renderer has not started' };
 let retryTimer = null;
@@ -76,9 +78,12 @@ function prepare(theme, dir) {
     const bg = stock.filter(a => a.id === 'background')[0];
     descriptors.push({ id: 'stockBackground', src: bg.src, type: 'texture', cache: cache });
     if (theme) {
-        Object.keys(theme.images).filter(name => name !== 'banner.png').forEach(name => descriptors.push({ id: name, src: path.join(dir, name), type: 'texture', cache: cache }));
+        Object.keys(theme.images).filter(name => name !== 'banner.png' && !/\.svg$/.test(name)).forEach(name => descriptors.push({ id: name, src: path.join(dir, name), type: 'texture', cache: cache }));
     }
-    return animationAssets.decode(jibo, overrides, dir).then(audio => new Promise((resolve, reject) => {
+    const svgTextures = {};
+    const svgNames = theme ? Object.keys(theme.images).filter(name => /\.svg$/.test(name)) : [];
+    const svgReady = svgNames.reduce((chain, name) => chain.then(() => require('./theme-svg').texture(PIXI, path.join(dir, name), theme.images[name]).then(texture => { svgTextures[name] = texture; })), Promise.resolve());
+    return svgReady.then(() => animationAssets.decode(jibo, overrides, dir)).then(audio => new Promise((resolve, reject) => {
         jibo.loader.addCache(cache);
         let finished = false;
         const timeout = setTimeout(() => complete(fail('Theme texture loading timed out')), 15000);
@@ -88,10 +93,10 @@ function prepare(theme, dir) {
                 try { jibo.loader.deleteCache(cache); } catch (ignored) { /* already removed */ }
                 reject(err || fail('Theme texture loading failed')); return;
             }
-            resolve({ jibo: jibo, theme: theme, textures: textures, audio: audio, animationAssets: overrides, cache: cache, live: true });
+            resolve({ jibo: jibo, theme: theme, textures: Object.assign(textures, svgTextures), svgTextures: svgTextures, audio: audio, animationAssets: overrides, cache: cache, live: true });
         }
         try { jibo.loader.load(descriptors, { complete: complete }); } catch (err) { complete(err); }
-    }));
+    })).catch(err => { Object.keys(svgTextures).forEach(name => svgTextures[name].destroy(true)); throw err; });
 }
 function hookFace(jibo) {
     const container = jibo.face.eye;
@@ -179,6 +184,8 @@ function hookFace(jibo) {
     container._beamThemeHooked = true;
 }
 function restoreButton(button) {
+    const iconStock = button._beamIconStock;
+    if (iconStock) { iconStock.sprite.texture = iconStock.texture; button._beamIconStock = null; }
     if (!button._beamThemeStock) { return; }
     const stock = button._beamThemeStock;
     (stock.art || []).forEach(item => { item.parent.addChildAt(item.display, item.index); });
@@ -218,6 +225,13 @@ function colorButton(button) {
 }
 function styleButton(button, assets) {
     restoreButton(button);
+    const override = themeIcons.button(nonEyeThemesEnabled() && current, button);
+    // Keep the native layout for icon-only themes, including cached open menus.
+    const iconContainer = button._content && button._content.icon;
+    if (override && iconContainer) {
+        const sprite = (iconContainer.children || []).filter(child => child.texture && child.texture.baseTexture)[0];
+        if (sprite) { button._beamIconStock = { sprite: sprite, texture: sprite._beamIconOriginal || sprite.texture }; sprite.texture = override; }
+    }
     const theme = menuTheme();
     if (!theme || !theme.hasMenu || !standardButton(button) || !button.display || !button._content) { return; }
     const texture = current.textures['menu/button.png'];
@@ -238,7 +252,7 @@ function styleButton(button, assets) {
         button._beamThemeStock.art = saved; saved.forEach(item => { art.addChild(item.display); });
         art.scale.set(dimensions.width / button._beamThemeStock.dimensions.width, dimensions.height / button._beamThemeStock.dimensions.height);
     }
-    const iconAsset = (assets || button._beamAssets || button._assets || {})[button.iconId];
+    const iconAsset = override || (assets || button._beamAssets || button._assets || {})[button.iconId];
     let icon;
     if (iconAsset && iconAsset.baseTexture) { icon = new PIXI.Sprite(iconAsset); }
     else if (button.iconMovieClip) {
@@ -367,6 +381,7 @@ function refreshFace(jibo) {
     if (c._currentDofValues) { c.eye.display(Date.now(), c._currentDofValues); c.background.display(Date.now(), c._currentDofValues); }
 }
 function refresh(jibo) {
+    if (iconHook) { iconHook.refresh(); }
     refreshFace(jibo);
     const views = jibo.face.views; const visited = [];
     const components = [];
@@ -377,6 +392,7 @@ function refresh(jibo) {
     }
     function update(view) {
         if (!view || visited.indexOf(view) >= 0) { return; } visited.push(view);
+        if (iconHook) { iconHook.track(view._stage); iconHook.track(view.display); }
         updateComponents(view); updateComponents(view._list);
         if (view instanceof views.MenuView && view._list) {
             layout(view);
@@ -400,16 +416,17 @@ function apply(prepared, commit) {
     try {
         hookFace(prepared.jibo); hookMenus(prepared.jibo);
         animationAssets.hookSound(prepared.jibo, () => nonEyeThemesEnabled() ? current : null);
+        iconHook = themeIcons.hook(PIXI, () => nonEyeThemesEnabled() ? current : null);
         current = prepared; refresh(prepared.jibo);
         // Persistence belongs in the same transaction: retain old textures until it succeeds.
         if (commit) { commit(); }
         live = { live: true, reason: null };
-        if (previous && previous.cache) { try { prepared.jibo.loader.deleteCache(previous.cache); } catch (err) { /* cache cleanup */ } }
+        if (previous && previous.cache) { try { release(previous); } catch (err) { /* cache cleanup */ } }
         return Promise.resolve(live);
     } catch (err) {
         current = previous || Object.assign({}, prepared, { theme: null });
         try { refresh(current.jibo); } catch (ignored) { /* report original failure */ }
-        if (previous) { try { prepared.jibo.loader.deleteCache(prepared.cache); } catch (ignored) { /* cache cleanup */ } }
+        if (previous) { try { release(prepared); } catch (ignored) { /* cache cleanup */ } }
         return Promise.reject(err);
     }
 }
@@ -426,8 +443,12 @@ function start(restore) {
     }
     attempt();
 }
+function release(prepared) {
+    prepared.jibo.loader.deleteCache(prepared.cache);
+    Object.keys(prepared.svgTextures || {}).forEach(name => prepared.svgTextures[name].destroy(true));
+}
 function discard(prepared) {
-    if (prepared && prepared.cache && prepared !== current) { prepared.jibo.loader.deleteCache(prepared.cache); }
+    if (prepared && prepared.cache && prepared !== current) { release(prepared); }
 }
 module.exports = { prepare: prepare, apply: apply, discard: discard, start: start, status: () => live,
     closedAmount: closedAmount, geometry: geometry, stockEye: stockEye, enterSkill: enterSkill, leaveSkill: leaveSkill };

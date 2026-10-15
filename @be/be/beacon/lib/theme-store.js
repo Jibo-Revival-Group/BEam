@@ -221,7 +221,7 @@ function create(fetcher) {
             if (declared.type === 'skill') { throw pkg.fail('Skill manifests need a download ZIP URL or a GitHub repository'); }
             const files = { 'manifest.json': r.manifest };
             const extra = [];
-            ['atex', 'asfx'].forEach(folder => {
+            ['atex', 'asfx', 'icons'].forEach(folder => {
                 if (r.data[folder] === undefined) { return; }
                 if (!Array.isArray(r.data[folder]) || r.data[folder].length > 1024) { throw pkg.fail(folder + ' must be an array of relative asset filenames'); }
                 r.data[folder].forEach(name => {

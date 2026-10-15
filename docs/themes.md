@@ -1,6 +1,6 @@
 # Authoring themes and storefronts
 
-A theme is declarative JSON and PNG imagery. It never executes JavaScript or
+A theme is declarative JSON and imagery (PNG, plus SVG for icons). It never executes JavaScript or
 installs a skill. ZIP uploads and storefront downloads share validation.
 
 Store and theme HTTPS downloads use a bundled Mozilla CA list because Jibo's
@@ -24,13 +24,14 @@ face/
 menu/
   menu.json               optional standard menu layout
   button.png              optional button artwork
+icons/                    optional icon overrides (PNG or static SVG)
 atex/                     optional animation texture overrides (PNG)
 asfx/                     optional animation sound overrides
 ```
 
 Place the manifest at the ZIP root or within one enclosing directory. GitHub
 generated ZIPs work. Notes and other inert repository files are ignored; only
-the files above, including supported assets in `atex/` and `asfx/`, are installed. ZIPs are limited to 32 MB compressed, 64 MB
+the files above, including supported assets in `icons/`, `atex/` and `asfx/`, are installed. ZIPs are limited to 32 MB compressed, 64 MB
 expanded, and 1024 entries. Links, unsafe/duplicate paths, executable files,
 invalid checksums, encrypted archives and ZIP64 are rejected.
 
@@ -129,8 +130,49 @@ entirely absent menu section leaves standard menus unchanged. Menu styling
 covers shared MenuView buttons, including skill menus; custom skill interfaces
 retain their own layout. The adapter fits buttons per horizontal page and
 updates swipe spacing and touch bounds. Titles are hidden while themed to give
-large buttons the requested screen space. Existing button labels and icons are
-preserved.
+large buttons the requested screen space. Existing button labels are preserved; icons use matching theme overrides when supplied.
+
+## Icon overrides
+
+Add an optional `icons/` folder with the filenames you want to replace:
+
+```text
+icons/clock.png
+icons/bad-apple.png
+icons/radio.svg
+```
+
+Icons match the requested filename across main-menu buttons, shared skill menus,
+and PIXI sprites in custom skill interfaces. Paths and URL query strings do not
+change the match. PNG and SVG are interchangeable: `icons/radio.svg` replaces
+requests for `radio.png` or `radio.svg`. Include only one format for each name.
+Custom skills' main-menu `icon.png` also matches their package name, so
+`@be/bad-apple` uses `icons/bad-apple.png` (or `.svg`). This package-name match
+takes priority over a generic `icons/icon.png` override.
+
+No installed-skill or stock-icon catalog is required. An unused
+`icons/bad-apple.png` is accepted and stays available until a skill requests it.
+Missing overrides retain the original icon. Icons work without `menu/menu.json`.
+Switching themes or selecting None updates open menus and sprites, and custom
+skills with `"themes": false` retain their own icons while running.
+
+SVG icons support static shapes, paths, text, gradients, masks, clipping and local
+`#id` references. Scripts, event handlers, external resources, foreign markup,
+DTD/entities and animation are rejected. Supply positive `width` and `height`
+(pixel values), or a `viewBox`; dimensions are limited to 4096×4096. SVG files
+are limited to 1 MB and rasterized before renderer upload. PNG icons follow the
+normal image limits; both formats count toward the decoded image budget.
+SVG support applies to `icons/`; face, button and animation images remain PNG.
+
+ZIP and GitHub packages include `icons/` automatically. For individual-file
+storefronts, list required files in the theme manifest:
+
+```json
+{
+  "name": "Example", "version": "1.0.0", "type": "theme",
+  "icons": ["clock.png", "bad-apple.png", "radio.svg"]
+}
+```
 
 ## Animation textures and sounds
 
@@ -279,7 +321,7 @@ with that `requestId` in `POST /api/themes/install`.
 
 Run `node tests/themes.test.js`, `node tests/theme-runtime.test.js`,
 `node tests/theme-ui.test.js`, `node tests/theme-http.test.js`,
-`node tests/theme-animation-assets.test.js`, `node tests/theme-decoding.test.js`,
+`node tests/theme-animation-assets.test.js`, `node tests/theme-icons.test.js`, `node tests/theme-decoding.test.js`,
 `node tests/theme-recovery.test.js`, and
 `node tests/theme-node6.test.js`. The last
 script also runs under Node 6 to exercise the target runtime's ZIP/PNG decoder.
@@ -299,7 +341,7 @@ For device acceptance, use a robot/simulator with jibo-tbd 3.1.6 or newer:
 ## Skill theme opt-out
 
 Custom skills may set `"themes": false` in their root `manifest.json`. While
-that skill is running, the active theme applies only to the eye. Button art,
+that skill is running, the active theme applies only to the eye. Button art, icons,
 menu geometry, backgrounds, `atex` animation artwork, and `asfx` sounds use
 their stock or skill-authored assets. Eye size, blink/closed-eye art, and
 listening-eye art remain themed. Missing `themes` or `"themes": true` keeps
