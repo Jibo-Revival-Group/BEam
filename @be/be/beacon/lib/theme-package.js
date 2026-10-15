@@ -5,6 +5,8 @@ const zlib = require('zlib');
 const crypto = require('crypto');
 const MAX_ZIP = 32 * 1024 * 1024;
 const MAX_EXPANDED = 64 * 1024 * 1024;
+// PNG files can be small on disk while a full set of animation textures exceeds 64 MB in RGBA.
+const MAX_DECODED_IMAGES = 256 * 1024 * 1024;
 const FILES = ['manifest.json', 'README.md', 'banner.png', 'face/face.json', 'face/eye.png',
     'face/eyeClosed.png', 'face/eyeListening.png', 'face/background.png', 'menu/menu.json', 'menu/button.png'];
 function assetPath(name) {
@@ -271,7 +273,9 @@ function validate(files) {
     animationAssets.filter(n => n.indexOf('asfx/') === 0).forEach(n => audio(files[n], n));
     return Object.keys(files).filter(n => /\.png$/.test(n)).reduce((chain, n) => chain.then(() => png(files[n], n).then(size => {
         decodedSize += size.width * size.height * 4;
-        if (decodedSize > MAX_EXPANDED) { throw fail('Decoded theme images exceed 64 MB'); }
+        if (decodedSize > MAX_DECODED_IMAGES) {
+            throw fail('Decoded theme images exceed the 256 MB limit (' + Math.ceil(decodedSize / (1024 * 1024)) + ' MB at ' + n + '). Reduce image dimensions or remove unused textures.');
+        }
         images[n] = size;
     })), Promise.resolve()).then(() => ({
         id: crypto.createHash('sha256').update(m.name.toLowerCase()).digest('hex').slice(0, 24),

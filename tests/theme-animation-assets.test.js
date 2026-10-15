@@ -41,7 +41,7 @@ async function run() {
     await bad(() => pkg.validate(Object.assign({}, files, { 'atex/blackeye_blur1.png': Buffer.from('not a png') })));
     const manyImages = Object.assign({}, files);
     for (let i = 0; i < 68; i++) { manyImages['atex/large-' + i + '.png'] = files['face/eye.png']; }
-    await assert.rejects(pkg.validate(manyImages), /Decoded theme images exceed 64 MB/);
+    assert.strictEqual(Object.keys((await pkg.validate(manyImages)).images).length, Object.keys(manyImages).filter(n => /\.png$/.test(n)).length, 'Animation texture sets above 64 MB are accepted');
     for (const name of ['atex/../bad.png','asfx/../bad.wav','atex/script.js','asfx/script.js','asfx/config.json']) {
         await bad(() => pkg.unzip(fixture.zip(Object.assign({}, files, { [name]: wav() }))));
     }

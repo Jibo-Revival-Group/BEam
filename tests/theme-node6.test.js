@@ -36,6 +36,12 @@ pkg.unzip(fixture.zip(files)).then(pkg.validate).then(theme => {
         assert.strictEqual(assets.lookup(assets.plan(theme), 'atex', '/animations/blackeye_blur1.png').name, 'atex/blackeye_blur1.png');
     });
 }).then(() => {
+    const manyImages = Object.assign({}, files);
+    for (let i = 0; i < 68; i++) { manyImages['atex/large-' + i + '.png'] = files['face/eye.png']; }
+    return pkg.validate(manyImages).then(theme => {
+        assert.strictEqual(theme.images['atex/large-67.png'].width, 500, 'Texture sets above 64 MB validate on Node 6');
+    });
+}).then(() => {
     require('../@be/be/beacon/server');
     console.log('Node 6 Astra ZIP/PNG decode, bounded inflation, compatibility, cancellation, upload deadlines and server imports passed');
 }).catch(e => { console.error(e); process.exitCode = 1; });
