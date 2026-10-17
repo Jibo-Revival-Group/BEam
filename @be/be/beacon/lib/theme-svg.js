@@ -43,6 +43,13 @@ module.exports = function(buf, name) {
     return { width: Math.ceil(width), height: Math.ceil(height) };
 };
 
+// Keep small SVGs sharp at menu-icon sizes without changing their logical size.
+function rasterSize(size) {
+    const resolution = Math.max(1, 330 / Math.max(size.width, size.height));
+    return { width: Math.ceil(size.width * resolution), height: Math.ceil(size.height * resolution), resolution: resolution };
+}
+module.exports.rasterSize = rasterSize;
+
 // The shipped loader has no SVG MIME type. Rasterize explicitly before WebGL upload.
 module.exports.texture = function(PIXI, file, size) {
     return new Promise((resolve, reject) => {
@@ -55,9 +62,10 @@ module.exports.texture = function(PIXI, file, size) {
         image.onerror = () => finish(fail('Unable to decode SVG icon: ' + file));
         image.onload = () => {
             try {
-                const canvas = document.createElement('canvas'); canvas.width = Math.ceil(size.width); canvas.height = Math.ceil(size.height);
+                const raster = rasterSize(size);
+                const canvas = document.createElement('canvas'); canvas.width = raster.width; canvas.height = raster.height;
                 canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
-                const base = new PIXI.BaseTexture(canvas); base.imageUrl = file;
+                const base = new PIXI.BaseTexture(canvas, undefined, raster.resolution); base.imageUrl = file;
                 finish(null, new PIXI.Texture(base));
             } catch (err) { finish(err); }
         };

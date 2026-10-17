@@ -241,6 +241,10 @@ function styleButton(button, assets) {
         dimensions: button.dimensions, hitArea: button.display.hitArea, internalHitArea: button._hitArea };
     children.forEach(c => { c.visible = false; });
     const content = new PIXI.Container(); button.display.addChild(content); button._beamThemeDisplay = content; button._content = content;
+    // Settings submenus mutate the native color layers and retrieve the live
+    // icon through the original timeline. Keep those references usable.
+    const nativeContent = button._beamThemeStock.content;
+    ['background', 'gradient', 'border', 'icon'].forEach(name => { content[name] = nativeContent[name]; });
     if (texture) {
         const sprite = new PIXI.Sprite(texture); sprite.width = dimensions.width; sprite.height = dimensions.height; content.addChild(sprite);
         button._beamThemeButton = sprite; colorButton(button);
@@ -253,16 +257,26 @@ function styleButton(button, assets) {
         art.scale.set(dimensions.width / button._beamThemeStock.dimensions.width, dimensions.height / button._beamThemeStock.dimensions.height);
     }
     const iconAsset = override || (assets || button._beamAssets || button._assets || {})[button.iconId];
-    let icon;
-    if (iconAsset && iconAsset.baseTexture) { icon = new PIXI.Sprite(iconAsset); }
-    else if (button.iconMovieClip) {
-        // Keep the animated icon alive; restore its parent before destroying themed content.
-        icon = button.iconMovieClip;
-        button._beamThemeStock.icon = { display: icon, parent: icon.parent, x: icon.x, y: icon.y, scaleX: icon.scale.x, scaleY: icon.scale.y };
-    }
+    let icon = nativeContent.icon;
     if (icon) {
-        const h = icon.height / (icon.scale.y || 1) || 1; const w = icon.width / (icon.scale.x || 1) || 1;
-        icon.scale.set(dimensions.iconHeight / h); icon.x = dimensions.iconX - w * icon.scale.x / 2; icon.y = dimensions.iconY - h * icon.scale.y / 2; content.addChild(icon);
+        // Reparent the entire container, so later setIcon calls and Wi-Fi signal
+        // changes update the visible icon rather than a hidden stock copy.
+        button._beamThemeStock.icon = { display: icon, parent: icon.parent, x: icon.x, y: icon.y, scaleX: icon.scale.x, scaleY: icon.scale.y };
+        const bounds = icon.getLocalBounds ? icon.getLocalBounds() : { x: 0, y: 0, width: 1, height: 1 };
+        icon.scale.set(dimensions.iconHeight / (bounds.height || 1));
+        icon.x = dimensions.iconX - (bounds.x + bounds.width / 2) * icon.scale.x;
+        icon.y = dimensions.iconY - (bounds.y + bounds.height / 2) * icon.scale.y;
+        content.addChild(icon);
+    } else {
+        if (iconAsset && iconAsset.baseTexture) { icon = new PIXI.Sprite(iconAsset); }
+        else if (button.iconMovieClip) {
+            icon = button.iconMovieClip;
+            button._beamThemeStock.icon = { display: icon, parent: icon.parent, x: icon.x, y: icon.y, scaleX: icon.scale.x, scaleY: icon.scale.y };
+        }
+        if (icon) {
+            const h = icon.height / (icon.scale.y || 1) || 1; const w = icon.width / (icon.scale.x || 1) || 1;
+            icon.scale.set(dimensions.iconHeight / h); icon.x = dimensions.iconX - w * icon.scale.x / 2; icon.y = dimensions.iconY - h * icon.scale.y / 2; content.addChild(icon);
+        }
     }
     const label = new PIXI.Text(button.label || '', { fontFamily: 'Proxima Nova Light', fontSize: dimensions.textHeight, fill: '#ffffff', align: 'center', wordWrap: true, wordWrapWidth: dimensions.width });
     label.anchor.set(0.5, 0.5); label.x = dimensions.textX; label.y = dimensions.textY; content.addChild(label);

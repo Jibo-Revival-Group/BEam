@@ -40,14 +40,14 @@ class Graphics extends Container {
 function texture(name, width = 720, height = 720) { return { name, width, height, baseTexture: { imageUrl: name } }; }
 const pixi = { Container, Point, Sprite, Text, Graphics, filters: { ColorMatrixFilter: class {} }, mesh: { Mesh }, Rectangle: class { constructor(x,y,width,height) { Object.assign(this, { x,y,width,height }); } } };
 const bundle = fs.readFileSync(path.join(__dirname, '../@be/be/node_modules/jibo/lib/jibo.js'), 'utf8');
-function native(id, dependencies) {
+function native(id, dependencies, source = bundle) {
     const marker = '}],' + id + ':[function(require,module,exports){';
-    const start = bundle.indexOf(marker) + marker.length; const end = bundle.indexOf('\n},{', start);
+    const start = source.indexOf(marker) + marker.length; const end = source.indexOf('\n},{', start);
     assert(start > marker.length && end > start);
     const module = { exports: {} };
-    new Function('require', 'module', 'exports', 'PIXI', bundle.slice(start, end))(name => {
+    new Function('require', 'module', 'exports', 'PIXI', 'setInterval', source.slice(start, end))(name => {
         assert(name in dependencies, 'Missing native dependency ' + name); return dependencies[name];
-    }, module, module.exports, pixi);
+    }, module, module.exports, pixi, () => 0);
     return module.exports.default;
 }
 const log = { default: { debug() {}, warn() {}, info() {}, createChild() { return this; } }, simplifyTexture: v => v };
@@ -300,6 +300,52 @@ async function run() {
     await runtime.apply(await runtime.prepare(theme, '/tmp/theme'));
     assert(!nativeMenu._list._beamThemeScroll, 'Native mode removes dynamic gesture and frame overrides');
     assert.strictEqual(nativeMenu._listProgress.display.visible, true, 'Restore native pagination indicators');
+    // Run the shipped Wi-Fi initialization and periodic updates. They access
+    // both _content color layers and the original timeline's icon container.
+    const WiFi = native(6, { jibo, '@jibo/jibo-server-client': {}, 'pixi-animate': {},
+        './utils/TouchyTimeout': { default: class {} } },
+        fs.readFileSync(path.join(__dirname, '../@be/be/skills/settings/index.js'), 'utf8'));
+    for (const appearance of [theme, noArt, dynamic, iconTheme]) {
+        await runtime.apply(await runtime.prepare(appearance, '/tmp/theme'));
+        const wifiMenu = menu();
+        wifiMenu._list.componentList.forEach(b => b.applyButtonType('ActionBigButton'));
+        assets.bigActionButton = assets.skillButton;
+        wifiMenu.loaded();
+        const networkButton = wifiMenu._list.componentList[0];
+        const originalIcon = networkButton.display.children[0].content.icon;
+        const originalParent = networkButton._beamThemeStock && networkButton._beamThemeStock.icon ? networkButton._beamThemeStock.icon.parent : originalIcon.parent;
+        wifiMenu._list.getComponentById = () => networkButton;
+        wifiMenu.getComponentById = () => ({ text: '' });
+        wifiMenu.addComponent = () => ({ createDisplay() {} });
+        wifiMenu.on = () => {};
+        jibo.face.views.creator = { createComponentFromConfig: () => ({}) };
+        jibo.face.views.currentView = wifiMenu;
+        const wifi = Object.create(WiFi.prototype);
+        wifi.updateWiFiStatus = () => {};
+        wifi.currentNetwork = { ssid: 'Test Wi-Fi', strength: 90 };
+        wifi._initWiFiMenu(wifiMenu);
+        assert.strictEqual(wifiMenu.iconContainer, originalIcon, 'Wi-Fi keeps its live native icon container');
+        for (const strength of [0, 50, 75, 90]) {
+            wifi.currentNetwork.strength = strength;
+            wifi._updateWiFiMenu();
+            wifiMenu.id = 'yournetworks';
+            wifi._updateYourNetworks();
+            const active = strength === 0 ? 'noSignal' : strength > 85 ? 'hiSignal' : strength > 65 ? 'mdSignal' : 'loSignal';
+            assert(wifiMenu.iconContainer[active].visible, 'Wi-Fi updates the signal icon');
+            assert.strictEqual(networkButton._content.background.children[0].tint, strength ? 0xa3ff4a : 0x58586d);
+        }
+        if (appearance.hasMenu) {
+            assert.strictEqual(originalIcon.parent, networkButton._beamThemeDisplay, 'Signal changes appear in the themed button');
+        }
+        await runtime.apply(await runtime.prepare(theme, '/tmp/theme'));
+        assert.strictEqual(wifiMenu.iconContainer, originalIcon, 'Theme switching retains Wi-Fi references');
+        assert(!originalIcon.destroyed && !originalIcon.hiSignal.destroyed);
+        await runtime.apply(await runtime.prepare(null));
+        assert.strictEqual(originalIcon.parent, originalParent, 'None restores the live icon to its native timeline');
+        assert(!originalIcon.hiSignal.destroyed, 'Restoring the theme preserves dynamically added icons');
+        wifi._updateYourNetworks();
+    }
+    jibo.face.views.currentView = nativeMenu;
     const withBackground = Object.assign({}, theme, { face: Object.assign({}, theme.face, { backgroundColor: '#123456' }),
         images: Object.assign({}, theme.images, { 'face/background.png': { width: 640, height: 480 } }) });
     await runtime.apply(await runtime.prepare(withBackground, '/tmp/theme'));
@@ -382,6 +428,6 @@ async function run() {
     await runtime.apply(await runtime.prepare(null));
     assert.strictEqual(c.eye.eyeMesh.texture.name, 'stockEye');
     assert.strictEqual(c.eye.filters, recoveredFilters, 'None restores native filters while listening');
-    console.log('Native eye geometry/blending, scaling, shared menu layout/hit areas, live switching and stock restoration passed');
+    console.log('Native eye geometry/blending, scaling, shared menus, Wi-Fi submenu updates, live switching and stock restoration passed');
 }
 run().catch(e => { console.error(e); process.exitCode = 1; });

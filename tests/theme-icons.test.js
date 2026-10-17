@@ -71,8 +71,15 @@ async function run() {
     global.Image=class { set src(value) { assert(value.startsWith('data:image/svg+xml;base64,')); this.onload(); } };
     let drawn=false;
     global.document={createElement:()=>({getContext:()=>({drawImage:()=>{drawn=true;}})})};
-    const rendered=await svg.texture({BaseTexture:class {constructor(canvas){assert.strictEqual(canvas.width,64);}},Texture:class {constructor(base){this.baseTexture=base;}}},filename,{width:64,height:64});
+    const rendered=await svg.texture({BaseTexture:class {constructor(canvas, scaleMode, resolution){assert.strictEqual(canvas.width,330);assert.strictEqual(canvas.height,330);assert.strictEqual(resolution,330/64);}},Texture:class {constructor(base){this.baseTexture=base;}}},filename,{width:64,height:64});
     assert(drawn);assert.strictEqual(rendered.baseTexture.imageUrl,filename);
+    assert.deepStrictEqual(svg.rasterSize({width:24,height:48}), {width:165,height:330,resolution:330/48});
+    assert.deepStrictEqual(svg.rasterSize({width:48,height:24}), {width:330,height:165,resolution:330/48});
+    assert.deepStrictEqual(svg.rasterSize({width:512,height:256}), {width:512,height:256,resolution:1});
+    const smallIcons = {'manifest.json':files['manifest.json']};
+    for (let i=0;i<620;i++) { smallIcons['icons/small-'+i+'.svg']=vector; }
+    await bad(() => pkg.validate(smallIcons)); // Budget counts raster pixels, not the 64x64 viewBox.
+
     global.Image=class { set src(value) { this.onerror(); } };
     await bad(() => svg.texture({},filename,{width:64,height:64}));
     delete global.Image;delete global.document;

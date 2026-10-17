@@ -160,7 +160,9 @@ SVG icons support static shapes, paths, text, gradients, masks, clipping and loc
 `#id` references. Scripts, event handlers, external resources, foreign markup,
 DTD/entities and animation are rejected. Supply positive `width` and `height`
 (pixel values), or a `viewBox`; dimensions are limited to 4096×4096. SVG files
-are limited to 1 MB and rasterized before renderer upload. PNG icons follow the
+are limited to 1 MB and rasterized before renderer upload, with a minimum
+330-pixel longest edge. Larger artwork keeps its resolution. Rasterization
+preserves aspect ratio and logical display size. PNG icons follow the
 normal image limits; both formats count toward the decoded image budget.
 SVG support applies to `icons/`; face, button and animation images remain PNG.
 

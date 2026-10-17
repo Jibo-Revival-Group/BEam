@@ -279,7 +279,8 @@ function validate(files) {
     });
     animationAssets.filter(n => n.indexOf('asfx/') === 0).forEach(n => audio(files[n], n));
     return Object.keys(files).filter(n => /\.(png|svg)$/.test(n)).reduce((chain, n) => chain.then(() => Promise.resolve().then(() => /\.svg$/.test(n) ? require('./theme-svg')(files[n], n) : png(files[n], n)).then(size => {
-        decodedSize += size.width * size.height * 4;
+        const raster = /\.svg$/.test(n) ? require('./theme-svg').rasterSize(size) : size;
+        decodedSize += raster.width * raster.height * 4;
         if (decodedSize > MAX_DECODED_IMAGES) {
             throw fail('Decoded theme images exceed the 256 MB limit (' + Math.ceil(decodedSize / (1024 * 1024)) + ' MB at ' + n + '). Reduce image dimensions or remove unused textures.');
         }
