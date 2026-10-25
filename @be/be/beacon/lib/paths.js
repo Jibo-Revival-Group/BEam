@@ -267,9 +267,11 @@ function pristineEye () {
  * Knowledge (same root jibo-kb uses) instead of /opt/tmp or the Skills tree.
  */
 function dataDir () {
-    return onRobot()
+    const dir = onRobot()
         ? path.join(ROBOT_KNOWLEDGE, 'beacon')
         : path.join(os.tmpdir(), 'beam-beacon');
+    require('../../runtime-state').directory(dir);
+    return dir;
 }
 
 /** Pre-Knowledge BEacon data location — still checked for eye migration. */

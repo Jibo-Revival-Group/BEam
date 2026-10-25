@@ -1,6 +1,6 @@
 {
   "name": "@be/be",
-  "version": "13.0.7",
+  "version": "13.0.8",
   "description": "",
   "main": "index.js",
   "jibo": {
@@ -26,10 +26,12 @@
       "@be/clock"
     ],
     "lazySkills": [
+      "@be/agent",
       "@be/circuit-saver",
       "@be/main-menu",
       "@be/create",
       "@be/jukebox",
+      "@be/music",
       "@be/exercise",
       "@be/friendly-tips",
       "@be/gallery",

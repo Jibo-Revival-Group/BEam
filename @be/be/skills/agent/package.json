@@ -1,0 +1,10 @@
+{
+  "name": "@be/agent",
+  "version": "1.0.0",
+  "description": "Private robot-side LLM conversations configured in BEacon.",
+  "main": "index.js",
+  "config": { "standalone": true },
+  "jibo": { "main": "index.html", "type": "asset-pack", "display-name": "agent", "prompt": "Let's chat" },
+  "engines": { "node": ">=6.0" },
+  "syncDependencies": ["jibo", "@be/be-framework"]
+}

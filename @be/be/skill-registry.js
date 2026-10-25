@@ -338,6 +338,7 @@ function currentSkillId (be) {
  * Lazy skills stay warm after first load; reload only when index.js mtime changes.
  */
 function prepareForOpen (be, id) {
+    require('./runtime-state').ensureBeam();
     const custom = require('./beacon/lib/custom-skills').inventory().skills.filter(s => s.packageName === id)[0];
     if (custom && custom.compatibility.status === 'incompatible') { throw new Error(custom.manifest.name + ' needs version ' + custom.manifest.supported + ' or newer'); }
     if (!id) {

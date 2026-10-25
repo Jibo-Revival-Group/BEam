@@ -783,7 +783,7 @@
     }
 
     function loadEtc () {
-        return Promise.all([loadLocation(), loadUnits(), loadCameraStreamSetting()]);
+        return Promise.all([loadLocation(), loadUnits(), loadCameraStreamSetting(), window.BEaconAgent ? window.BEaconAgent.load() : Promise.resolve()]);
     }
 
     function loadCameraStreamSetting () {
@@ -1551,15 +1551,9 @@
             var url = document.querySelector('.people-calendar-url[data-member-id="' + memberId + '"]');
             var enabled = document.querySelector('.people-calendar-enabled[data-member-id="' + memberId + '"]');
             var icalUrl = url ? url.value.trim() : '';
-            if (!icalUrl) {
-                toast('Paste an https iCal URL first.', 'error');
-                return;
-            }
-            return api('PUT', '/api/people/calendar', {
-                id: memberId,
-                icalUrl: icalUrl,
-                isEnabled: !enabled || enabled.checked
-            }).then(function (data) {
+            var body = { id: memberId, isEnabled: !enabled || enabled.checked };
+            if (icalUrl) { body.icalUrl = icalUrl; }
+            return api('PUT', '/api/people/calendar', body).then(function (data) {
                 toast('Calendar saved.', 'ok');
                 renderPeople(data);
             });

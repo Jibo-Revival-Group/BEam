@@ -52,6 +52,14 @@ function request(server, method, body) {
     });
 }
 async function run() {
+    const saves = [];
+    const saveCalendar = new Function('document', 'api', 'toast', 'renderPeople',
+        'return ({' + app.slice(app.indexOf("        'save-calendar': function"), app.indexOf("        'test-calendar': function")) + '})["save-calendar"];')(
+        { querySelector: selector => selector.includes('people-calendar-url') ? { value: '' } : { checked: false } },
+        (method, route, body) => { saves.push({ method, route, body }); return Promise.resolve(snapshot()); },
+        (message, kind) => { assert.notStrictEqual(kind, 'error', message); }, () => {});
+    await saveCalendar({ getAttribute: () => 'person' });
+    assert.deepStrictEqual(saves, [{ method: 'PUT', route: '/api/people/calendar', body: { id: 'person', isEnabled: false } }]);
     for (credentials of [null, 'invalid JSON', '{}']) {
         const result = await calendars.attachStatus(snapshot());
         assert.strictEqual(result.calendarAvailable, false); assertEditable(result, false);

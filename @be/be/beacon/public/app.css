@@ -1011,6 +1011,22 @@ details.advanced[open] > summary::after { transform: rotate(-90deg); }
     border-color: var(--jibo-blue);
 }
 
+#agent-settings .form-row[hidden], #agent-settings [hidden] { display: none; }
+#agent-settings .form-row { gap: 8px; align-items: center; }
+#agent-settings .form-row > * { margin: 0; }
+#agent-settings .form-row > label { min-width: 100px; }
+#agent-settings input:not([type="checkbox"]), #agent-settings select { flex: 1 1 200px; }
+#agent-settings select {
+    background: var(--pearl);
+    border: 1px solid var(--light-grey);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 8px 10px;
+    font: inherit;
+    min-width: 0;
+}
+#agent-clear-key-label { flex-direction: row; align-items: center; gap: 6px; }
+
 /* ----------------------------------------------------------------- toasts */
 
 .toasts {

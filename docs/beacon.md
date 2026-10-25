@@ -1,5 +1,9 @@
 # BEacon — BEam's web control panel
 
+**Etc → Agent Mode** configures private robot-side LLM conversations with
+OpenAI, Claude, Gemini, OpenRouter, Ollama, OpenClaw, or a custom endpoint.
+See [Agent Mode setup and behavior](agent-mode.md).
+
 BEacon is a small web UI served by the Be host on **port 8123**. Point any browser
 on the same network at the robot:
 

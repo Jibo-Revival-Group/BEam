@@ -38,6 +38,8 @@ const cameraController = require('./lib/camera-stream');
 const battery = require('./lib/battery-http');
 const telemetry = require('./lib/telemetry-http');
 const sleep = require('./lib/sleep-http');
+const agentSettings = require('./lib/agent-settings');
+const agentProvider = require('./lib/agent-provider');
 
 const MAX_UPLOAD = 256 * 1024 * 1024;
 const MAX_IMAGE = 16 * 1024 * 1024;
@@ -84,6 +86,13 @@ function sendPeople (res, snapshotPromise) {
 }
 
 const routes = {
+    'GET /api/agent/settings': guard((req, res) => { u.sendJson(res, 200, agentSettings.status()); }),
+    'POST /api/agent/settings': guard((req, res) => {
+        return u.readJson(req, 8192).then(body => u.sendJson(res, 200, agentSettings.save(body)));
+    }),
+    'POST /api/agent/models': guard((req, res) => {
+        return u.readJson(req, 8192).then(body => agentProvider.models(body)).then(data => u.sendJson(res, 200, data));
+    }),
     'GET /api/github/auth': guard((req, res) => { u.sendJson(res, 200, githubAuth.status()); }),
     'POST /api/github/auth': guard((req, res) => { return githubAuth.start().then(data => u.sendJson(res, 200, data)); }),
     'POST /api/github/auth/poll': guard((req, res) => { return githubAuth.poll().then(data => u.sendJson(res, 200, data)); }),

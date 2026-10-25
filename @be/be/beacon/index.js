@@ -11,6 +11,7 @@
  * browserify bundle, and the robot runs Electron 1.4.3 (Node 6).
  */
 
+require('../runtime-state').ensureBeam();
 const os = require('os');
 
 const server = require('./server');

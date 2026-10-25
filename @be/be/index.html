@@ -26,6 +26,7 @@
           window.__BE_BOOT_T0 = Date.now();
           function bootMs () { return Date.now() - window.__BE_BOOT_T0; }
           // Splash is already in the DOM — paint before heavy requires.
+          require('./runtime-state').ensureBeam();
           require('./skills-resolve').install();
           try { require('./beacon/lib/custom-skills').cleanup(); } catch (err) { console.warn('[Be] custom skill cleanup failed:', err.message); }
           console.log('[Be] loading - boot skills-resolve - ' + bootMs() + ' MS');

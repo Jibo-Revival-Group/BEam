@@ -27,7 +27,7 @@ service.upload(fixture.zip(wrapped)).then(function () {
     assert.strictEqual(require.resolve('@be/node6-test/package.json'), path.join(service.resolve('@be/node6-test'), 'package.json'));
     const registryPath = path.resolve(__dirname, '../@be/be/skill-registry.js'), module = { exports: {} };
     const fakeJibo = { utils: { PathUtils: { resolve: id => require.resolve(id) } }, loader: { deleteCache() {} }, expression: { destroyCaches() {} } };
-    const localRequire = id => id === 'jibo' ? fakeJibo : id === './skills-resolve' ? resolver : id === './beacon/lib/custom-skills' ? service : require(id);
+    const localRequire = id => id === './runtime-state' ? require('../@be/be/runtime-state') : id === 'jibo' ? fakeJibo : id === './skills-resolve' ? resolver : id === './beacon/lib/custom-skills' ? service : require(id);
     localRequire.cache = require.cache;
     new Function('require', 'module', 'exports', 'setTimeout', fs.readFileSync(registryPath, 'utf8'))(localRequire, module, module.exports, () => 0);
     let recovered = false;

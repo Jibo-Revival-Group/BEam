@@ -34,6 +34,7 @@ only lists `@be/be` as a launchable skill and OTA of `@be/be` ships the packs.
 ## New Be Skills
 
 - Recipe (aka Cooking): Cooking Videos inside Jibo
+- Music: Say “Hey Jibo, play Yes I'm A Mess” to search and play songs online, with video or album layouts. See [built-in music](docs/examples/music.md).
 - Jukebox: Loads music from local disk
 - Bad Apple: Bad Apple!! PV fullscreen on the face; swipe down to exit
 - Doom: (paused) Playable shareware DOOM — not currently on the menu
@@ -50,3 +51,20 @@ See [docs/beacon.md](docs/beacon.md).
 ## Documentation
 
 See [docs/README.md](docs/README.md) for how to create, build, and deploy Be skills.
+
+## Fresh-robot storage
+
+Be prepares missing Knowledge, BEacon, and jukebox directories before loading
+skills or cleanup modules, and prepares them again before opening a skill.
+BEacon recreates its data directory when accessed. The standalone
+`@be/be/runtime-state.js` helper matches BEnch's runtime helper so BEam can prepare
+its own storage without depending on an installed BEnch helper.
+
+New preferences use existing defaults (Fahrenheit and camera streaming enabled).
+Music libraries start empty, the built-in eye remains available, and integrations
+stay unpaired until configured. Existing settings, user media, identity and
+calibration are preserved; malformed settings are reported without being reset.
+PM selects normal mode; BEnch prepares local service credentials.
+
+Run `node tests/runtime-state.test.js` to exercise standalone initialization and
+missing-directory recovery without robot hardware.

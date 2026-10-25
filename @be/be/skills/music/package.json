@@ -1,0 +1,11 @@
+{
+  "name": "@be/music",
+  "version": "1.0.0",
+  "description": "Built-in online song requests and adaptive music playback.",
+  "main": "index.js",
+  "config": { "standalone": true },
+  "jibo": { "main": "index.html", "type": "asset-pack", "display-name": "music", "prompt": "Music" },
+  "engines": { "node": ">=6.0" },
+  "syncDependencies": ["jibo", "@be/be-framework"],
+  "scripts": { "test": "node tests/run.js" }
+}

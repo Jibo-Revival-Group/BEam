@@ -99,6 +99,15 @@ function runTests(receiverSource, clientSource, assert, Buffer) {
         assert.strictEqual(f.requests[1].body.message, 'auth_failed');
         passed++;
     }
+    {
+        const f = fixture(saved);
+        const action = Object.assign({}, command.action, {command: 'entity_control', domain: 'fan',
+            action: 'percentage', scope: 'named', targetName: 'office', value: '50', unit: 'percent'});
+        f.emit({skill: command.skill, action: action});
+        ['command', 'domain', 'action', 'scope', 'targetName', 'value', 'unit'].forEach(key =>
+            assert.strictEqual(f.requests[0].body[key], action[key]));
+        passed++;
+    }
     return passed;
 }
 if (typeof module !== 'undefined') { module.exports = runTests; }

@@ -47,7 +47,7 @@ function create(options) {
     const version = opts.version || tbdVersion; let queue = Promise.resolve(); let downloading = false;
     let downloadProgress = { state: 'idle' };
     function progress(id) { return Object.assign({}, !id || downloadProgress.id === id ? downloadProgress : { id: id, state: 'idle' }); }
-    let bannerQueue = Promise.resolve(); const bannerPending = Object.create(null), refreshingSources = Object.create(null);
+    let bannerQueue = Promise.resolve(); const bannerPending = Object.create(null), refreshingSources = Object.create(null), latestRefresh = Object.create(null);
     function atomic(file, data) {
         paths.ensureDir(path.dirname(file)); const temp = file + '.tmp-' + crypto.randomBytes(6).toString('hex');
         try { fs.writeFileSync(temp, JSON.stringify(data, null, 2)); fs.renameSync(temp, file); }
@@ -100,8 +100,14 @@ function create(options) {
             if (!selected.length) { return Promise.resolve(catalog()); }
         }
         // Fetch outside the mutation queue so a slow storefront cannot block offline theme use.
-        selected.forEach(source => { refreshingSources[source.id] = (refreshingSources[source.id] || 0) + 1; });
-        function release() { selected.forEach(source => { if (--refreshingSources[source.id] === 0) { delete refreshingSources[source.id]; } }); }
+        const refresh = {};
+        selected.forEach(source => { latestRefresh[source.id] = refresh; refreshingSources[source.id] = (refreshingSources[source.id] || 0) + 1; });
+        function release() {
+            selected.forEach(source => {
+                if (--refreshingSources[source.id] === 0) { delete refreshingSources[source.id]; }
+                if (latestRefresh[source.id] === refresh) { delete latestRefresh[source.id]; }
+            });
+        }
         const results = [];
         return operations.run('Storefront refresh', opts.refreshTimeout || 120000, operation => selected.reduce((chain, source) => chain.then(() => {
             operation.check(); return Promise.resolve().then(() => store.catalog(source.url, operation)).then(entries => {
@@ -114,7 +120,8 @@ function create(options) {
             const fresh = read();
             results.forEach(result => {
                 const source = fresh.sources.filter(v => v.id === result.id)[0];
-                if (source) { Object.assign(source, result, { attemptedAt: new Date().toISOString() }); }
+                // A slower tab must not replace the newest refresh's data or error.
+                if (source && latestRefresh[result.id] === refresh) { Object.assign(source, result, { attemptedAt: new Date().toISOString() }); }
             });
             if (!id) { fresh.catalogVersion = 2; }
             save(fresh); return catalog();
