@@ -1,9 +1,10 @@
 'use strict';
 
 const fs = require('fs'), path = require('path'), url = require('url'), paths = require('./paths');
-const providers = ['openai', 'claude', 'gemini', 'openrouter', 'ollama', 'openclaw', 'custom'];
+const providers = ['free', 'openai', 'claude', 'gemini', 'openrouter', 'ollama', 'openclaw', 'hermes', 'custom'];
 function fail(message) { const error = new Error(message); error.status = 400; return error; }
-function local(provider) { return ['ollama', 'openclaw', 'custom'].indexOf(provider) !== -1; }
+function local(provider) { return ['ollama', 'openclaw', 'hermes', 'custom'].indexOf(provider) !== -1; }
+function requiresKey(provider) { return provider !== 'free' && (provider === 'hermes' || !local(provider)); }
 function file() { return path.join(paths.dataDir(), 'agent.json'); }
 function read() {
     try { return JSON.parse(fs.readFileSync(file(), 'utf8')); }
@@ -14,6 +15,7 @@ function resolve(input, requireModel) {
     input = input || {};
     const saved = read(), provider = input.provider === undefined ? saved.provider : input.provider;
     if (providers.indexOf(provider) === -1) throw fail('Choose a supported provider.');
+    if (provider === 'free') return { provider: 'free', endpoint: '', model: 'gemma3:4b', apiKey: '' };
     const endpoint = local(provider) ? String(input.endpoint === undefined ? saved.endpoint || '' : input.endpoint).trim() : '';
     if (local(provider)) {
         const parsed = url.parse(endpoint);
@@ -30,14 +32,14 @@ function resolve(input, requireModel) {
     if (requireModel && !model) throw fail('Select or enter a model.');
     return { provider: provider, endpoint: endpoint, model: model, apiKey: apiKey };
 }
-function ready(config) { return !!config.model && (local(config.provider) ? !!config.endpoint : !!config.apiKey); }
+function ready(config) { return !!config.model && (!local(config.provider) || !!config.endpoint) && (!requiresKey(config.provider) || !!config.apiKey); }
 function publicSettings(config) {
     config = config || read();
     return { provider: config.provider, endpoint: config.endpoint, model: config.model, hasApiKey: !!config.apiKey, ready: ready(config) };
 }
 function save(input) {
     const config = resolve(input, true);
-    if (!local(config.provider) && !config.apiKey && !input.clearApiKey) throw fail('Enter an API key.');
+    if (requiresKey(config.provider) && !config.apiKey && !input.clearApiKey) throw fail('Enter an API key.');
     const target = file(), temporary = target + '.tmp';
     try {
         fs.writeFileSync(temporary, JSON.stringify(config), { mode: 0o600 });
@@ -46,4 +48,4 @@ function save(input) {
     } catch (_) { try { fs.unlinkSync(temporary); } catch (ignored) {} throw fail('Agent settings could not be saved.'); }
     return publicSettings(config);
 }
-module.exports = { read: read, resolve: resolve, save: save, status: publicSettings, ready: ready, local: local, fail: fail };
+module.exports = { read: read, resolve: resolve, save: save, status: publicSettings, ready: ready, local: local, requiresKey: requiresKey, fail: fail };

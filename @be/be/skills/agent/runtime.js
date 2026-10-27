@@ -1,4 +1,5 @@
 'use strict';
+const ThinkingEye = require('./thinking-eye');
 
 const STOP = /^(stop|stop chatting|exit ai mode|end conversation|cancel|goodbye)$/;
 function isStop(text) { return STOP.test(text.toLowerCase().replace(/[.!?,]/g, '').trim()); }
@@ -18,6 +19,7 @@ class Runtime {
     constructor(jibo, PIXI, settings, provider, exit) {
         this.jibo = jibo; this.PIXI = PIXI; this.settings = settings; this.provider = provider; this.exit = exit;
         this.history = []; this.unwatch = []; this.active = false; this.phase = 'entering';
+        this.thinkingEye = new ThinkingEye(jibo, () => this.active && !this.private() && this.phase === 'thinking');
     }
     private() { return !!(this.jibo.privacyController && this.jibo.privacyController.enabled); }
     watch(event, handler) {
@@ -93,7 +95,7 @@ class Runtime {
             if (!this.active || this.private()) return;
             this.speaking = true;
             return Promise.resolve(this.jibo.tts.speak(chunk)).then(() => { this.speaking = false; });
-        }), Promise.resolve());
+        }), this.thinkingEye.stop());
     }
     listen() {
         if (!this.active || this.private()) return;
@@ -120,6 +122,7 @@ class Runtime {
                 this.listenDeadline = null;
                 if (isStop(text)) { return this.speak('Okay. Talk to you later!').then(() => this.leave()); }
                 this.phase = 'thinking'; this.history.push({ role: 'user', content: text.trim().slice(0, 12000) });
+                this.thinkingEye.start();
                 while (this.history.length > 21 || (this.history.length > 1 && JSON.stringify(this.history).length > 24000)) this.history.splice(0, 2);
                 const operation = this.operation = this.provider.chat(this.config, this.history);
                 return operation.promise.then(reply => {
@@ -145,6 +148,7 @@ class Runtime {
         if (!this.active) return Promise.resolve();
         this.active = false;
         const jibo = this.jibo, cleanup = [];
+        cleanup.push(this.thinkingEye.stop());
         clearInterval(this.monitor); clearTimeout(this.silence); this.listenDeadline = null;
         this.unwatch.splice(0).forEach(off => off());
         if (this.draw) jibo.timer.off('update', this.draw);

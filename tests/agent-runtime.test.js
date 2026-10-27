@@ -94,6 +94,27 @@ async function run() {
         await transcribing.runtime.close();
         global.setTimeout = realSetTimeout; global.clearTimeout = realClearTimeout;
     }
+    // Listening/transcription watchdogs must not survive into a long generation.
+    const longGeneration = fixture();
+    const generationTimers = new Map(); let generationTimerId = 0;
+    global.setTimeout = (callback, delay) => { const id = ++generationTimerId; generationTimers.set(id, { callback, delay }); return id; };
+    global.clearTimeout = id => generationTimers.delete(id);
+    try {
+        await listening(longGeneration);
+        longGeneration.jibo.jetstream.events.sos.emit();
+        longGeneration.jibo.jetstream.events.eos.emit();
+        longGeneration.turns[0].pending.resolve({ status: longGeneration.types.SUCCEEDED, result: { text: 'Hello' } });
+        await flush();
+        assert.strictEqual(longGeneration.runtime.phase, 'thinking');
+        assert.strictEqual(generationTimers.size, 0, 'Listening watchdog must be cleared during generation');
+        longGeneration.requests[0].pending.resolve('A delayed response'); await flush();
+        assert.strictEqual(longGeneration.speech[1].text, 'A delayed response');
+        assert.strictEqual(longGeneration.exits(), 0);
+    } finally {
+        await longGeneration.runtime.close();
+        global.setTimeout = realSetTimeout; global.clearTimeout = realClearTimeout;
+    }
     console.log('Agent runtime: follow-ups, conversation history, colors, TTS sequencing, cancellation, privacy, swipe, failures and stalled transcription recovery passed.');
 }
-run().catch(error => { console.error(error); process.exitCode = 1; });
+module.exports = { fixture, flush, listening };
+if (require.main === module) run().catch(error => { console.error(error); process.exitCode = 1; });

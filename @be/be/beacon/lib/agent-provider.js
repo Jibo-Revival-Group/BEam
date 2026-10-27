@@ -1,8 +1,10 @@
 'use strict';
 
 const http = require('http'), https = require('https'), url = require('url'), fs = require('fs'), path = require('path');
+const crypto = require('crypto');
 const settings = require('./agent-settings');
 const SYSTEM = 'You are Jibo, a friendly, curious conversational robot. Respond briefly, preferably in 1–2 sentences. Use plain spoken language and avoid Markdown. You can converse but cannot perform robot or device actions. Do not claim to have performed actions.';
+const HERMES_SYSTEM = 'You are speaking through Jibo, a friendly, curious conversational robot. Respond briefly, preferably in 1–2 sentences. Use plain spoken language and avoid Markdown. You may use your configured tools when useful. Do not claim to have performed robot or device actions unless a tool actually performed them. Only your final answer will be spoken.';
 const BASES = { openai: 'https://api.openai.com/v1', claude: 'https://api.anthropic.com/v1', gemini: 'https://generativelanguage.googleapis.com/v1beta', openrouter: 'https://openrouter.ai/api/v1' };
 let authorities;
 function failure(message) { return settings.fail(message || 'The AI service could not complete the request.'); }
@@ -14,6 +16,11 @@ function request(config, route, body) {
         const options = url.parse(base(config) + route);
         options.method = body === undefined ? 'GET' : 'POST';
         options.headers = { Accept: 'application/json', 'Content-Type': 'application/json' };
+        if (config.provider === 'hermes' && route === '/chat/completions') {
+            // Runtime config is per conversation and is never saved after this mutation.
+            if (!config._hermesSession) Object.defineProperty(config, '_hermesSession', { value: 'jibo-' + crypto.randomBytes(16).toString('hex') });
+            options.headers['X-Hermes-Session-Key'] = config._hermesSession;
+        }
         if (config.apiKey) {
             if (config.provider === 'claude') options.headers['x-api-key'] = config.apiKey;
             else if (config.provider === 'gemini') options.headers['x-goog-api-key'] = config.apiKey;
@@ -62,7 +69,8 @@ function request(config, route, body) {
 }
 function models(input) {
     const config = settings.resolve(input, false);
-    if (!settings.local(config.provider) && !config.apiKey) return Promise.reject(failure('Enter an API key to load models.'));
+    if (config.provider === 'free') return Promise.resolve({ models: [{ id: 'gemma3:4b', name: 'gemma3:4b (Free)' }] });
+    if (settings.requiresKey(config.provider) && !config.apiKey) return Promise.reject(failure('Enter an API key to load models.'));
     function page(next, collected, pages) {
         let route = config.provider === 'ollama' ? '/api/tags' : '/models';
         if (next) route += config.provider === 'claude' ? '?after_id=' + encodeURIComponent(next) : '?pageToken=' + encodeURIComponent(next);
@@ -81,7 +89,12 @@ function models(input) {
     return page(null, [], 1).then(list => ({ models: list.sort((a, b) => a.id.localeCompare(b.id)) }));
 }
 function chat(config, history) {
-    const messages = [{ role: 'system', content: SYSTEM }].concat(history);
+    if (config.provider === 'free') return require('./agent-free').chat(history);
+    if (config.provider === 'hermes' && !config._hermesSession) Object.defineProperty(config, '_hermesSession', { value: 'jibo-' + crypto.randomBytes(16).toString('hex') });
+    // Hermes fingerprints header-less chat transcripts using the system and first user
+    // message. A stable per-conversation nonce prevents identical greetings colliding.
+    const prompt = config.provider === 'hermes' ? HERMES_SYSTEM + '\nConversation scope: ' + config._hermesSession : SYSTEM;
+    const messages = [{ role: 'system', content: prompt }].concat(history);
     let route = '/chat/completions', body = { model: config.model, messages: messages, stream: false }, extract = data => data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
     if (config.provider === 'openai') {
         route = '/responses'; body = { model: config.model, instructions: SYSTEM, input: history, store: false };
@@ -95,6 +108,12 @@ function chat(config, history) {
         extract = data => (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts || []).filter(part => !part.thought && typeof part.text === 'string').map(part => part.text).join('\n');
     } else if (config.provider === 'ollama') route = '/api/chat';
     if (config.provider === 'ollama') extract = data => data.message && data.message.content;
+    if (config.provider === 'hermes') extract = data => {
+        const choice = data.choices && data.choices[0];
+        if (choice && choice.finish_reason === 'cancelled') throw failure('The Hermes request was interrupted.');
+        if (choice && choice.finish_reason === 'error') throw failure('Hermes could not complete the request.');
+        return choice && choice.message && choice.message.content;
+    };
     const operation = request(config, route, body);
     operation.promise = operation.promise.then(data => {
         const text = extract(data);
