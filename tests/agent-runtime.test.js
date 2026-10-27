@@ -60,6 +60,11 @@ async function run() {
     const stopping = fixture(); await listening(stopping);
     stopping.turns[0].pending.resolve({ status: types.SUCCEEDED, result: { text: 'stop chatting' } }); await flush();
     assert.strictEqual(stopping.requests.length, 0); stopping.speech[1].pending.resolve(); await flush(); assert.strictEqual(stopping.exits(), 1);
+    const goodbye = fixture(); await listening(goodbye);
+    goodbye.turns[0].pending.resolve({ status: types.SUCCEEDED, result: { text: 'Good-bye, Jibo!' } }); await flush();
+    assert.strictEqual(goodbye.requests.length, 0, 'Common ASR variants of goodbye should not be sent to the model');
+    assert.strictEqual(goodbye.speech[1].text, 'Okay. Talk to you later!');
+    goodbye.speech[1].pending.resolve(); await flush(); assert.strictEqual(goodbye.exits(), 1);
     const privacy = fixture(); await listening(privacy);
     privacy.jibo.privacyController.enabled = true;
     const red = { parent: {} }; privacy.jibo.face.views._waterMark = red;

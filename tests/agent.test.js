@@ -90,6 +90,9 @@ async function run() {
     assert(settings.save({ provider: 'ollama', endpoint: 'http://test', model: 'chosen' }).ready);
     const Runtime = require(root + '/skills/agent/runtime');
     assert(Runtime.isStop('Stop chatting!')); assert(!Runtime.isStop('Do not stop chatting'));
+    assert(Runtime.isStop('good bye')); assert(Runtime.isStop('Good-bye, Jibo!'));
+    assert(Runtime.isStop('Okay, goodbye.')); assert(Runtime.isStop('Bye!'));
+    assert(!Runtime.isStop('I said goodbye'));
     const chunks = Runtime.speechChunks('<mark name="x"/> & hello ' + 'word '.repeat(300));
     assert(chunks.every(chunk => chunk.length <= 450 && !chunk.includes('<')));
     await providerTest();

@@ -1,8 +1,14 @@
 'use strict';
 const ThinkingEye = require('./thinking-eye');
 
-const STOP = /^(stop|stop chatting|exit ai mode|end conversation|cancel|goodbye)$/;
-function isStop(text) { return STOP.test(text.toLowerCase().replace(/[.!?,]/g, '').trim()); }
+const STOP = new Set(['stop', 'stop chatting', 'exit ai mode', 'end conversation', 'cancel', 'goodbye', 'good bye', 'bye', 'bye bye']);
+function isStop(text) {
+    if (typeof text !== 'string') return false;
+    let normalized = text.toLowerCase().replace(/[’']/g, '').replace(/[-_]/g, ' ')
+        .replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+    normalized = normalized.replace(/^(?:okay|ok|alright) /, '').replace(/ jibo$/, '');
+    return STOP.has(normalized);
+}
 function speechChunks(text) {
     // Escape provider text before giving it to the SLIM-capable TTS engine.
     const words = String(text).replace(/[*`#]/g, '').split(/\s+/), chunks = []; let chunk = '';

@@ -16,7 +16,8 @@ eye turn blue. While a provider generates an answer, Jibo plays his native
 `Thinking_Eye_Loop_01` animation. It stops before speech and when the session
 exits, including privacy takeover. A green dot remains at the bottom right throughout the session.
 Say “stop,” “stop chatting,” “exit AI mode,” “end conversation,” “cancel,” or
-“goodbye” during a listening turn to exit. Swiping down, enabling privacy,
+“goodbye” (also recognized as “good bye,” “bye,” “bye bye,” or when addressed
+to Jibo) during a listening turn to exit. Swiping down, enabling privacy,
 switching skills, or 60 seconds without speech also exits. Speech interruption
 is not supported; wait until Jibo finishes his reply.
 
