@@ -147,7 +147,14 @@ test('adaptive layouts, artwork failures and stale image callbacks', () => {
         addChildAt(child, at) { child.parent = this; this.children.splice(at, 0, child); }
         removeChild(child) { this.children.splice(this.children.indexOf(child), 1); child.parent = null; }
     }
-    class Graphics extends Container { beginFill() {} drawRect() {} endFill() {} }
+    class Graphics extends Container {
+        constructor() { super(); this.shapes = []; }
+        beginFill() { return this; } lineStyle() { return this; }
+        drawRect() { this.shapes.push({ kind: 'rect' }); return this; }
+        drawRoundedRect() { this.shapes.push({ kind: 'roundedRect', args: Array.prototype.slice.call(arguments) }); return this; }
+        drawCircle() { this.shapes.push({ kind: 'circle' }); return this; }
+        clear() { this.shapes = []; return this; } endFill() { return this; }
+    }
     class Texture { destroy() {} }
     class Sprite { destroy() {} }
     class Image { constructor() { this.naturalWidth = this.naturalHeight = 500; } }
@@ -156,20 +163,38 @@ test('adaptive layouts, artwork failures and stale image callbacks', () => {
     try {
         const configuration = ui.config({ ActionData: { CALLBACK: 'callback' } }), components = {};
         configuration.componentConfigs.forEach(config => { components[config.id] = { display: new Container(), style: {}, lockInput: value => { components[config.id].locked = value; } }; });
+        const buttons = configuration.componentConfigs.filter(config => config.type === 'ActionButton');
+        assert.strictEqual(buttons.length, 8, 'native ActionButtons for each control (three toggle faces)');
+        buttons.forEach(config => {
+            assert(/^core:\/\/resources\/actionIcons\/|\/assets\/icons\//.test(config.iconSrc), 'stock Jibo or bundled white icons');
+            if (config.iconSrc.indexOf('core://') !== 0) assert(fs.existsSync(config.iconSrc), config.iconSrc + ' is bundled');
+            const size = 264 * config.transform.scaleX;
+            assert(config.position.x >= 0 && config.position.x + size <= 1280 && config.position.y + size <= 720);
+        });
         ui.decorate({ stage: new Container(), getComponentById: id => components[id] },
             { Container: Container, Graphics: Graphics, Text: class {}, Texture: Texture, BaseTexture: class {}, Sprite: Sprite });
-        const state = { song: { title: 'Hello', artist: 'Adele', duration: 200 }, phase: 'playing', format: 'video' };
+        const state = { song: { title: 'Hello', artist: 'Adele', duration: 200 }, position: 50, phase: 'playing', format: 'video' };
         const session = { options: {}, fit: () => {} };
-        ui.render(state, session); assert.strictEqual(session.options.viewport.width, 960); assert(!ui.artLayer.visible);
-        state.format = 'cover'; ui.render(state, session); assert.strictEqual(session.options.viewport.width, 380);
+        const shown = id => components[id].display.visible;
+        ui.render(state, session); assert.strictEqual(session.options.viewport.width, 700); assert(!ui.artLayer.visible);
+        assert(shown('toggle_pause') && !shown('toggle_play') && !shown('toggle_replay'));
+        assert.strictEqual(ui.progressFraction, 0.25, 'timeline reflects the current song position');
+        state.phase = 'paused'; ui.render(state, session); assert(shown('toggle_play') && !shown('toggle_pause'));
+        assert(components.toggle_pause.locked, 'hidden toggle faces never take touches');
+        state.phase = 'ended'; ui.render(state, session); assert(shown('toggle_replay')); state.phase = 'playing';
+        state.position = 240; ui.render(state, session); assert.strictEqual(ui.progressFraction, 1, 'timeline clamps past the end');
+        state.position = -20; ui.render(state, session); assert.strictEqual(ui.progressFraction, 0, 'timeline clamps before the start');
+        state.position = 50; ui.render(state, session);
+        state.format = 'cover'; ui.render(state, session); assert.strictEqual(session.options.viewport.width, 390);
         state.format = 'lyrics'; ui.render(state, session); assert(ui.artLayer.visible, 'missing lyric artwork uses placeholder');
         ui.artwork('http://localhost/art/old', () => { throw Error('stale image must not render'); });
         const stale = ui.image.onload;
         ui.artwork('http://localhost/art/new', () => {});
         stale(); assert.strictEqual(ui.texture, null);
         ui.image.onerror(); ui.render(state, session); assert(ui.artLayer.visible);
-        state.phase = 'loading'; ui.render(state, null); assert(components.toggle.locked); assert(!components.stop.locked);
-        ui.buttons.forEach(button => { assert(button[3] >= 64); assert(button[2] + button[3] <= 1280); });
+        state.phase = 'loading'; ui.render(state, null);
+        assert(components.toggle_pause.locked && components.back.locked); assert(!components.stop.locked);
+        assert.strictEqual(components.back.display.alpha, 0.4); assert.strictEqual(components.stop.display.alpha, 1);
     } finally { ui.releaseArtwork(); global.Image = previousImage; }
 });
 test('close always releases all resources and completes every callback', () => {

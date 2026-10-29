@@ -41,6 +41,12 @@ function assertEditable(data, calendarVisible) {
     assert(elements.some(n => n.attrs['data-action'] === 'save-person'));
     assert(elements.some(n => n.attrs['data-action'] === 'remove-person'));
     assert.strictEqual(elements.some(n => n.className === 'people-calendar'), calendarVisible);
+    if (calendarVisible) {
+        assert(elements.some(n => n.className === 'people-calendar-url'), 'Calendar feed URL is editable');
+        assert(elements.some(n => n.attrs['data-action'] === 'save-calendar'), 'Save calendar stays available');
+        assert(elements.some(n => n.attrs['data-action'] === 'test-calendar'), 'Test calendar stays available');
+    }
+    if (data.calendarAvailable !== true) assert(nodes['#people-list'].textContent.includes('Calendar connection unavailable.'), 'Cloud outage is explained without hiding the feed field');
     assert(!nodes['#people-sync'].textContent.includes('cloud credentials'));
     assert(!nodes['#people-list'].textContent.includes('cloud credentials'));
 }
@@ -53,23 +59,24 @@ function request(server, method, body) {
 }
 async function run() {
     const saves = [];
+    const feedUrl = 'https://calendar.example/private/calendar.cal';
     const saveCalendar = new Function('document', 'api', 'toast', 'renderPeople',
         'return ({' + app.slice(app.indexOf("        'save-calendar': function"), app.indexOf("        'test-calendar': function")) + '})["save-calendar"];')(
-        { querySelector: selector => selector.includes('people-calendar-url') ? { value: '' } : { checked: false } },
+        { querySelector: selector => selector.includes('people-calendar-url') ? { value: feedUrl } : { checked: true } },
         (method, route, body) => { saves.push({ method, route, body }); return Promise.resolve(snapshot()); },
         (message, kind) => { assert.notStrictEqual(kind, 'error', message); }, () => {});
     await saveCalendar({ getAttribute: () => 'person' });
-    assert.deepStrictEqual(saves, [{ method: 'PUT', route: '/api/people/calendar', body: { id: 'person', isEnabled: false } }]);
+    assert.deepStrictEqual(saves, [{ method: 'PUT', route: '/api/people/calendar', body: { id: 'person', icalUrl: feedUrl, isEnabled: true } }]);
     for (credentials of [null, 'invalid JSON', '{}']) {
         const result = await calendars.attachStatus(snapshot());
-        assert.strictEqual(result.calendarAvailable, false); assertEditable(result, false);
+        assert.strictEqual(result.calendarAvailable, false); assertEditable(result, true);
     }
     credentials = null;
     const server = serverModule.exports.create(); await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
     try {
-        const roster = await request(server, 'GET'); assert.strictEqual(roster.status, 200); assertEditable(roster.data, false);
+        const roster = await request(server, 'GET'); assert.strictEqual(roster.status, 200); assertEditable(roster.data, true);
         const saved = await request(server, 'PUT', { id: 'person', firstName: 'Updated' });
-        assert.strictEqual(saved.status, 200); assert.strictEqual(saved.data.members[0].firstName, 'Updated'); assertEditable(saved.data, false);
+        assert.strictEqual(saved.status, 200); assert.strictEqual(saved.data.members[0].firstName, 'Updated'); assertEditable(saved.data, true);
     } finally { await new Promise(resolve => server.close(resolve)); }
     let cloudError = false;
     const cloud = http.createServer((req, res) => {
@@ -78,8 +85,8 @@ async function run() {
     credentials = JSON.stringify({ accessKeyId: 'test', secretAccessKey: 'test', endpoint: 'http://127.0.0.1:' + cloud.address().port });
     try {
         const available = await calendars.attachStatus(snapshot()); assert.strictEqual(available.calendarAvailable, true); assertEditable(available, true);
-        cloudError = true; const unavailable = await calendars.attachStatus(snapshot()); assert.strictEqual(unavailable.calendarAvailable, false); assertEditable(unavailable, false);
+        cloudError = true; const unavailable = await calendars.attachStatus(snapshot()); assert.strictEqual(unavailable.calendarAvailable, false); assertEditable(unavailable, true);
     } finally { await new Promise(resolve => cloud.close(resolve)); }
-    console.log('Local Loop editing survives missing/invalid calendar credentials and cloud errors; calendar fields appear only when available');
+    console.log('Local Loop editing survives missing/invalid calendar credentials and cloud errors; feed URL stays editable');
 }
 run().catch(err => { console.error(err); process.exitCode = 1; });

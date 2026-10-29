@@ -967,7 +967,7 @@
                     actionsRow.appendChild(remove);
                 }
                 card.appendChild(actionsRow);
-                if (data.calendarAvailable === true) { card.appendChild(renderPersonCalendar(member, data)); }
+                card.appendChild(renderPersonCalendar(member, data));
             }
 
             list.appendChild(card);
@@ -976,6 +976,9 @@
 
     function calendarStatusText (member, data) {
         var calendar = member.calendar || {};
+        if (!data || data.calendarAvailable !== true) {
+            return 'Calendar connection unavailable. You can enter a feed URL, but saving or testing requires cloud access.';
+        }
         if (!calendar.configured) { return 'No personal calendar yet.'; }
         var parts = [];
         parts.push(calendar.host ? ('Saved at ' + calendar.host) : 'Calendar saved');

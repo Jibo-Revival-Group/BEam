@@ -469,6 +469,7 @@ const prify = PromiseUtils.promisify;
 const TemperatureUnits_1 = require("../utils/TemperatureUnits");
 const ATTENTION_TIMEOUT = 2000;
 const CLOUD_SKILL_TIMEOUT = 8000;
+const PERSONAL_REPORT_TIMEOUT = 20000;
 const CLOUD_SKILL_TIMED_OUT = 'CLOUD_SKILL_TIMED_OUT';
 const SKILL_ENTRY = 'Skill Entry';
 class ProcessCloudState extends exports.State {
@@ -479,7 +480,8 @@ class ProcessCloudState extends exports.State {
         this.stoppedOrComplete = false;
         this.onEntry = (transition, data) => __awaiter(this, void 0, void 0, function* () {
             this.stoppedOrComplete = false;
-            const isGQA = !!((data.listenResult.match.cloudSkill === 'answer') || (data.listenResult.match.cloudSkill === 'news'));
+            const cloudSkill = data.listenResult.match && data.listenResult.match.cloudSkill;
+            const isGQA = !!((cloudSkill === 'answer') || (cloudSkill === 'news'));
             if (isGQA) {
                 this.loopingAsset = this.nimbus.jibo.animDB.getAnimByName(this.loopingAssetName);
                 try {
@@ -491,7 +493,13 @@ class ProcessCloudState extends exports.State {
             }
             try {
                 this.nimbus.log.info('Awaiting Cloud Skill response...');
-                data.cloudResponse = yield timeout(data.listenResult.cloudSkillResponse, CLOUD_SKILL_TIMEOUT, 'Cloud Skill Response Timeout');
+                const isPersonalReport = cloudSkill === 'report-skill' ||
+                    cloudSkill === 'personal-report-skill' ||
+                    cloudSkill === 'personal-report';
+                const responseTimeout = isPersonalReport
+                    ? PERSONAL_REPORT_TIMEOUT
+                    : CLOUD_SKILL_TIMEOUT;
+                data.cloudResponse = yield timeout(data.listenResult.cloudSkillResponse, responseTimeout, 'Cloud Skill Response Timeout');
                 this.nimbus.log.info('Received Cloud Skill response.');
             }
             catch (error) {

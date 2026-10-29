@@ -23,6 +23,7 @@ const timeout = PromiseUtils.timeout;
 const prify = PromiseUtils.promisify;
 const ATTENTION_TIMEOUT = 2000;
 const CLOUD_SKILL_TIMEOUT = 8000;
+const PERSONAL_REPORT_TIMEOUT = 20000;
 const CLOUD_SKILL_TIMED_OUT = 'CLOUD_SKILL_TIMED_OUT';
 const SKILL_ENTRY = 'Skill Entry';
 
@@ -62,7 +63,8 @@ export class ProcessCloudState extends State {
 
         this.onEntry = async (transition: Transition, data: Dataflow): Promise<Dataflow> => {
             this.stoppedOrComplete = false;
-            const isGQA = !!((data.listenResult.match.cloudSkill === 'answer') || (data.listenResult.match.cloudSkill === 'news'));
+            const cloudSkill = data.listenResult.match && data.listenResult.match.cloudSkill;
+            const isGQA = !!((cloudSkill === 'answer') || (cloudSkill === 'news'));
 
             if (isGQA) {
                 this.loopingAsset = this.nimbus.jibo.animDB.getAnimByName(this.loopingAssetName);
@@ -75,7 +77,13 @@ export class ProcessCloudState extends State {
 
             try {
                 this.nimbus.log.info('Awaiting Cloud Skill response...');
-                data.cloudResponse = await timeout<jibo.jetstream.types.SkillActionData>(data.listenResult.cloudSkillResponse, CLOUD_SKILL_TIMEOUT, 'Cloud Skill Response Timeout');
+                const isPersonalReport = cloudSkill === 'report-skill' ||
+                    cloudSkill === 'personal-report-skill' ||
+                    cloudSkill === 'personal-report';
+                const responseTimeout = isPersonalReport
+                    ? PERSONAL_REPORT_TIMEOUT
+                    : CLOUD_SKILL_TIMEOUT;
+                data.cloudResponse = await timeout<jibo.jetstream.types.SkillActionData>(data.listenResult.cloudSkillResponse, responseTimeout, 'Cloud Skill Response Timeout');
                 this.nimbus.log.info('Received Cloud Skill response.');
             } catch (error) {
                 await this.stopThinkingAnim();

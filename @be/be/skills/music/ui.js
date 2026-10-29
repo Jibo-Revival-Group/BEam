@@ -1,46 +1,74 @@
 'use strict';
 
-const VIDEO = { x: 160, y: 30, width: 960, height: 440 };
-const COVER = { x: 110, y: 160, width: 380, height: 380 };
+const path = require('path');
+
+// Layout follows Jibo's own Radio player: black face, media centred, round
+// ActionButtons with stock white icons in two side columns, text centred below.
+const VIDEO = { x: 290, y: 110, width: 700, height: 394 };
+const COVER = { x: 445, y: 110, width: 390, height: 390 };
+const BAR = { x: 290, y: 552, width: 700, height: 10 };
+const GREY = [0x58586D, 0x282735], JIBO = [0x25F2FB, 0x107799];
+const SCALE = 0.4, SIZE = 264 * SCALE;
+const core = name => 'core://resources/actionIcons/' + name + '.png';
+const own = name => path.join(__dirname, 'assets', 'icons', name + '.png');
+// [id, action, label, icon, column centre x, row]
+const BUTTONS = [
+    ['back', 'back', 'Back 15', core('back'), 145, 0],
+    ['toggle_pause', 'toggle', 'Pause', core('pause'), 145, 1],
+    ['toggle_play', 'toggle', 'Play', core('play'), 145, 1],
+    ['toggle_replay', 'toggle', 'Replay', core('restart'), 145, 1],
+    ['forward', 'forward', 'Ahead 15', own('forward'), 145, 2],
+    ['louder', 'louder', 'Louder', core('add'), 1135, 0],
+    ['quieter', 'quieter', 'Quieter', own('minus'), 1135, 1],
+    ['stop', 'stop', 'Stop', core('stop'), 1135, 2]
+];
+const ROW_Y = [100, 255, 410];
+
 class UI {
-    constructor(actions) { this.actions = actions; this.image = null; this.texture = null; this.artGeneration = 0; }
+    constructor(actions) {
+        this.actions = actions; this.image = null; this.texture = null; this.artGeneration = 0;
+        this.progressTrack = null; this.progressFill = null; this.progressFraction = 0;
+        this.buttons = BUTTONS;
+    }
     config(views) {
         const components = [];
-        const label = (id, x, y, width, size) => components.push({ type: 'Label', id: id, text: '',
-            position: { x: x, y: y }, targetAnchor: { x: 0, y: 0.5 }, bounds: { width: width, height: 110 },
-            style: { fontFamily: 'Proxima Nova Soft', fontSize: size, fill: '#ffffff', align: 'left' } });
-        label('title', 160, 500, 960, 36); label('artist', 160, 552, 960, 28); label('status', 180, 95, 920, 28);
-        label('position', 840, 565, 310, 24);
-        this.buttons = [
-            ['toggle', 'Pause', 170, 180], ['back', '-15s', 370, 140], ['forward', '+15s', 530, 140],
-            ['quieter', 'Vol -', 690, 140], ['louder', 'Vol +', 850, 140], ['stop', 'Stop', 1010, 140]
-        ];
-        this.buttons.forEach(button => {
-            components.push({ type: 'Button', id: button[0], assets: [], position: { x: button[2], y: 610 },
-                hitArea: { x: 0, y: 0, width: button[3], height: 76 },
-                action: { type: views.ActionData.CALLBACK, data: { callback: () => this.actions[button[0]]() } } });
-            label(button[0] + 'Text', button[2] + 18, 648, button[3] - 28, 26);
+        const label = (id, x, y, width, size, font, bold) => components.push({ type: 'Label', id: id, text: '',
+            position: { x: x, y: y }, targetAnchor: { x: 0.5, y: 0.5 }, bounds: { width: width },
+            style: { fontFamily: font, fontStyle: bold ? 'bold' : 'normal', fontSize: size, fill: '#FFFFFF', align: 'center' } });
+        label('status', 640, 58, 1000, 36, 'Proxima Nova Soft');
+        label('position', 640, 528, 400, 28, 'Proxima Nova Light');
+        label('artist', 640, 610, 1120, 45, 'Proxima Nova', true);
+        label('title', 640, 662, 1120, 45, 'Proxima Nova Light');
+        BUTTONS.forEach(button => {
+            const top = ROW_Y[button[5]];
+            components.push({ type: 'ActionButton', id: button[0], iconSrc: button[3],
+                colors: button[1] === 'toggle' ? JIBO : GREY,
+                position: { x: button[4] - SIZE / 2, y: top }, transform: { scaleX: SCALE, scaleY: SCALE },
+                action: { type: views.ActionData.CALLBACK, data: { callback: () => this.actions[button[1]]() } } });
+            label(button[0] + 'Text', button[4], top + SIZE + 22, 230, 30, 'Proxima Nova Light');
         });
         return { viewConfig: { type: 'View', id: 'music', category: 'gui', ignoreSwipeDown: true, transitionStageOnly: true }, componentConfigs: components };
     }
     decorate(view, PIXI) {
         this.view = view; this.PIXI = PIXI;
-        this.background = new PIXI.Graphics(); this.background.beginFill(0x07151b); this.background.drawRect(0, 0, 1280, 720); this.background.endFill();
+        this.background = new PIXI.Graphics();
+        this.background.beginFill(0x000000); this.background.drawRect(0, 0, 1280, 720); this.background.endFill();
         view.stage.addChildAt(this.background, 0);
         this.mediaLayer = new PIXI.Container(); view.stage.addChildAt(this.mediaLayer, 1);
         this.artLayer = new PIXI.Container(); view.stage.addChildAt(this.artLayer, 2);
-        this.placeholder = new PIXI.Graphics(); this.placeholder.beginFill(0x17363f); this.placeholder.drawRect(COVER.x, COVER.y, COVER.width, COVER.height); this.placeholder.endFill();
+        this.placeholder = new PIXI.Graphics(); this.placeholder.beginFill(0x21202b);
+        this.placeholder.drawRect(COVER.x, COVER.y, COVER.width, COVER.height); this.placeholder.endFill();
         this.artLayer.addChild(this.placeholder);
-        const note = new PIXI.Text('♪', { fontSize: 128, fill: '#c4dce2' }); note.x = 235; note.y = 250; this.artLayer.addChild(note);
-        this.buttons.forEach(button => {
-            const component = view.getComponentById(button[0]), shape = new PIXI.Graphics();
-            shape.beginFill(0x17363f); shape.drawRect(0, 0, button[3], 76); shape.endFill(); component.display.addChildAt(shape, 0);
-        });
+        const note = new PIXI.Text('♪', { fontFamily: 'Proxima Nova Light', fontSize: 140, fill: '#58586D' });
+        note.x = COVER.x + COVER.width / 2 - 40; note.y = COVER.y + COVER.height / 2 - 90; this.artLayer.addChild(note);
+        // Same track/fill palette as Jibo's native ListProgress bar.
+        this.progressTrack = new PIXI.Graphics(); this.progressFill = new PIXI.Graphics();
+        view.stage.addChild(this.progressTrack); view.stage.addChild(this.progressFill);
+        this.artLayer.visible = false;
     }
-    label(id, value, x, y, width) {
+    label(id, value, width) {
         const component = this.view.getComponentById(id);
         if (!component) return;
-        if (x !== undefined) { component.display.x = x; component.display.y = y; }
         let text = String(value || '');
         if (this.PIXI.TextMetrics && width) {
             while (text.length > 1 && this.PIXI.TextMetrics.measureText(text, component.style).width > width) text = text.slice(0, -2).trim() + '…';
@@ -50,15 +78,31 @@ class UI {
     render(state, session) {
         if (!this.view || !this.mediaLayer) return;
         const album = state.format === 'cover' || state.format === 'lyrics';
-        this.label('title', state.song && state.song.title, album ? 550 : 160, album ? 255 : 500, album ? 600 : 960);
-        this.label('artist', state.song && state.song.artist, album ? 550 : 160, album ? 325 : 550, album ? 600 : 660);
-        this.label('status', state.message || '', 180, 95, 920);
-        this.label('position', state.song ? clock(state.position) + ' / ' + clock(state.song.duration) : '', 840, 565, 310);
-        this.buttons.forEach(button => {
-            const enabled = button[0] === 'stop' || !!state.song && !!session && /^(playing|paused|ended)$/.test(state.phase);
-            this.view.getComponentById(button[0]).lockInput(!enabled);
-            this.label(button[0] + 'Text', button[0] === 'toggle' ? state.phase === 'ended' ? 'Replay' : state.phase === 'paused' ? 'Play' : 'Pause' : button[1]);
-            this.view.getComponentById(button[0] + 'Text').display.alpha = enabled ? 1 : 0.35;
+        const song = state.song;
+        this.label('status', state.message || 'Music', 1000);
+        this.label('artist', song && song.artist, 1120);
+        this.label('title', song && song.title, 1120);
+        this.label('position', song ? clock(state.position) + ' / ' + clock(song.duration) : '', 400);
+
+        const duration = song && Number(song.duration);
+        this.progressFraction = duration > 0 ? Math.max(0, Math.min(1, Number(state.position || 0) / duration)) : 0;
+        this.progressTrack.clear(); this.progressTrack.beginFill(0x21202b);
+        this.progressTrack.drawRect(BAR.x, BAR.y, BAR.width, BAR.height); this.progressTrack.endFill();
+        this.progressFill.clear(); this.progressFill.beginFill(0x58586D);
+        if (this.progressFraction > 0) this.progressFill.drawRect(BAR.x, BAR.y, BAR.width * this.progressFraction, BAR.height);
+        this.progressFill.endFill();
+        this.progressTrack.visible = this.progressFill.visible = !!song;
+
+        const playable = !!song && !!session && /^(playing|paused|ended)$/.test(state.phase);
+        const toggle = state.phase === 'ended' ? 'toggle_replay' : state.phase === 'paused' ? 'toggle_play' : 'toggle_pause';
+        BUTTONS.forEach(button => {
+            const id = button[0], component = this.view.getComponentById(id), text = this.view.getComponentById(id + 'Text');
+            const shown = button[1] !== 'toggle' || id === toggle;
+            const enabled = shown && (id === 'stop' || playable);
+            component.lockInput(!enabled);
+            component.display.visible = text.display.visible = shown;
+            component.display.alpha = text.display.alpha = enabled ? 1 : 0.4;
+            text.text = button[2];
         });
         const showArt = album && (state.format === 'lyrics' || !!this.texture || !session);
         this.artLayer.visible = showArt; this.mediaLayer.visible = !showArt;
