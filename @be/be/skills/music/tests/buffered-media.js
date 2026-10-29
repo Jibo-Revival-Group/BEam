@@ -51,7 +51,8 @@ module.exports = function () {
         video.complete(); video.complete(); assert(!responses[0].paused);
         video.ranges = [[0, 25]]; stream.pump(stream.tracks[0]); assert(responses[0].paused);
         media.currentTime = 10; stream.pump(stream.tracks[0]); assert(!responses[0].paused);
-        media.currentTime = 20; stream.pump(stream.tracks[0]); assert.deepEqual(video.removals[0], [0, 15]); video.complete();
+        media.currentTime = 20; stream.pump(stream.tracks[0]); assert.strictEqual(video.removals.length, 0, 'a keyframe-sized gap behind playback stays buffered');
+        video.ranges = [[0, 60]]; media.currentTime = 45; stream.pump(stream.tracks[0]); assert.deepEqual(video.removals[0], [0, 15]); video.complete();
         responses[0].emit('end'); responses[1].emit('end'); assert.strictEqual(stream.source.readyState, 'ended');
         assert.strictEqual(errors.length, 0);
     } finally { stream.close(); }

@@ -5,7 +5,7 @@ const http = require('http');
 const https = require('https');
 const url = require('url');
 const timers = require('timers');
-const MAX_QUEUE = 2 * 1024 * 1024, RESUME_QUEUE = 512 * 1024, AHEAD = 20;
+const MAX_QUEUE = 2 * 1024 * 1024, RESUME_QUEUE = 512 * 1024, AHEAD = 20, KEEP_BEHIND = 30;
 class BufferedMedia {
     constructor(media, options, fail) {
         this.media = media; this.options = options; this.fail = fail;
@@ -76,8 +76,9 @@ class BufferedMedia {
             else if (track.paused && track.bytes < RESUME_QUEUE && ahead < AHEAD) { track.paused = false; response.resume(); }
         }
         if (track.buffer.updating) return;
-        // Keep only a small played tail in memory on the robot.
-        const ranges = track.buffer.buffered, removeTo = (this.media.currentTime || 0) - 5;
+        // Trim the played tail, but stay KEEP_BEHIND back: remove() drops whole
+        // GOPs up to the next keyframe (~10 s on YouTube) and must not reach playback.
+        const ranges = track.buffer.buffered, removeTo = (this.media.currentTime || 0) - KEEP_BEHIND;
         try {
             if (removeTo > 5 && ranges.length && ranges.start(0) < removeTo - 5) {
                 track.buffer.remove(0, removeTo); return;
