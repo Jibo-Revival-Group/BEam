@@ -565,22 +565,15 @@ function _proxyOwned() {
         return _ref.apply(this, arguments);
       };
     }();
+    // The player pauses reading while its buffer is full (minutes for audio);
+    // that is normal backpressure, so wait for drain or the player closing.
     const drained = function () {
       return new Promise(function (resolve) {
-        let timer = null;
         const done = function () {
-          clearTimeout(timer);
           response.removeListener('drain', done);
           response.removeListener('close', done);
           resolve();
         };
-        timer = setTimeout(function () {
-          session.close();
-          try {
-            response.destroy();
-          } catch (_) {}
-          done();
-        }, 15000);
         response.on('drain', done);
         response.on('close', done);
       });

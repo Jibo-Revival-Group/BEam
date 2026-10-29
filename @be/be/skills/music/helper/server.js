@@ -70,6 +70,7 @@ module.exports = {
                 else response.destroy();
             });
         });
+        server.timeout = 0; // Node 6 drops sockets idle 120 s; a paused player is idle.
         server.listen(config.port, '127.0.0.1'); return server;
     },
     stop: function () { if (server) server.close(); },
