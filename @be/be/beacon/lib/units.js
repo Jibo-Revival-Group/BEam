@@ -55,7 +55,8 @@ function set (temperature) {
     }
     paths.ensureDir(paths.dataDir());
     const payload = { temperature: next };
-    fs.writeFileSync(unitsPath(), JSON.stringify(payload, null, 2) + '\n');
+    fs.writeFileSync(unitsPath() + '.tmp', JSON.stringify(payload, null, 2) + '\n');
+    fs.renameSync(unitsPath() + '.tmp', unitsPath());
     return {
         ok: true,
         temperature: next,

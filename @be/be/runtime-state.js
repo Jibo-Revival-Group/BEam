@@ -60,9 +60,14 @@ function defaultObject(file, data, validate, mode) {
 function beamData(dir) {
     directory(dir);
     ['eye', 'themes', 'custom-skills'].forEach(function (name) { directory(path.join(dir, name)); });
-    defaultObject(path.join(dir, 'units.json'), { temperature: 'fahrenheit' }, function (v) {
-        return v.temperature === 'fahrenheit' || v.temperature === 'celsius';
-    });
+    try {
+        defaultObject(path.join(dir, 'units.json'), { temperature: 'fahrenheit' }, function (v) {
+            return v.temperature === 'fahrenheit' || v.temperature === 'celsius';
+        });
+    } catch (err) {
+        // units.js already reads a damaged file as Fahrenheit; a unit preference must not stop Be booting.
+        if (!/JSON|Invalid settings/.test(err.message)) { throw err; }
+    }
     defaultObject(path.join(dir, 'camera-stream-settings.json'), { enabled: true }, function (v) {
         return typeof v.enabled === 'boolean';
     });

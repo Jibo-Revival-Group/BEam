@@ -31,7 +31,7 @@ try {
     assert.strictEqual(JSON.parse(fs.readFileSync(data + '/units.json')).extra, true);
     assert.strictEqual(fs.readFileSync(data + '/eye/custom.png', 'utf8'), 'custom eye');
     fs.writeFileSync(data + '/units.json', '{bad');
-    assert.throws(function () { runtime.beamData(data); }, /valid JSON/);
+    runtime.beamData(data); // a damaged units.json is left alone and read as the default
     assert.strictEqual(fs.readFileSync(data + '/units.json', 'utf8'), '{bad');
     fs.writeFileSync(root + '/file', 'existing data');
     assert.throws(function () { runtime.directory(root + '/file'); }, /Expected directory/);
