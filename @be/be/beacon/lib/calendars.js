@@ -46,7 +46,12 @@ function readCredentials () {
     return data;
 }
 
+// BEefy keeps calendars per robot, under the name its speech turns carry (identity.json "name").
 function robotIdFrom (snapshot) {
+    try {
+        const name = JSON.parse(fs.readFileSync('/var/jibo/identity.json', 'utf8')).name;
+        if (typeof name === 'string' && name.trim()) return name.trim();
+    } catch (err) { /* fall back to the loop's robot member */ }
     const members = (snapshot && snapshot.members) || [];
     for (let i = 0; i < members.length; i++) {
         if (members[i].isJibo && members[i].id) return members[i].id;
@@ -199,12 +204,19 @@ function reload () {
     return people.list().then(attachStatus);
 }
 
+// The report picks the speaker's calendar by name and reads "today" in the robot's home time zone.
+function homeTimeZone () {
+    try { return require('@be/be-framework').utils.Location.jiboHome.timezone.id || null; } catch (err) { return null; }
+}
 function save (memberId, icalUrl, isEnabled) {
     return requireHuman(memberId).then(function (snapshot) {
+        const member = (snapshot.members || []).filter(function (m) { return String(m.id) === String(memberId); })[0] || {};
         return callCloud('SetCalendarFeed', {
             memberId: memberId,
             icalUrl: icalUrl,
-            isEnabled: isEnabled !== false
+            isEnabled: isEnabled !== false,
+            memberName: [member.firstName, member.lastName].filter(Boolean).join(' ') || member.writtenName || null,
+            timeZone: homeTimeZone()
         }, robotIdFrom(snapshot));
     }).then(reload);
 }

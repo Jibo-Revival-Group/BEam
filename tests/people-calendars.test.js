@@ -5,12 +5,13 @@ const path = require('path');
 const http = require('http');
 const createRequire = require('module').createRequire;
 const beacon = path.resolve(__dirname, '../@be/be/beacon');
-let credentials = null;
+let credentials = null, credentialsOrIdentity = null;
 const calendarModule = { exports: {} };
 const calendarRequire = createRequire(path.join(beacon, 'lib/calendars.js'));
 new Function('require', 'module', 'exports', fs.readFileSync(path.join(beacon, 'lib/calendars.js'), 'utf8'))(
     name => name === './paths' ? { credentialsPath: () => '/test/credentials.json', isFile: () => credentials !== null } :
-        name === 'fs' ? { readFileSync: () => credentials } : calendarRequire(name), calendarModule, calendarModule.exports);
+        name === './people' ? { list: () => Promise.resolve(snapshot()), findMember: () => Promise.resolve({ member: snapshot().members[0], snapshot: snapshot() }) } :
+        name === 'fs' ? { readFileSync: file => file === '/var/jibo/identity.json' ? (credentialsOrIdentity || '{}') : credentials } : calendarRequire(name), calendarModule, calendarModule.exports);
 const calendars = calendarModule.exports;
 let member = { id: 'person', firstName: 'Amber', writtenName: 'Amber', canEdit: true, canRemove: true, canSetOwner: true };
 const snapshot = () => ({ loopId: 'local-loop', members: [Object.assign({}, member), { id: 'robot', isJibo: true }] });
@@ -78,13 +79,21 @@ async function run() {
         const saved = await request(server, 'PUT', { id: 'person', firstName: 'Updated' });
         assert.strictEqual(saved.status, 200); assert.strictEqual(saved.data.members[0].firstName, 'Updated'); assertEditable(saved.data, true);
     } finally { await new Promise(resolve => server.close(resolve)); }
-    let cloudError = false;
+    let cloudError = false; const cloudRequests = [];
     const cloud = http.createServer((req, res) => {
+        let body = ''; req.on('data', c => { body += c; }); req.on('end', () => cloudRequests.push({ target: req.headers['x-amz-target'], robot: req.headers['x-jibo-robotid'], body: body }));
         res.writeHead(cloudError ? 503 : 200); res.end(JSON.stringify({ members: [{ memberId: 'person', configured: true, host: 'calendar.example', isEnabled: true }] }));
     }); await new Promise(resolve => cloud.listen(0, '127.0.0.1', resolve));
     credentials = JSON.stringify({ accessKeyId: 'test', secretAccessKey: 'test', endpoint: 'http://127.0.0.1:' + cloud.address().port });
     try {
         const available = await calendars.attachStatus(snapshot()); assert.strictEqual(available.calendarAvailable, true); assertEditable(available, true);
+        // BEefy keys feeds by the robot's friendly name and picks the speaker's feed by member name.
+        credentialsOrIdentity = JSON.stringify({ name: 'Auburn-Motor-Salad-Angora' });
+        await calendars.save('person', 'https://calendar.example/private/calendar.cal', true);
+        const set = cloudRequests.filter(r => /SetCalendarFeed$/.test(r.target))[0];
+        assert.strictEqual(set.robot, 'Auburn-Motor-Salad-Angora');
+        assert.strictEqual(JSON.parse(set.body).memberName, member.firstName);
+        credentialsOrIdentity = null;
         cloudError = true; const unavailable = await calendars.attachStatus(snapshot()); assert.strictEqual(unavailable.calendarAvailable, false); assertEditable(unavailable, true);
     } finally { await new Promise(resolve => cloud.close(resolve)); }
     console.log('Local Loop editing survives missing/invalid calendar credentials and cloud errors; feed URL stays editable');
