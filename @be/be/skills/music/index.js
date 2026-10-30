@@ -14,7 +14,8 @@ class MusicSkill extends BeSkill {
     }
     open(result) {
         if (this.view) {
-            this.close(error => { if (!error) this.open(result); }); return;
+            // Reopen whenever the old view is gone, even if other teardown (video) reported an error.
+            this.close(() => { if (!this.view) this.open(result); else this.exit({ noElementsOfSurprise: true }); }); return;
         }
         const request = launchRequest(result), generation = ++this.generation;
         this.closing = null; this.leaving = false;
@@ -119,6 +120,7 @@ class MusicSkill extends BeSkill {
     leave() { if (this.leaving) return; this.leaving = true; this.exit({ noElementsOfSurprise: true }); }
     close(done) {
         done = done || (() => {});
+        if (this.closing && this.closing.finished && this.closing.error) this.closing = null; // retry a failed close, don't replay it
         if (this.closing) {
             if (this.closing.finished) done(this.closing.error); else this.closing.callbacks.push(done);
             return;
