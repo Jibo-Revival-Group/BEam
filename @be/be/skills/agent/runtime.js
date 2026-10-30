@@ -6,7 +6,7 @@ function isStop(text) {
     if (typeof text !== 'string') return false;
     let normalized = text.toLowerCase().replace(/[’']/g, '').replace(/[-_]/g, ' ')
         .replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
-    normalized = normalized.replace(/^(?:okay|ok|alright) /, '').replace(/ jibo$/, '');
+    normalized = normalized.replace(/^(?:okay|ok|alright) /, '').replace(/^(?:hey )?jibo /, '').replace(/ jibo$/, '');
     return STOP.has(normalized);
 }
 function speechChunks(text) {
