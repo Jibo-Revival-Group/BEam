@@ -294,8 +294,7 @@ const routes = {
             const offer = (body && body.offer) || body;
             res.writeHead(200, {
                 'Content-Type': 'application/x-ndjson',
-                'Cache-Control': 'no-cache',
-                'Access-Control-Allow-Origin': '*'
+                'Cache-Control': 'no-cache'
             });
             ota.apply(offer, (event) => {
                 try { res.write(JSON.stringify(event) + '\n'); } catch (err) { /* client gone */ }
@@ -451,6 +450,14 @@ function serveStatic (req, res, pathname) {
     u.serveFile(req, res, abs);
 }
 
+/** True when a browser says this request comes from a page on another host. Non-browser clients send neither header. */
+function crossSite (req) {
+    const source = req.headers.origin || req.headers.referer;
+    if (!source) { return false; }
+    const match = /^[a-z][a-z0-9+.-]*:\/\/([^\/?#]*)/i.exec(source);
+    return !match || match[1].toLowerCase() !== String(req.headers.host || '').toLowerCase();
+}
+
 function requestHandler (req, res) {
     // Hand-rolled rather than url.parse(): this also has to run on the
     // robot's Node 6, which predates the WHATWG URL parser.
@@ -465,18 +472,12 @@ function requestHandler (req, res) {
         return;
     }
 
-    // LAN-only tool: allow the page to be driven from anywhere on the network.
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, PUT, POST, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-    if (req.method === 'OPTIONS') {
-        res.writeHead(204);
-        res.end();
+    const method = req.method === 'HEAD' ? 'GET' : req.method;
+    if (method !== 'GET' && crossSite(req)) {
+        req.resume();
+        handleError(res, fail('Cross-site requests are not allowed', 403));
         return;
     }
-
-    const method = req.method === 'HEAD' ? 'GET' : req.method;
     if (cameraStream.isRestricted() && method !== 'GET' && pathname !== '/api/camera-stream/control' &&
             pathname !== '/api/camera-stream/settings') {
         handleError(res, fail('Stop camera streaming before using other robot controls', 409));

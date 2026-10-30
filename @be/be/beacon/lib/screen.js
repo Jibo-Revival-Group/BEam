@@ -568,8 +568,7 @@ function stream (req, res) {
         'Content-Type': 'multipart/x-mixed-replace; boundary=jiboscreen',
         'Cache-Control': 'no-store, no-cache, must-revalidate',
         'Connection': 'close',
-        'Pragma': 'no-cache',
-        'Access-Control-Allow-Origin': '*'
+        'Pragma': 'no-cache'
     });
 
     let stopped = false;
