@@ -647,11 +647,11 @@ function apply (offer, onEvent, done) {
     }
 
     applyInFlight = true;
-    const finish = (err, result) => {
+    const callback = done;
+    done = (err, result) => {
         applyInFlight = false;
-        done(err, result);
+        callback(err, result);
     };
-    done = finish;
 
     const subsystem = offer.subsystem || '@be/be';
     const pkg = findPackage(subsystem);
