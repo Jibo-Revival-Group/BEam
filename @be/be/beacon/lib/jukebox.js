@@ -152,17 +152,17 @@ function scan () {
             return;
         }
 
-        const flat = readAlbum(abs, name, prettify(name), '');
-        if (flat) {
-            result.albums.push(flat);
-            return;
-        }
-
         const nestedDirs = kids.filter((kid) => {
             if (kid.charAt(0) === '.') { return false; }
             const kidStat = statOrNull(path.join(abs, kid));
             return !!(kidStat && kidStat.isDirectory());
         });
+
+        const flat = readAlbum(abs, name, prettify(name), '');
+        if (flat && (flat.tracks.length || !nestedDirs.length)) {
+            result.albums.push(flat);
+            return;
+        }
 
         let nestedFound = 0;
         nestedDirs.forEach((kid) => {
