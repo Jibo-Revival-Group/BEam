@@ -189,7 +189,7 @@ and the saved menu editor are documented in [Custom skills](custom-skills.md).
 The Store's Themes section shows installed packages and **None**, the stock
 appearance, alongside available themes. Installed packages remain visible after
 their source is removed or when uploaded as ZIPs. **None** uses the cancel icon
-and restores the stock face and menus. Use **Upload Theme ZIP** in the three-dot
+and restores the stock face and menus. Use **Upload ZIP** in the three-dot
 menu to test a package. The separate Themes and Skills navigation tabs are gone;
 Skills has install, update, and removal controls in the Store. For themes, install
 or upload first, then select **Apply**. Updates and replacement ZIPs are explicit

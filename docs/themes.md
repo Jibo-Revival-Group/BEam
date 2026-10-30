@@ -282,7 +282,7 @@ and Update when it differs, plus Apply/Active controls on the same cards. ZIP
 uploads and installed themes from removed sources stay in this grid. None is
 always the first card and restores stock appearance. Separate Themes and Skills
 navigation tabs have been merged into the Store. Use the three-dot menu beside
-the switch to select Upload Theme ZIP or open Manage Storefronts.
+the switch to select Upload ZIP (themes and skills are detected from the manifest's type) or open Manage Storefronts.
 Both management and theme details close on a backdrop click,
 Escape, or Close. User-facing compatibility notices say "Needs version …";
 the underlying minimum-version check still reads the installed `jibo-tbd` package.

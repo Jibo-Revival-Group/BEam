@@ -24,7 +24,9 @@ function request(server, method, url, body) { return new Promise((resolve, rejec
         }
         connected = true;
         assert.strictEqual((await request(server, 'PUT', '/api/skills/upload', Buffer.from('bad'))).status, 400);
-        const uploaded = await request(server, 'PUT', '/api/skills/upload?name=test.zip', fixture.zip(files)); assert.strictEqual(uploaded.status, 200);
+        const uploaded = await request(server, 'PUT', '/api/store/upload?name=test.zip', fixture.zip(files)); assert.strictEqual(uploaded.status, 200);
+        assert.strictEqual(uploaded.data.type, 'skill', 'Upload ZIP detects a skill from its manifest');
+        assert.strictEqual((await request(server, 'PUT', '/api/store/upload', Buffer.from('bad'))).status, 400);
         const id = uploaded.data.skills[0].id;
         const inventory = await request(server, 'GET', '/api/skills/custom'); assert.strictEqual(inventory.data.skills[0].id, id);
         const asset = await request(server, 'GET', '/api/skills/asset?id=' + id + '&name=icon.png'); assert.deepStrictEqual(asset.data, fixture.png());

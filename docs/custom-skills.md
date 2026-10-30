@@ -6,7 +6,7 @@ when a new published release or manifest version is available. Skills launch fro
 they have no theme Apply step. An open skill must be closed before removal.
 Updates take effect on the next launch after leaving that skill.
 
-Store's three-dot menu includes **Upload Skill ZIP** for local testing and
+Store's three-dot menu includes **Upload ZIP** (it installs a skill or theme based on the manifest's `type`) for local testing and
 **Edit Main Menu**. The editor is also available under **More → Main Menu**.
 Drag buttons to reorder; surrounding buttons slide into their new slots as you
 move, and the dragged button settles into place when released. Escape cancels a
@@ -127,6 +127,7 @@ reusing stale menu buttons.
 - `POST /api/skills/install` accepts `entryId` and optional `requestId`.
 - `GET /api/skills/progress?id=…` returns download progress/errors.
 - `PUT /api/skills/upload?name=…` accepts raw ZIP bytes.
+- `PUT /api/store/upload?name=…` accepts raw ZIP bytes and installs a skill or theme according to `manifest.json` `type`; the response adds `type`.
 - `DELETE /api/skills?id=…` removes a custom skill.
 - `GET /api/skills/asset?id=…&name=icon.png` serves icons/banners.
 - `GET /api/menu` returns layout, available buttons and stock icons.

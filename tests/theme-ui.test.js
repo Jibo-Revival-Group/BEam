@@ -17,7 +17,7 @@ class Node {
 }
 function all(node) { return node.children.reduce((list, c) => list.concat(c, all(c)), []); }
 const ids = {}; const body = new Node('body');
-for (const id of ['store-content', 'store-auth-required', 'store-sign-in', 'themes-summary', 'theme-file', 'skill-file', 'upload-store-skill', 'edit-main-menu', 'store-skill-list', 'upload-store-theme', 'store-sources', 'store-list', 'store-switch', 'store-tab-themes', 'store-tab-skills', 'store-themes', 'store-skills', 'store-options', 'store-options-menu', 'store-options-button', 'manage-storefronts', 'store-management', 'close-store-management', 'theme-details', 'theme-details-title', 'theme-details-meta', 'theme-details-readme']) {
+for (const id of ['store-content', 'store-auth-required', 'store-sign-in', 'themes-summary', 'theme-file', 'edit-main-menu', 'store-skill-list', 'upload-store-zip', 'store-sources', 'store-list', 'store-switch', 'store-tab-themes', 'store-tab-skills', 'store-themes', 'store-skills', 'store-options', 'store-options-menu', 'store-options-button', 'manage-storefronts', 'store-management', 'close-store-management', 'theme-details', 'theme-details-title', 'theme-details-meta', 'theme-details-readme']) {
     ids[id] = body.appendChild(new Node('div'));
 }
 const close = ids['theme-details'].appendChild(new Node('button'));
@@ -69,7 +69,7 @@ async function run() {
     await ui.loadStore(false); await ui.refreshStore(null, true);
     assert.strictEqual(ids['store-content'].hidden, true);
     assert.strictEqual(ids['store-auth-required'].hidden, false);
-    assert(ids['upload-store-theme'].disabled && ids['store-tab-skills'].disabled);
+    assert(ids['upload-store-zip'].disabled && ids['store-tab-skills'].disabled);
     assert(!calls.some(call => call.url.indexOf('/api/store') === 0), 'Signed-out Store never fetches or refreshes the catalog');
     assert.strictEqual(timers.length, 0, 'No automatic refresh timer before authentication');
     connected = true;
@@ -120,10 +120,10 @@ async function run() {
     ids['store-management'].events.click({ target: ids['store-management'] });
     assert.strictEqual(ids['store-management'].hidden, true, 'Backdrop dismisses management');
     assert.strictEqual(document.activeElement, ids['store-options-button']);
-    ids['store-options-button'].onclick(); ids['upload-store-theme'].onclick();
+    ids['store-options-button'].onclick(); ids['upload-store-zip'].onclick();
     assert(ids['theme-file'].clicked); assert.strictEqual(ids['store-options-menu'].hidden, true);
     await ui.upload({ name: 'Astra.zip', size: 100 });
-    assert(calls.some(c => c.url.startsWith('/api/themes/upload')));
+    assert(calls.some(c => c.url.startsWith('/api/store/upload')));
     assert(!calls.some(c => c.url === '/api/themes/apply'), 'Upload/install must not activate a theme');
     await ui.addSource(); assert(calls.some(c => c.url === '/api/store/sources' && c.data.url === 'https://github.com/ZaneThePython/Astra'));
     const details = all(ids['store-list']).find(n => n.tagName === 'button' && n.textContent === 'Details');
@@ -163,7 +163,7 @@ async function run() {
         const before = errors.length;
         await ui.upload({ name: 'Astra.zip', size: 100 });
         assert.strictEqual(errors.length, before + 1, 'Upload failure is reported: ' + fetchMode);
-        assert(/Theme upload (failed|timed out)/.test(errors[errors.length - 1].message));
+        assert(/ZIP upload (failed|timed out)/.test(errors[errors.length - 1].message));
         fetchMode = 'ok'; const callsBefore = calls.length;
         await ui.upload({ name: 'Astra.zip', size: 100 });
         assert(calls.length > callsBefore, 'Upload unlocks after failure');
@@ -215,7 +215,7 @@ async function run() {
     const app = fs.readFileSync(path.join(__dirname, '../@be/be/beacon/public/app.js'), 'utf8');
     assert(html.includes('data-panel="store"'));
     assert(!/data-panel="(?:themes|skills)"|panel-themes|panel-skills|themes-list|skills-list|theme-drop/.test(html + app));
-    assert(html.includes('Upload Theme ZIP') && app.includes("name === 'themes' || name === 'skills'"));
+    assert(html.includes('Upload ZIP') && app.includes("name === 'themes' || name === 'skills'"));
     assert(html.indexOf('src="themes.js"') < html.indexOf('src="app.js"'));
     assert(!/panel-eye|eye-file|\/api\/eye/.test(html + app));
     assert(html.includes('potential malware') && html.includes('store-skill-list') && html.includes('role="tablist"'));

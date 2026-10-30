@@ -100,7 +100,7 @@
         function setStoreAuth(data) {
             var connected = !!data.connected;
             $('#store-auth-required').hidden = connected; $('#store-content').hidden = !connected;
-            ['store-tab-themes', 'store-tab-skills', 'upload-store-theme', 'upload-store-skill'].forEach(function (id) { $('#' + id).disabled = !connected; });
+            ['store-tab-themes', 'store-tab-skills', 'upload-store-zip'].forEach(function (id) { $('#' + id).disabled = !connected; });
             Array.prototype.forEach.call(document.querySelectorAll('[data-action="add-store"]'), function (button) { button.disabled = !connected; });
             if (!connected) {
                 if (refreshTimer !== null) { window.clearInterval(refreshTimer); refreshTimer = null; }
@@ -194,9 +194,7 @@
             if (managementOpener && document.body.contains(managementOpener)) { managementOpener.focus(); }
         }
         $('#close-store-management').onclick = closeManagement;
-        $('#upload-store-theme').onclick = function () { closeOptions(); $('#theme-file').click(); };
-        $('#upload-store-skill').onclick = function () { closeOptions(); $('#skill-file').click(); };
-        $('#skill-file').onchange = function () { var file = this.files[0]; if (file) { upload(file, true); } this.value = ''; };
+        $('#upload-store-zip').onclick = function () { closeOptions(); $('#theme-file').click(); };
         $('#edit-main-menu').onclick = function () { closeOptions(); window.location.hash = 'menu'; };
         function startStoreRefresh() {
             if (refreshTimer !== null) { return; }
@@ -362,7 +360,7 @@
                 detailButton.className = 'btn store-details';
                 content.appendChild(actions); card.appendChild(content); list.appendChild(card);
             });
-            if (!entries.length) { list.appendChild(el('p', 'hint', 'No skills are listed yet. Add a storefront or upload a Skill ZIP.')); }
+            if (!entries.length) { list.appendChild(el('p', 'hint', 'No skills are listed yet. Add a storefront or upload a ZIP.')); }
             });
         }
         function refreshStore(id, silent) {
@@ -394,23 +392,22 @@
                 return data;
             });
         }
-        function upload(file, isSkill) {
-            var kind = isSkill ? 'skill' : 'theme';
+        function upload(file) {
             if (uploading) { return; }
-            if (!/\.zip$/i.test(file.name) || file.size > 32 * 1024 * 1024) { reportError(new Error('Choose a ' + kind + ' ZIP up to 32 MB')); return; }
-            uploading = true; toast('Validating and installing ' + kind + '…');
+            if (!/\.zip$/i.test(file.name) || file.size > 32 * 1024 * 1024) { reportError(new Error('Choose a theme or skill ZIP up to 32 MB')); return; }
+            uploading = true; toast('Validating and installing ZIP…');
             return request(function (signal) {
                 var uploadOptions = { method: 'PUT', headers: { 'Content-Type': 'application/zip' }, body: file };
                 if (signal) { uploadOptions.signal = signal; }
-                return fetch('/api/' + (isSkill ? 'skills' : 'themes') + '/upload?name=' + encodeURIComponent(file.name), uploadOptions).then(function (res) {
+                return fetch('/api/store/upload?name=' + encodeURIComponent(file.name), uploadOptions).then(function (res) {
                     return res.text().then(function (text) {
                         var data;
                         try { data = JSON.parse(text); } catch (err) { throw new Error('BEacon returned an invalid upload response (HTTP ' + res.status + ')'); }
                         if (!res.ok) { throw new Error(data.error || 'Upload failed (HTTP ' + res.status + ')'); } return data;
                     });
                 });
-            }, (isSkill ? 'Skill' : 'Theme') + ' upload')
-                .then(function () { uploading = false; toast(isSkill ? 'Skill installed. It is now first in the main menu.' : 'Theme installed. Choose Apply to test it.', 'ok'); return loadStore(false); })
+            }, 'ZIP upload')
+                .then(function (data) { uploading = false; toast(data && data.type === 'skill' ? 'Skill installed. It is now first in the main menu.' : 'Theme installed. Choose Apply to test it.', 'ok'); return loadStore(false); })
                 .catch(function (err) { uploading = false; reportError(err); });
         }
         function addSource() {

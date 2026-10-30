@@ -44,8 +44,8 @@ async function run() {
         const initial = await request(server, 'GET', '/api/themes'); assert.strictEqual(initial.status, 200); assert.strictEqual(initial.data.active, null);
         const stockIcon = await request(server, 'GET', '/theme-none.svg'); assert.strictEqual(stockIcon.status, 200);
         assert(stockIcon.data.toString().includes('viewBox="0 -960 960 960"'), 'The stock theme icon ships with BEacon');
-        const upload = await request(server, 'PUT', '/api/themes/upload?name=Astra.zip', fixture.zip(Object.assign({}, fixture.astra(), { 'icons/radio.svg': Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><circle cx="32" cy="32" r="30"/></svg>') })));
-        assert.strictEqual(upload.status, 200); const id = upload.data.installed; assert.strictEqual(upload.data.themes.active, null);
+        const upload = await request(server, 'PUT', '/api/store/upload?name=Astra.zip', fixture.zip(Object.assign({}, fixture.astra(), { 'icons/radio.svg': Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><circle cx="32" cy="32" r="30"/></svg>') })));
+        assert.strictEqual(upload.status, 200); assert.strictEqual(upload.data.type, 'theme', 'Upload ZIP detects a theme'); const id = upload.data.installed; assert.strictEqual(upload.data.themes.active, null);
         const image = await request(server, 'GET', '/api/themes/asset?id=' + id + '&name=face%2Feye.png');
         assert.strictEqual(image.status, 200); assert.strictEqual(image.data.slice(0, 8).toString('hex'), '89504e470d0a1a0a');
         const svgIcon = await request(server, 'GET', '/api/themes/asset?id=' + id + '&name=icons%2Fradio.svg');

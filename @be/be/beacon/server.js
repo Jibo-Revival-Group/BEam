@@ -217,6 +217,13 @@ const routes = {
     'POST /api/themes/install': guard((req, res) => {
         return u.readJson(req, 4096).then(body => themes.install(body.entryId, body.themeId, body.requestId)).then(data => u.sendJson(res, 200, data));
     }),
+    // One ZIP button: the manifest's type decides whether it installs as a theme or a skill.
+    'PUT /api/store/upload': guard((req, res, query) => {
+        return u.readBody(req, themePackage.MAX_ZIP, 120000).then(buf => themePackage.unzip(buf, { skill: true })
+            .then(files => themePackage.manifest(files['manifest.json']).type)
+            .then(type => (type === 'skill' ? customSkills : themes).upload(buf, query.name).then(data => Object.assign({ type: type }, data))))
+            .then(data => u.sendJson(res, 200, data));
+    }),
     'PUT /api/themes/upload': guard((req, res, query) => {
         return u.readBody(req, themePackage.MAX_ZIP, 120000).then(buf => themes.upload(buf, query.name)).then(data => u.sendJson(res, 200, data));
     }),
