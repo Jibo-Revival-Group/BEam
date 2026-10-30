@@ -93,7 +93,7 @@ function readBody (req, maxBytes, timeoutMs) {
                 const err = new Error('Upload is larger than the ' +
                     Math.round(limit / (1024 * 1024)) + ' MB limit');
                 err.status = 413;
-                req.destroy();
+                // Keep draining (data is dropped once done) so the client can read the 413 reply.
                 fail(err);
                 return;
             }
