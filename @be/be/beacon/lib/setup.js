@@ -42,6 +42,7 @@ function state() {
 
 function finish() {
     var marker = readJson(MARKER) || {};
+    if (!marker.pending) { throw fail('Setup is not pending', 409); }
     marker.pending = false;
     marker.finishedUtc = new Date().toISOString();
     try {
