@@ -625,10 +625,11 @@ function spawnLines (cmd, args, onLine, done) {
 let applyInFlight = false;
 
 /**
- * Download then apply one offer.
+ * Download then apply the update service's current offer for one subsystem.
+ * request = { subsystem, toVersion? }; nothing else from the caller is used.
  * onEvent({ phase, percent?, message?, subsystem? })
  */
-function apply (offer, onEvent, done) {
+function apply (request, onEvent, done) {
     if (typeof onEvent !== 'function') { onEvent = function () {}; }
     if (typeof done !== 'function') { done = function () {}; }
 
@@ -641,10 +642,6 @@ function apply (offer, onEvent, done) {
         done(fail('Applying OTA updates only works on the robot.', 503));
         return;
     }
-    if (!offer || !offer.url || !(offer.id || offer._id) || !offer.shaHash) {
-        done(fail('offer must include id, url, and shaHash', 400));
-        return;
-    }
 
     applyInFlight = true;
     const callback = done;
@@ -653,18 +650,34 @@ function apply (offer, onEvent, done) {
         callback(err, result);
     };
 
-    const subsystem = offer.subsystem || '@be/be';
-    const pkg = findPackage(subsystem);
-    const dest = offer.destination || (pkg && pkg.destination);
-    if (!dest) {
-        done(fail('Could not resolve destination for ' + subsystem, 404));
+    // Never trust a client-supplied URL, hash or destination: ask the update service ourselves.
+    let checked;
+    try {
+        checked = checkOne((request && request.subsystem) || '@be/be');
+    } catch (err) {
+        done(err);
+        return;
+    }
+    const offer = checked.offer;
+    if (!offer) {
+        done(fail(checked.message, 409));
+        return;
+    }
+    if (!offer.id || !offer.shaHash) {
+        done(fail('Update offer for ' + checked.subsystem + ' has no id or shaHash', 502));
+        return;
+    }
+    if (request && request.toVersion && String(request.toVersion) !== String(offer.toVersion)) {
+        done(fail('The offered ' + checked.subsystem + ' version is now ' + offer.toVersion, 409));
         return;
     }
 
-    const id = offer.id || offer._id;
-    const toVersion = offer.toVersion || (pkg && pkg.version) || '0.0.0';
-    const fromVersion = offer.fromVersion || (pkg && pkg.version) || '0.0.0';
-    const filter = offer.filter || FILTER;
+    const subsystem = checked.subsystem;
+    const dest = checked.destination;
+    const id = offer.id;
+    const toVersion = offer.toVersion || checked.currentVersion;
+    const fromVersion = offer.fromVersion || checked.currentVersion;
+    const filter = FILTER;
     const tarPath = tarPathFor(subsystem);
 
     const downloadRun = robotCli('jibo-download-update', [

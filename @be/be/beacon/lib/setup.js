@@ -104,7 +104,7 @@ function update(done) {
     var i;
     for (i = 0; i < results.length; i++) {
         if (results[i] && results[i].offer) {
-            offers.push(results[i].offer);
+            offers.push({ subsystem: results[i].subsystem, toVersion: results[i].offer.toVersion });
         }
     }
     if (!offers.length) {

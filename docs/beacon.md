@@ -334,7 +334,7 @@ rather than failing.
 | POST | `/api/location` | `{location}` — save full home/timezone, or `{city}` only to patch the town name |
 | GET | `/api/ota` | Discovered Skills-root packs, tool availability |
 | POST | `/api/ota/check` | `{subsystem?}` or all — offers / up-to-date / errors |
-| POST | `/api/ota/apply` | `{offer}` — NDJSON progress of download + apply |
+| POST | `/api/ota/apply` | `{subsystem, toVersion?}` — re-checks the update service and applies its offer; NDJSON progress of download + apply |
 | GET | `/api/people` | Local loop roster + sync diagnostics + calendar status (no saved URLs) |
 | POST | `/api/people` | `{firstName, lastName?, gender?}` — add a member |
 | POST | `/api/people/owner` | `{id}` — make that member the local Loop owner |
