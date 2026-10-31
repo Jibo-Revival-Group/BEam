@@ -102,6 +102,15 @@ async function run() {
     theme.origin.release = { id: 20, tag: 'v2.0.0' };
     await ui.loadStore(false);
     assert(all(ids['store-list']).some(n => n.textContent === 'Remove'), 'Current installed release does not offer Update');
+    // Installed a newer release than a stale Store listing shows: no "update" back to the older one.
+    theme.origin.release = { id: 30, tag: 'v2.0.1' }; theme.manifest = Object.assign({}, theme.manifest, { version: '2.0.1' });
+    await ui.loadStore(false);
+    assert(!all(ids['store-list']).some(n => n.textContent === 'Update'), 'Older Store listing does not offer Update');
+    theme.origin.release = { id: 20, tag: 'v2.0.0' }; theme.manifest = Object.assign({}, theme.manifest, { version: catalog.entries[0].manifest ? catalog.entries[0].manifest.version : theme.manifest.version });
+    // Opening the Store asks for a quiet, server-throttled refresh so listings do not go stale.
+    const refreshesBefore = calls.filter(c => c.url === '/api/store/refresh').length;
+    await ui.loadStore(); await new Promise(r => setTimeout(r, 0));
+    assert(calls.filter(c => c.url === '/api/store/refresh' && c.data && c.data.automatic === true).length > 0 && calls.filter(c => c.url === '/api/store/refresh').length > refreshesBefore, 'Opening the Store refreshes stale listings');
     delete catalog.entries[0].release;
     catalog.entries[0].manifest = Object.assign({}, theme.manifest, { version: '1.1.0' });
     await ui.loadStore(false);

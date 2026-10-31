@@ -351,8 +351,9 @@
                     }
                 }
                 var installedRelease = existing && existing.origin && existing.origin.release;
-                var different = existing && entry.manifest && (existing.manifest.version !== entry.manifest.version ||
-                    (entry.release && (!installedRelease || installedRelease.tag !== entry.release.tag || installedRelease.id !== entry.release.id)));
+                // GitHub release ids only grow, so an older (stale) listing never offers a "downgrade" update.
+                var different = existing && entry.manifest && (entry.release && installedRelease ? entry.release.id > installedRelease.id :
+                    existing.manifest.version !== entry.manifest.version || !!entry.release);
                 var remove = existing && !different;
                 var install = button(actions, remove ? 'Remove' : existing ? 'Update' : 'Install', function () {
                     if (remove) {
@@ -400,6 +401,8 @@
                 if (!data) { return; }
                 renderStore(data);
                 if (autoRefresh !== false && (data.catalogVersion === 1 || data.sources.some(function (s) { return !s.refreshedAt && !s.error; }))) { return refreshStore(); }
+                // Opening the Store keeps listings current; BEacon only refetches storefronts not tried in the last hour.
+                if (autoRefresh !== false) { refreshStore(null, true).catch(reportError); }
                 return data;
             });
         }
