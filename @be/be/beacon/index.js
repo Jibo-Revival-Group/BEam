@@ -119,7 +119,7 @@ function start (options, callback) {
         } catch (err) {
             warn('could not restore theme:', err && err.message);
         }
-        // Keep Store listings current with no BEacon tab open. refresh(.., true) skips storefronts tried within the hour;
+        // Keep Store listings current with no BEacon tab open. refresh(.., true) skips storefronts tried in the last 30 minutes;
         // like the Store itself, it needs GitHub sign-in (unauthenticated GitHub API limits are too low).
         const githubAuth = require('./lib/github-auth');
         const refreshStore = () => {
@@ -127,7 +127,7 @@ function start (options, callback) {
             themes.refresh(null, true).catch(err => warn('background store refresh:', err && err.message));
         };
         setTimeout(refreshStore, 2 * 60 * 1000);
-        setInterval(refreshStore, 15 * 60 * 1000);
+        setInterval(refreshStore, themes.REFRESH_MS);
         try {
             const voices = require('./lib/voices');
             if (voices.ENABLED) {

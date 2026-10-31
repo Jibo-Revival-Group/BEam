@@ -11,6 +11,8 @@ const runtime = require('./theme-runtime');
 const animationAssets = require('./theme-animation-assets');
 const operations = require('./theme-operation');
 
+// Storefront listings refresh every 30 minutes (background timer in index.js and an open Store tab).
+const REFRESH_MS = 30 * 60 * 1000;
 function compare(a, b) {
     function parts(v) { const p = v.split('+')[0].split('-'); return { nums: p[0].split('.').map(Number), pre: p.slice(1).join('-') }; }
     const x = parts(a); const y = parts(b);
@@ -100,7 +102,7 @@ function create(options) {
         selected = selected.filter(source => !source.local);
         if (!selected.length) { return Promise.resolve(catalog()); }
         if (automatic === true) {
-            selected = selected.filter(source => { const time = Date.parse(source.attemptedAt || source.refreshedAt || ''); return !refreshingSources[source.id] && (!isFinite(time) || Date.now() - time >= 60 * 60 * 1000); });
+            selected = selected.filter(source => { const time = Date.parse(source.attemptedAt || source.refreshedAt || ''); return !refreshingSources[source.id] && (!isFinite(time) || Date.now() - time >= REFRESH_MS - 60 * 1000); }); // a minute of slack so a 30-minute timer never skips a turn
             if (!selected.length) { return Promise.resolve(catalog()); }
         }
         // Fetch outside the mutation queue so a slow storefront cannot block offline theme use.
@@ -328,4 +330,4 @@ function create(options) {
         activate: activate, remove: remove, asset: asset, start: start, compatibility: compat, progress: progress };
 }
 const instance = create();
-module.exports = Object.assign(instance, { create: create, compare: compare, tbdVersion: tbdVersion });
+module.exports = Object.assign(instance, { create: create, compare: compare, tbdVersion: tbdVersion, REFRESH_MS: REFRESH_MS });

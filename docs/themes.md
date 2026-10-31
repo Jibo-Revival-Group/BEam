@@ -282,8 +282,8 @@ from the release tag and cached in Knowledge for offline browsing; the
 banner cache is bounded to 64 MB. Missing banners show a fallback. ZIP installs
 also preserve and validate `banner.png`, which never loads into the robot's face
 renderer. The Store switch selects Themes or installable custom Skills.
-The Store fills the available width and refreshes every one hour after it
-has been opened. Installed themes show Remove when the catalog version matches,
+The Store fills the available width and refreshes every 30 minutes (BEacon also refreshes in
+the background while GitHub is connected). Installed themes show Remove when the catalog version matches,
 and Update when it differs, plus Apply/Active controls on the same cards. ZIP
 uploads and installed themes from removed sources stay in this grid. None is
 always the first card and restores stock appearance. Separate Themes and Skills

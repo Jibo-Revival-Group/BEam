@@ -201,7 +201,7 @@
         $('#edit-main-menu').onclick = function () { closeOptions(); window.location.hash = 'menu'; };
         function startStoreRefresh() {
             if (refreshTimer !== null) { return; }
-            refreshTimer = window.setInterval(function () { return refreshStore(null, true).catch(reportError); }, 60 * 60 * 1000);
+            refreshTimer = window.setInterval(function () { return refreshStore(null, true).catch(reportError); }, 30 * 60 * 1000);
         }
         var TABS = ['themes', 'skills', 'voices'];
         function selectStoreTab(category, focus) {
@@ -401,7 +401,7 @@
                 if (!data) { return; }
                 renderStore(data);
                 if (autoRefresh !== false && (data.catalogVersion === 1 || data.sources.some(function (s) { return !s.refreshedAt && !s.error; }))) { return refreshStore(); }
-                // Opening the Store keeps listings current; BEacon only refetches storefronts not tried in the last hour.
+                // Opening the Store keeps listings current; BEacon only refetches storefronts not tried in the last 30 minutes.
                 if (autoRefresh !== false) { refreshStore(null, true).catch(reportError); }
                 return data;
             });

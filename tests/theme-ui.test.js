@@ -75,7 +75,7 @@ async function run() {
     connected = true;
     await ui.loadStore(false);
     assert.strictEqual(ids['store-content'].hidden, false);
-    assert.strictEqual(timers.length, 1); assert.strictEqual(timers[0].delay, 3600000, 'Refresh every hour');
+    assert.strictEqual(timers.length, 1); assert.strictEqual(timers[0].delay, 1800000, 'Refresh every 30 minutes');
     assert.strictEqual(ids['store-list'].children.length, 2, 'Installed/catalog matches appear once, alongside None');
     const stock = ids['store-list'].children[0]; assert(stock.textContent.includes('None'));
     assert.strictEqual(all(stock).find(n => n.tagName === 'img').src, 'theme-none.svg');

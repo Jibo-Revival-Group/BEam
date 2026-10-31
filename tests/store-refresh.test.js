@@ -8,7 +8,11 @@ const options = { root, version: () => null, runtime: { status: () => ({ live: f
 async function run() {
     let manager = themes.create(options);
     await manager.refresh(undefined, true); assert.strictEqual(calls, 1);
-    await manager.refresh(undefined, true); assert.strictEqual(calls, 1, 'Automatic refresh respects the hour');
+    await manager.refresh(undefined, true); assert.strictEqual(calls, 1, 'Automatic refresh respects the 30-minute interval');
+    { const file = path.join(root, 'state.json'), state = JSON.parse(fs.readFileSync(file)); state.sources[0].attemptedAt = new Date(Date.now() - 20 * 60000).toISOString(); fs.writeFileSync(file, JSON.stringify(state));
+      await manager.refresh(undefined, true); assert.strictEqual(calls, 1, 'Not again after 20 minutes');
+      state.sources[0].attemptedAt = new Date(Date.now() - 30 * 60000).toISOString(); fs.writeFileSync(file, JSON.stringify(state));
+      await manager.refresh(undefined, true); assert.strictEqual(calls, 2, 'Again after 30 minutes'); calls = 1; }
     manager = themes.create(options);
     await manager.refresh(undefined, true); assert.strictEqual(calls, 1, 'Restart retains refresh timestamps');
     await manager.refresh(); assert.strictEqual(calls, 2, 'Manual refresh bypasses the interval');

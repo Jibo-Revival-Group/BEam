@@ -159,7 +159,7 @@ the calendar controls are hidden; local Loop editing remains available.
 
 ## Themes and Store
 
-Storefronts automatically refresh once an hour. Attempt timestamps persist across
+Storefronts automatically refresh every 30 minutes, in the background while GitHub is connected. Attempt timestamps persist across
 restarts, including failed refreshes; cached entries remain available. The
 **Refresh** action still lets you request an immediate refresh.
 
@@ -293,7 +293,7 @@ rather than failing.
 | GET | `/api/status` | Versions, addresses, resolved paths |
 | GET | `/api/store` | Cached theme catalog, source statuses, compatibility |
 | GET | `/api/store/details?id=` | Theme metadata and README (catalog or installed ID) |
-| POST | `/api/store/refresh` | `{id?, automatic?}` refreshes sources; automatic requests respect the hourly interval |
+| POST | `/api/store/refresh` | `{id?, automatic?}` refreshes sources; automatic requests respect the 30-minute interval |
 | GET | `/api/github/auth` | GitHub connection status and pending public device code; no token |
 | POST | `/api/github/auth` | Start GitHub device sign-in |
 | POST | `/api/github/auth/poll` | Check device authorization, respecting GitHub's polling interval |
