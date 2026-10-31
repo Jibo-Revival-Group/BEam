@@ -119,6 +119,13 @@ function start (options, callback) {
         } catch (err) {
             warn('could not restore theme:', err && err.message);
         }
+        try {
+            const voices = require('./lib/voices');
+            require('./lib/voice-tts').install(require('jibo').tts, voices.current);
+            voices.start();
+        } catch (err) {
+            warn('could not start custom voices:', err && err.message);
+        }
     });
 
     const port = opts.port || Number(process.env.BEACON_PORT) || DEFAULT_PORT;

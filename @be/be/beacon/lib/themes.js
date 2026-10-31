@@ -36,6 +36,7 @@ function tbdVersion() {
     }
     return null;
 }
+const LOCAL_SOURCE = 'local:added';
 function removeTree(dir) {
     if (!fs.existsSync(dir)) { return; }
     fs.readdirSync(dir).forEach(n => { const f = path.join(dir, n); if (fs.lstatSync(f).isDirectory()) { removeTree(f); } else { fs.unlinkSync(f); } });
@@ -95,6 +96,9 @@ function create(options) {
     function refreshSources(id, automatic) {
         const s = read(); let selected = id ? s.sources.filter(v => v.id === id) : s.sources;
         if (id && !selected.length) { throw packages.fail('Storefront not found'); }
+        // Local listings (voices added by themes) have nothing to download.
+        selected = selected.filter(source => !source.local);
+        if (!selected.length) { return Promise.resolve(catalog()); }
         if (automatic === true) {
             selected = selected.filter(source => { const time = Date.parse(source.attemptedAt || source.refreshedAt || ''); return !refreshingSources[source.id] && (!isFinite(time) || Date.now() - time >= 60 * 60 * 1000); });
             if (!selected.length) { return Promise.resolve(catalog()); }
@@ -137,6 +141,20 @@ function create(options) {
             }
             return source.id;
         }).then(refreshSources);
+    }
+    // List a package (e.g. a theme's voice) in the Store when no storefront offers it yet.
+    function addLocalEntry(value) {
+        let u; try { u = stores.normalize(value); } catch (err) { return Promise.reject(err); }
+        if (catalog().entries.some(e => e.url === u)) { return Promise.resolve(catalog()); }
+        return Promise.resolve().then(() => store.detail(u)).then(d => mutate(() => {
+            const s = read(); let source = s.sources.filter(v => v.url === LOCAL_SOURCE)[0];
+            if (!source) {
+                source = { id: stores.hash(LOCAL_SOURCE), url: LOCAL_SOURCE, name: 'Added by themes', local: true, entries: [], refreshedAt: new Date().toISOString(), error: null };
+                s.sources.push(source);
+            }
+            if (!source.entries.some(e => e.url === u)) { source.entries.push(Object.assign({ type: d.manifest.type, url: u }, d, { name: d.manifest.name })); }
+            save(s); return catalog();
+        }));
     }
     function removeSource(id) { return mutate(() => { const s = read(); s.sources = s.sources.filter(v => v.id !== id); save(s); return catalog(); }); }
     function installFiles(files, origin, operation) {
@@ -305,7 +323,7 @@ function create(options) {
             });
         }));
     }
-    return { inventory: inventory, catalog: catalog, addSource: addSource, removeSource: removeSource,
+    return { inventory: inventory, catalog: catalog, addSource: addSource, removeSource: removeSource, addLocalEntry: addLocalEntry,
         refresh: refreshSources, details: details, banner: banner, upload: upload, install: install,
         activate: activate, remove: remove, asset: asset, start: start, compatibility: compat, progress: progress };
 }

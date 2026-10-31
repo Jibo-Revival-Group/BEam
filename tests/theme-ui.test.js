@@ -17,7 +17,7 @@ class Node {
 }
 function all(node) { return node.children.reduce((list, c) => list.concat(c, all(c)), []); }
 const ids = {}; const body = new Node('body');
-for (const id of ['store-content', 'store-auth-required', 'store-sign-in', 'themes-summary', 'theme-file', 'edit-main-menu', 'store-skill-list', 'upload-store-zip', 'store-sources', 'store-list', 'store-switch', 'store-tab-themes', 'store-tab-skills', 'store-themes', 'store-skills', 'store-options', 'store-options-menu', 'store-options-button', 'manage-storefronts', 'store-management', 'close-store-management', 'theme-details', 'theme-details-title', 'theme-details-meta', 'theme-details-readme']) {
+for (const id of ['store-content', 'store-auth-required', 'store-sign-in', 'themes-summary', 'theme-file', 'edit-main-menu', 'store-skill-list', 'upload-store-zip', 'store-sources', 'store-list', 'store-switch', 'store-tab-themes', 'store-tab-skills', 'store-themes', 'store-skills', 'store-options', 'store-options-menu', 'store-options-button', 'manage-storefronts', 'store-management', 'close-store-management', 'theme-details', 'theme-details-title', 'theme-details-meta', 'theme-details-readme', 'store-tab-voices', 'store-voices', 'store-voice-list', 'voices-summary', 'voice-offer', 'voice-offer-text', 'voice-offer-yes', 'voice-offer-no']) {
     ids[id] = body.appendChild(new Node('div'));
 }
 const close = ids['theme-details'].appendChild(new Node('button'));

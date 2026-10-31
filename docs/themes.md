@@ -52,6 +52,11 @@ the same name replaces its installed revision; replacing a theme from another
 store URL requires removing the old installation first. ZIP uploads can replace
 an installation with the same name for local testing.
 
+A theme may suggest its own voice with `"voice": "https://github.com/owner/repo"`
+(a [custom voice](voices.md) repository with a published release). When the
+theme is applied, BEacon asks once per theme version whether to download and use
+that voice. Nothing is downloaded unless the owner agrees.
+
 Install/upload does not apply. If a theme is active while a new revision is
 installed, the previous revision stays active until Apply. Installed themes
 work offline and survive BEam updates. Store Update downloads the latest published stable release;
@@ -235,11 +240,12 @@ The preferred manifest is:
 ```json
 {
   "themes": [{ "name": "Astra", "url": "https://github.com/ZaneThePython/Astra" }],
-  "skills": [{ "name": "Example", "url": "https://github.com/owner/skill" }]
+  "skills": [{ "name": "Example", "url": "https://github.com/owner/skill" }],
+  "voices": [{ "name": "Robo", "url": "https://github.com/owner/voice" }]
 }
 ```
 
-The example's alternating format also works:
+`voices` is optional; see [Custom voices](voices.md). The example's alternating format also works:
 
 ```json
 {
@@ -282,7 +288,7 @@ and Update when it differs, plus Apply/Active controls on the same cards. ZIP
 uploads and installed themes from removed sources stay in this grid. None is
 always the first card and restores stock appearance. Separate Themes and Skills
 navigation tabs have been merged into the Store. Use the three-dot menu beside
-the switch to select Upload ZIP (themes and skills are detected from the manifest's type) or open Manage Storefronts.
+the switch to select Upload ZIP (themes, skills and voices are detected from the manifest's type) or open Manage Storefronts.
 Both management and theme details close on a backdrop click,
 Escape, or Close. User-facing compatibility notices say "Needs version …";
 the underlying minimum-version check still reads the installed `jibo-tbd` package.

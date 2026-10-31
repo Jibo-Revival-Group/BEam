@@ -97,6 +97,7 @@
             <span class="store-switch-slider" aria-hidden="true"></span>
             <button id="store-tab-themes" class="store-switch-tab" type="button" role="tab" aria-selected="true" aria-controls="store-themes">Themes</button>
             <button id="store-tab-skills" class="store-switch-tab" type="button" role="tab" aria-selected="false" aria-controls="store-skills" tabindex="-1">Skills</button>
+            <button id="store-tab-voices" class="store-switch-tab" type="button" role="tab" aria-selected="false" aria-controls="store-voices" tabindex="-1">Voices</button>
         </div>
         <div class="store-options" id="store-options">
             <button class="store-options-button" id="store-options-button" type="button" aria-label="Store options" aria-haspopup="menu" aria-expanded="false" aria-controls="store-options-menu"><span class="icon icon-sm icon-more" aria-hidden="true"></span></button>
@@ -110,7 +111,7 @@
     </div>
     <div id="store-auth-required" class="card">
         <h3>Sign in to use the Store</h3>
-        <p class="hint">Connect GitHub to browse and download themes and skills with a higher API rate limit.</p>
+        <p class="hint">Connect GitHub to browse and download themes, skills and voices with a higher API rate limit.</p>
         <button id="store-sign-in" class="btn btn-primary" type="button">Sign in with GitHub</button>
     </div>
     <div id="store-content" hidden>
@@ -122,6 +123,10 @@
     <div id="store-skills" role="tabpanel" aria-labelledby="store-tab-skills" hidden>
         <p class="store-safety-note">We are not responsible for potential malware in store applications. Each application is reviewed for malware before being added to the official store.</p>
         <div id="store-skill-list" class="store-grid"></div>
+    </div>
+    <div id="store-voices" role="tabpanel" aria-labelledby="store-tab-voices" hidden>
+        <p class="hint store-summary" id="voices-summary" role="status"></p>
+        <div id="store-voice-list" class="store-grid"></div>
     </div>
     </div>
 </section>
@@ -311,9 +316,19 @@
             <p><a id="github-auth-link" href="https://github.com/login/device" target="_blank" rel="noopener noreferrer" hidden>Open GitHub to enter the code</a></p>
             <div class="theme-actions"><button id="github-auth-start" class="btn btn-primary" type="button">Sign in to GitHub</button><button id="github-auth-disconnect" class="btn" type="button" hidden>Disconnect GitHub</button></div>
         </div>
-        <p class="hint">Add a storefront manifest or a single GitHub theme or skill repository.</p>
+        <p class="hint">Add a storefront manifest or a single GitHub theme, skill or voice repository.</p>
         <button class="btn btn-primary" data-action="add-store">Add storefront</button>
         <div id="store-sources"></div>
+    </div>
+</div>
+<div class="modal" id="voice-offer" hidden role="dialog" aria-modal="true" aria-labelledby="voice-offer-title">
+    <div class="modal-box">
+        <h3 id="voice-offer-title">This theme has its own voice</h3>
+        <p class="hint" id="voice-offer-text"></p>
+        <div class="modal-actions">
+            <button class="btn btn-flat" id="voice-offer-no" type="button">Not now</button>
+            <button class="btn btn-primary" id="voice-offer-yes" type="button">Download voice</button>
+        </div>
     </div>
 </div>
 <div class="modal" id="modal" hidden>

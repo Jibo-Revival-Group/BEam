@@ -206,6 +206,7 @@ The prior custom-eye feature and `/api/eye` endpoints have been removed. The
 first startup restores previously overwritten stock eye aliases from the shipped
 pristine image. Old uploads remain as inactive data; they no longer self-heal.
 
+Store › Voices lists custom voices; see [voices.md](voices.md).
 See [themes.md](themes.md) for authoring, ZIP validation, storefront formats,
 minimum **jibo-tbd** versions, and device acceptance checks.
 

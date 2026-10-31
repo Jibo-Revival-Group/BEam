@@ -113,7 +113,7 @@ function entries(data, section, base) {
         } else if (item && typeof item === 'object') { name = item.name; }
         if (!item || typeof item.url !== 'string') { throw pkg.fail('Store entries require a URL'); }
         if (name === 'None' && item.url === '.') { out.push({ name: 'None', type: 'theme', stock: true, url: null }); continue; }
-        out.push({ name: name || '', type: section === 'themes' ? 'theme' : 'skill', url: normalize(url.resolve(base, item.url)) });
+        out.push({ name: name || '', type: section === 'themes' ? 'theme' : section === 'voices' ? 'voice' : 'skill', url: normalize(url.resolve(base, item.url)) });
     }
     if (out.length > 100) { throw pkg.fail('Store has too many entries'); }
     return out;
@@ -178,8 +178,8 @@ function create(fetcher) {
     function catalog(value, operation) {
         return resolve(value, operation).then(r => {
             const items = r.data.type ? [{ name: pkg.manifest(r.manifest).name, type: r.data.type, url: r.url }] :
-                entries(r.data, 'themes', r.base).concat(entries(r.data, 'skills', r.base));
-            const themes = items.filter(item => item.type === 'theme' || item.type === 'skill');
+                entries(r.data, 'themes', r.base).concat(entries(r.data, 'skills', r.base), entries(r.data, 'voices', r.base));
+            const themes = items.filter(item => item.type === 'theme' || item.type === 'skill' || item.type === 'voice');
             // Small batches avoid overwhelming robot memory/network on large storefronts.
             let chain = Promise.resolve(); const out = [];
             themes.forEach(item => { chain = chain.then(() => {
@@ -202,9 +202,9 @@ function create(fetcher) {
         }
         const packageTransfer = transfer((received, total) => report({ state: 'downloading', received: received, total: total,
             percent: total ? Math.min(100, received / total * 100) : null }));
-        function archive(value, skill) {
+        function archive(value, type) {
             return fetch(value, pkg.MAX_ZIP, packageTransfer).then(buf => {
-                report({ state: 'validating', percent: null }); return pkg.unzip(buf, { skill: skill });
+                report({ state: 'validating', percent: null }); return pkg.unzip(buf, { skill: type === 'skill', voice: type === 'voice' });
             });
         }
         return resolve(value, operation).then(r => {
@@ -214,11 +214,11 @@ function create(fetcher) {
                 if (JSON.stringify(actual) !== JSON.stringify(declared)) { throw pkg.fail('Downloaded package does not match its published manifest'); }
                 return { files: files, commit: null, release: r.release || null, readmeUrl: url.resolve(r.base, 'README.md') };
             }
-            if (r.archive) { return archive(r.archive, declared.type === 'skill').then(archiveResult); }
+            if (r.archive) { return archive(r.archive, declared.type).then(archiveResult); }
             if (r.data.download) {
-                return archive(normalize(url.resolve(r.base, r.data.download)), declared.type === 'skill').then(archiveResult);
+                return archive(normalize(url.resolve(r.base, r.data.download)), declared.type).then(archiveResult);
             }
-            if (declared.type === 'skill') { throw pkg.fail('Skill manifests need a download ZIP URL or a GitHub repository'); }
+            if (declared.type !== 'theme') { throw pkg.fail('Skill and voice manifests need a download ZIP URL or a GitHub repository'); }
             const files = { 'manifest.json': r.manifest };
             const extra = [];
             ['atex', 'asfx', 'icons'].forEach(folder => {

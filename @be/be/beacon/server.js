@@ -21,6 +21,7 @@ const themes = require('./lib/themes');
 const themePackage = require('./lib/theme-package');
 const skills = require('./lib/skills');
 const customSkills = require('./lib/custom-skills');
+const voices = require('./lib/voices');
 const menuLayout = require('./lib/menu-layout');
 const githubAuth = require('./lib/github-auth');
 const system = require('./lib/system');
@@ -66,7 +67,7 @@ function guard (fn) {
     return function (req, res, query) {
         try {
             const pathname = url.parse(req.url).pathname;
-            if (/^\/api\/store(?:\/|$)/.test(pathname) || (req.method === 'POST' && /^\/api\/(?:themes|skills)\/install$/.test(pathname))) {
+            if (/^\/api\/store(?:\/|$)/.test(pathname) || (req.method === 'POST' && /^\/api\/(?:(?:themes|skills|voices)\/install|voices\/theme)$/.test(pathname))) {
                 if (!githubAuth.token()) { req.resume(); throw fail('Sign in to GitHub to use the Store.', 401); }
             }
             const result = fn(req, res, query);
@@ -193,7 +194,7 @@ const routes = {
 
     'GET /api/store': guard((req, res) => { u.sendJson(res, 200, themes.catalog()); }),
     'GET /api/store/details': guard((req, res, query) => {
-        const skill = customSkills.details(query.id);
+        const skill = customSkills.details(query.id) || voices.details(query.id);
         return Promise.resolve(skill || themes.details(query.id)).then(data => u.sendJson(res, 200, data));
     }),
     'GET /api/store/banner': guard((req, res, query) => {
@@ -221,8 +222,32 @@ const routes = {
     'PUT /api/store/upload': guard((req, res, query) => {
         return u.readBody(req, themePackage.MAX_ZIP, 120000).then(buf => themePackage.unzip(buf, { skill: true })
             .then(files => themePackage.manifest(files['manifest.json']).type)
-            .then(type => (type === 'skill' ? customSkills : themes).upload(buf, query.name).then(data => Object.assign({ type: type }, data))))
+            .then(type => (type === 'skill' ? customSkills : type === 'voice' ? voices : themes).upload(buf, query.name).then(data => Object.assign({ type: type }, data))))
             .then(data => u.sendJson(res, 200, data));
+    }),
+    'GET /api/voices': guard((req, res) => { u.sendJson(res, 200, voices.inventory()); }),
+    'GET /api/voices/progress': guard((req, res, query) => { u.sendJson(res, 200, voices.progress(query.id)); }),
+    'POST /api/voices/install': guard((req, res) => {
+        return u.readJson(req, 4096).then(body => voices.install(body.entryId, body.requestId)).then(data => u.sendJson(res, 200, data));
+    }),
+    // A theme's suggested voice (its manifest "voice" GitHub link), after the owner says yes.
+    'POST /api/voices/theme': guard((req, res) => {
+        return u.readJson(req, 4096).then(body => {
+            const theme = themes.inventory().themes.filter(t => t.id === body.themeId)[0];
+            if (!theme || !theme.manifest.voice) { throw themePackage.fail('This theme has no voice'); }
+            return voices.installFromTheme(theme.manifest.voice, theme.manifest.name);
+        }).then(data => u.sendJson(res, 200, data));
+    }),
+    'POST /api/voices/apply': guard((req, res) => {
+        return u.readJson(req, 4096).then(body => voices.activate(body.id === undefined ? null : body.id)).then(data => {
+            u.sendJson(res, 200, data);
+            // Let the owner hear the new voice.
+            try { require('jibo').tts.speak(data.active ? 'Hi! This is my new voice.' : 'Hi! I am back to my normal voice.').catch(() => {}); } catch (err) { /* not on a robot */ }
+        });
+    }),
+    'DELETE /api/voices': guard((req, res, query) => { return voices.remove(query.id).then(data => u.sendJson(res, 200, data)); }),
+    'GET /api/voices/asset': guard((req, res, query) => {
+        u.serveFile(req, res, voices.asset(query.id, query.name), { contentType: query.name === 'breath.mp3' ? 'audio/mpeg' : 'image/png' });
     }),
     'PUT /api/themes/upload': guard((req, res, query) => {
         return u.readBody(req, themePackage.MAX_ZIP, 120000).then(buf => themes.upload(buf, query.name)).then(data => u.sendJson(res, 200, data));

@@ -82,10 +82,11 @@
         }
         function api(method, path, body) {
             var label = path.indexOf('/api/skills/install') === 0 ? 'Skill download/install' : path.indexOf('/api/themes/install') === 0 ? 'Theme download/install' :
+                path.indexOf('/api/voices/install') === 0 || path.indexOf('/api/voices/theme') === 0 ? 'Voice download/install' : path.indexOf('/api/voices/apply') === 0 ? 'Changing voice' :
                 path.indexOf('/api/themes/apply') === 0 ? 'Applying theme' :
                 method === 'DELETE' ? 'Removal' : path.indexOf('/api/store/refresh') === 0 ? 'Storefront refresh' : 'Theme/store request';
             return request(function (signal) { return options.api(method, path, body, { signal: signal }); }, label,
-                /\/api\/(?:themes|skills)\/progress/.test(path) ? Math.min(options.requestTimeout || 5000, 5000) : null).catch(function (err) {
+                /\/api\/(?:themes|skills|voices)\/progress/.test(path) ? Math.min(options.requestTimeout || 5000, 5000) : null).catch(function (err) {
                     if (err.status === 401) { setStoreAuth({ connected: false }); }
                     throw err;
                 });
@@ -96,15 +97,17 @@
                 (errors.length > 1 ? ' (' + errors.length + ' errors)' : '') + '. Cached themes are still available.')); }
         }
         var opener = null, managementOpener = null, refreshing = null, refreshTimer = null, uploading = false, inventory = { themes: [], active: null, live: { live: false } };
-        var skillInventory = { skills: [] };
+        var skillInventory = { skills: [] }, voiceInventory = { voices: [], active: null };
+        // Per-category API names: themes, skills (custom skills) and voices.
+        var KIND = { theme: 'themes', skill: 'skills', voice: 'voices' };
         function setStoreAuth(data) {
             var connected = !!data.connected;
             $('#store-auth-required').hidden = connected; $('#store-content').hidden = !connected;
-            ['store-tab-themes', 'store-tab-skills', 'upload-store-zip'].forEach(function (id) { $('#' + id).disabled = !connected; });
+            ['store-tab-themes', 'store-tab-skills', 'store-tab-voices', 'upload-store-zip'].forEach(function (id) { $('#' + id).disabled = !connected; });
             Array.prototype.forEach.call(document.querySelectorAll('[data-action="add-store"]'), function (button) { button.disabled = !connected; });
             if (!connected) {
                 if (refreshTimer !== null) { window.clearInterval(refreshTimer); refreshTimer = null; }
-                $('#store-list').textContent = ''; $('#store-skill-list').textContent = ''; $('#store-sources').textContent = '';
+                $('#store-list').textContent = ''; $('#store-skill-list').textContent = ''; $('#store-voice-list').textContent = ''; $('#store-sources').textContent = '';
                 $('#theme-details').hidden = true;
             }
             return connected;
@@ -141,7 +144,7 @@
             item.nodes.push({ box: box, label: label, bar: bar }); updateProgress(item);
         }
         function installTheme(entry, existing, content, button) {
-            var isSkill = entry.type === 'skill', kind = isSkill ? 'skill' : 'theme';
+            var isSkill = entry.type === 'skill', kind = entry.type === 'voice' ? 'voice' : isSkill ? 'skill' : 'theme';
             var item = { kind: kind, id: kind + '-' + Date.now() + '-' + Math.random().toString(16).slice(2),
                 entryId: entry.id, themeId: existing && existing.id, nodes: [], buttons: [{ node: button, disabled: false }], stopped: false, timer: null, data: { state: 'resolving', percent: null } };
             Object.keys(downloads).forEach(function (id) {
@@ -153,7 +156,7 @@
             downloads[item.id] = item; attachProgress(content, item); toast('Downloading ' + kind + '…');
             function poll() {
                 if (item.stopped) { return; }
-                api('GET', '/api/' + (isSkill ? 'skills' : 'themes') + '/progress?id=' + encodeURIComponent(item.id)).then(function (data) {
+                api('GET', '/api/' + KIND[kind] + '/progress?id=' + encodeURIComponent(item.id)).then(function (data) {
                     if (!item.stopped && data.id === item.id && data.state !== 'idle') { item.data = data; updateProgress(item); }
                 }).catch(function () { /* The install request reports failures; retry progress independently. */ }).then(function () {
                     if (!item.stopped) { item.timer = setTimeout(poll, options.progressPollInterval || 500); }
@@ -161,8 +164,8 @@
             }
             item.timer = setTimeout(poll, options.progressPollInterval || 500);
             function stop(data) { item.stopped = true; clearTimeout(item.timer); item.data = data; updateProgress(item); }
-            return api('POST', '/api/' + (isSkill ? 'skills' : 'themes') + '/install', { entryId: entry.id, requestId: item.id }).then(function () {
-                stop({ state: 'complete', percent: 100 }); toast(isSkill ? 'Skill installed. It is now first in the main menu.' : 'Theme installed. Choose Apply to use it.', 'ok');
+            return api('POST', '/api/' + KIND[kind] + '/install', { entryId: entry.id, requestId: item.id }).then(function () {
+                stop({ state: 'complete', percent: 100 }); toast(isSkill ? 'Skill installed. It is now first in the main menu.' : kind === 'voice' ? 'Voice installed. Choose Use to give it to Jibo.' : 'Theme installed. Choose Apply to use it.', 'ok');
                 delete downloads[item.id]; return loadStore(false);
             }, function (err) { stop({ state: 'failed', percent: item.data.percent, error: err.message }); throw err; });
         }
@@ -200,23 +203,24 @@
             if (refreshTimer !== null) { return; }
             refreshTimer = window.setInterval(function () { return refreshStore(null, true).catch(reportError); }, 60 * 60 * 1000);
         }
+        var TABS = ['themes', 'skills', 'voices'];
         function selectStoreTab(category, focus) {
-            var skills = category === 'skills';
-            $('#store-switch').className = 'store-switch' + (skills ? ' is-skills' : '');
-            ['themes', 'skills'].forEach(function (name) {
+            $('#store-switch').className = 'store-switch' + (category === 'themes' ? '' : ' is-' + category);
+            TABS.forEach(function (name) {
                 var selected = name === category, tab = $('#store-tab-' + name);
                 tab.setAttribute('aria-selected', String(selected)); tab.tabIndex = selected ? 0 : -1;
                 $('#store-' + name).hidden = !selected;
                 if (selected && focus) { tab.focus(); }
             });
         }
-        ['themes', 'skills'].forEach(function (name) {
+        TABS.forEach(function (name, i) {
             var tab = $('#store-tab-' + name);
             tab.onclick = function () { selectStoreTab(name); };
             tab.addEventListener('keydown', function (event) {
                 if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].indexOf(event.key) === -1) { return; }
                 event.preventDefault();
-                selectStoreTab(event.key === 'Home' ? 'themes' : event.key === 'End' ? 'skills' : name === 'themes' ? 'skills' : 'themes', true);
+                var next = event.key === 'Home' ? 0 : event.key === 'End' ? TABS.length - 1 : (i + (event.key === 'ArrowRight' ? 1 : TABS.length - 1)) % TABS.length;
+                selectStoreTab(TABS[next], true);
             });
         });
         selectStoreTab('themes');
@@ -231,7 +235,8 @@
         function action(method, path, body) {
             toast('Working…');
             return api(method, path, body).then(function (data) {
-                if (path === '/api/themes/apply') { toast(data.live.live ? 'Theme applied.' : 'Theme saved for Jibo’s next start.', 'ok'); }
+                if (path === '/api/themes/apply') { toast(data.live.live ? 'Theme applied.' : 'Theme saved for Jibo’s next start.', 'ok'); offerThemeVoice(body && body.id); }
+                else if (path === '/api/voices/apply') { toast(data.active ? 'Voice changed. Jibo will say hi in it.' : 'Jibo’s normal voice is back.', 'ok'); }
                 else { toast('Saved.', 'ok'); }
                 if (path === '/api/store/sources' && method === 'POST') { storeErrors(data); }
                 return loadStore(false);
@@ -246,15 +251,18 @@
                     (m.supported ? 'Needs version ' + m.supported + ' or newer' : 'No minimum version declared');
                 markdown($('#theme-details-readme'), data.readme || 'No README is available.', {
                     baseUrl: data.readmeUrl || (data.origin && data.origin.readmeUrl) || data.bannerUrl, images: data.images,
-                    assetBase: data.revision ? '/api/' + (m.type === 'skill' ? 'skills' : 'themes') + '/asset?id=' + encodeURIComponent(data.id) + '&name=' : null
+                    assetBase: data.revision ? '/api/' + (KIND[m.type] || 'themes') + '/asset?id=' + encodeURIComponent(data.id) + '&name=' : null
                 });
                 $('#theme-details').hidden = false;
                 $('#theme-details [data-action="close-theme-details"]').focus();
             });
         }
         function loadThemes() {
-            return Promise.all([api('GET', '/api/themes'), api('GET', '/api/skills/custom')]).then(function (values) {
+            return Promise.all([api('GET', '/api/themes'), api('GET', '/api/skills/custom'), api('GET', '/api/voices')]).then(function (values) {
                 var data = values[0]; skillInventory = values[1] && values[1].skills ? values[1] : { skills: [] };
+                voiceInventory = values[2] && values[2].voices ? values[2] : { voices: [], active: null };
+                var activeVoice = voiceInventory.voices.filter(function (v) { return v.active; })[0];
+                $('#voices-summary').textContent = 'Jibo’s voice: ' + (activeVoice ? activeVoice.manifest.name : 'Normal');
                 var summary = 'Active theme: None';
                 data.themes.forEach(function (t) {
                     if (t.active) { summary = 'Active theme: ' + t.manifest.name + (t.pending ? ' (new version ready to apply)' : ''); }
@@ -269,19 +277,19 @@
             Object.keys(downloads).forEach(function (id) { downloads[id].nodes = []; downloads[id].buttons = []; });
             var sources = $('#store-sources'); sources.textContent = '';
             data.sources.forEach(function (source) {
-                var row = el('div', 'card store-source'); row.appendChild(el('p', null, source.url));
-                row.appendChild(el('p', 'hint', source.error ? source.error + ' · Showing cached entries' : source.refreshedAt ?
+                var row = el('div', 'card store-source'); row.appendChild(el('p', null, source.name || source.url));
+                row.appendChild(el('p', 'hint', source.local ? 'Voices downloaded from themes' : source.error ? source.error + ' · Showing cached entries' : source.refreshedAt ?
                     'Last refreshed ' + new Date(source.refreshedAt).toLocaleString() : 'Refresh to load themes'));
-                button(row, 'Refresh', function () { return refreshStore(source.id); });
+                if (!source.local) { button(row, 'Refresh', function () { return refreshStore(source.id); }); }
                 button(row, 'Remove', function () { return action('DELETE', '/api/store/sources?id=' + encodeURIComponent(source.id)); });
                 sources.appendChild(row);
             });
-            ['theme', 'skill'].forEach(function (category) {
-            var isSkill = category === 'skill';
+            ['theme', 'skill', 'voice'].forEach(function (category) {
+            var isSkill = category === 'skill', isVoice = category === 'voice';
             var remoteEntries = data.entries.filter(function (entry) { return (entry.type || 'theme') === category; });
-            var list = $(isSkill ? '#store-skill-list' : '#store-list'); list.textContent = '';
-            var entries = isSkill ? [] : [{ name: 'None', stock: true }], seen = Object.create(null);
-            (isSkill ? skillInventory.skills : inventory.themes).forEach(function (theme) {
+            var list = $(isSkill ? '#store-skill-list' : isVoice ? '#store-voice-list' : '#store-list'); list.textContent = '';
+            var entries = isSkill ? [] : [{ name: isVoice ? 'Jibo' : 'None', stock: true }], seen = Object.create(null);
+            (isSkill ? skillInventory.skills : isVoice ? voiceInventory.voices : inventory.themes).forEach(function (theme) {
                 var matches = remoteEntries.filter(function (entry) { return (entry.name || '').toLowerCase() === theme.manifest.name.toLowerCase(); });
                 var remote = theme.origin && theme.origin.url ? matches.filter(function (entry) { return entry.url === theme.origin.url; })[0] : matches[0];
                 var entry = Object.assign({}, remote || { name: theme.manifest.name, manifest: theme.manifest });
@@ -289,7 +297,7 @@
                 if (!entry.developer && theme.origin) { var owner = /^https:\/\/github\.com\/([^/]+)\//.exec(theme.origin.url || ''); entry.developer = theme.origin.developer || (owner && owner[1]); entry.stars = theme.origin.stars == null ? entry.stars : theme.origin.stars; }
                 if (!entry.description) {
                     entry.description = theme.readme ? theme.readme.split(/\r?\n\s*\r?\n/).filter(function (text) { return text.trim() && !/^\s*#/.test(text); })[0] : '';
-                    entry.description = (entry.description || (isSkill ? 'Installed skill. Launch it from Jibo’s main menu.' : 'Installed theme. Choose Apply to use it.')).replace(/[*_`]/g, '');
+                    entry.description = (entry.description || (isSkill ? 'Installed skill. Launch it from Jibo’s main menu.' : isVoice ? 'Installed voice. Choose Use to give it to Jibo.' : 'Installed theme. Choose Apply to use it.')).replace(/[*_`]/g, '');
                 }
                 entries.push(entry); seen[theme.manifest.name.toLowerCase()] = true;
             });
@@ -304,12 +312,12 @@
                 if (entry.stock) {
                     media.className += ' store-none-banner';
                     fallback.hidden = true;
-                    var stockIcon = el('img', 'store-none-icon'); stockIcon.src = 'theme-none.svg'; stockIcon.alt = 'Stock appearance'; media.appendChild(stockIcon);
+                    var stockIcon = el('img', 'store-none-icon'); stockIcon.src = 'theme-none.svg'; stockIcon.alt = isVoice ? 'Jibo’s normal voice' : 'Stock appearance'; media.appendChild(stockIcon);
                 } else if (entry.bannerUrl || (entry.local && entry.local.images['banner.png'])) {
                     var image = el('img', 'store-banner-image'); image.alt = (entry.name || 'Theme') + ' banner'; image.loading = 'lazy';
                     image.onload = function () { fallback.hidden = true; };
                     image.onerror = function () { image.hidden = true; fallback.hidden = false; };
-                    image.src = entry.local && entry.local.images['banner.png'] ? '/api/' + (isSkill ? 'skills' : 'themes') + '/asset?id=' + encodeURIComponent(entry.local.id) + '&name=banner.png&t=' + entry.local.revision :
+                    image.src = entry.local && entry.local.images['banner.png'] ? '/api/' + KIND[category] + '/asset?id=' + encodeURIComponent(entry.local.id) + '&name=banner.png&t=' + entry.local.revision :
                         '/api/store/banner?id=' + encodeURIComponent(entry.id) + '&v=' + encodeURIComponent(entry.release && entry.release.tag || entry.commit || data.sources.filter(function (s) { return s.id === entry.sourceId; }).map(function (s) { return s.refreshedAt; })[0] || '');
                     media.appendChild(image);
                 }
@@ -318,21 +326,21 @@
                 if (!entry.stock) {
                     var publisher = el('p', 'store-publisher'); publisher.appendChild(el('span', null, entry.developer || 'Local package')); publisher.appendChild(el('span', null, '★ ' + (typeof entry.stars === 'number' ? entry.stars.toLocaleString() : '—'))); content.appendChild(publisher);
                 }
-                content.appendChild(el('p', 'store-description', entry.stock ? 'Jibo’s stock face and menus.' : entry.description || entry.error || (isSkill ? 'A new skill for Jibo.' : 'A new look for Jibo.')));
+                content.appendChild(el('p', 'store-description', entry.stock ? (isVoice ? 'Jibo’s own, normal voice.' : 'Jibo’s stock face and menus.') : entry.description || entry.error || (isSkill ? 'A new skill for Jibo.' : isVoice ? 'A new voice for Jibo.' : 'A new look for Jibo.')));
                 if (entry.compatibility && entry.compatibility.status === 'incompatible') {
                     content.appendChild(el('p', 'hint', 'Needs version ' + entry.manifest.supported + ' or newer'));
                 }
                 var actions = el('div', 'theme-actions'), existing = entry.local, download = downloadFor(entry);
                 if (download) { attachProgress(content, download); }
                 if (entry.stock) {
-                    var stockActive = !inventory.active && inventory.live.live;
-                    var stockApply = button(actions, stockActive ? 'Active' : 'Apply', function () { return action('POST', '/api/themes/apply', { id: null }); }, stockActive);
+                    var stockActive = isVoice ? !voiceInventory.active : !inventory.active && inventory.live.live;
+                    var stockApply = button(actions, stockActive ? (isVoice ? 'In use' : 'Active') : (isVoice ? 'Use' : 'Apply'), function () { return action('POST', '/api/' + (isVoice ? 'voices' : 'themes') + '/apply', { id: null }); }, stockActive);
                     stockApply.className = 'btn btn-primary store-install';
                     content.appendChild(actions); card.appendChild(content); list.appendChild(card); return;
                 }
                 if (existing) {
-                    var active = existing.active && !existing.pending && inventory.live.live;
-                    var apply = !isSkill && button(actions, active ? 'Active' : 'Apply', function () { return action('POST', '/api/themes/apply', { id: existing.id }); }, active || existing.compatibility.status === 'incompatible');
+                    var active = isVoice ? existing.active : existing.active && !existing.pending && inventory.live.live;
+                    var apply = !isSkill && button(actions, active ? (isVoice ? 'In use' : 'Active') : (isVoice ? 'Use' : 'Apply'), function () { return action('POST', '/api/' + KIND[category] + '/apply', { id: existing.id }); }, active || existing.compatibility.status === 'incompatible');
                     if (apply) { apply.className = 'btn btn-primary store-apply'; }
                     content.appendChild(el('p', 'hint', 'Installed v' + existing.manifest.version + (existing.pending ? ' · New version ready to apply' : '')));
                     if (existing.compatibility.status === 'unverified') { content.appendChild(el('p', 'hint', 'Compatibility unverified')); }
@@ -347,7 +355,7 @@
                 var install = button(actions, remove ? 'Remove' : existing ? 'Update' : 'Install', function () {
                     if (remove) {
                         if (!confirm('Remove ' + existing.manifest.name + '?')) { return; }
-                        return action('DELETE', '/api/' + (isSkill ? 'skills' : 'themes') + '?id=' + encodeURIComponent(existing.id));
+                        return action('DELETE', '/api/' + KIND[category] + '?id=' + encodeURIComponent(existing.id));
                     }
                     return installTheme(entry, existing, content, install);
                 }, !remove && (!!entry.error || (entry.compatibility && entry.compatibility.status === 'incompatible')));
@@ -361,6 +369,7 @@
                 content.appendChild(actions); card.appendChild(content); list.appendChild(card);
             });
             if (!entries.length) { list.appendChild(el('p', 'hint', 'No skills are listed yet. Add a storefront or upload a ZIP.')); }
+            if (isVoice && entries.length === 1) { list.appendChild(el('p', 'hint', 'No custom voices yet. Upload a voice ZIP or add a storefront that lists voices.')); }
             });
         }
         function refreshStore(id, silent) {
@@ -394,7 +403,7 @@
         }
         function upload(file) {
             if (uploading) { return; }
-            if (!/\.zip$/i.test(file.name) || file.size > 32 * 1024 * 1024) { reportError(new Error('Choose a theme or skill ZIP up to 32 MB')); return; }
+            if (!/\.zip$/i.test(file.name) || file.size > 32 * 1024 * 1024) { reportError(new Error('Choose a theme, skill or voice ZIP up to 32 MB')); return; }
             uploading = true; toast('Validating and installing ZIP…');
             return request(function (signal) {
                 var uploadOptions = { method: 'PUT', headers: { 'Content-Type': 'application/zip' }, body: file };
@@ -407,12 +416,30 @@
                     });
                 });
             }, 'ZIP upload')
-                .then(function (data) { uploading = false; toast(data && data.type === 'skill' ? 'Skill installed. It is now first in the main menu.' : 'Theme installed. Choose Apply to test it.', 'ok'); return loadStore(false); })
+                .then(function (data) { uploading = false; toast(data && data.type === 'skill' ? 'Skill installed. It is now first in the main menu.' : data && data.type === 'voice' ? 'Voice installed. Choose Use in Store › Voices.' : 'Theme installed. Choose Apply to test it.', 'ok'); return loadStore(false); })
                 .catch(function (err) { uploading = false; reportError(err); });
         }
         function addSource() {
             return options.prompt({ title: 'Add storefront', placeholder: 'https://github.com/ZaneThePython/Astra', hint: 'A manifest URL or a single GitHub repository' })
                 .then(function (value) { if (value) { return action('POST', '/api/store/sources', { url: value }); } });
+        }
+        // After a theme is applied: if it links its own voice that Jibo is not using yet, ask once per theme version.
+        function offerThemeVoice(themeId) {
+            var theme = inventory.themes.filter(function (t) { return t.id === themeId; })[0];
+            if (!theme || !theme.manifest.voice) { return; }
+            var url = theme.manifest.voice, using = voiceInventory.voices.filter(function (v) { return v.active && v.origin && v.origin.url === url; })[0];
+            var key = 'beacon.voiceOffer.' + theme.id + '.' + theme.manifest.version;
+            if (using || localStorage.getItem(key)) { return; }
+            var box = $('#voice-offer'), previous = document.activeElement;
+            $('#voice-offer-text').textContent = theme.manifest.name + ' comes with a matching voice for Jibo (' + url.replace('https://github.com/', '') + '). Download it and use it now? You can switch back to Jibo’s normal voice in Store › Voices.';
+            function close(remember) { box.hidden = true; if (remember) { localStorage.setItem(key, '1'); } if (previous && document.body.contains(previous)) { previous.focus(); } }
+            $('#voice-offer-no').onclick = function () { close(true); };
+            $('#voice-offer-yes').onclick = function () {
+                close(true); toast('Downloading voice…');
+                return api('POST', '/api/voices/theme', { themeId: theme.id }).then(function () { toast('Voice installed. Jibo will say hi in it.', 'ok'); return loadStore(false); }).catch(function (err) { localStorage.removeItem(key); reportError(err); }); // failed (e.g. signed out): ask again next time
+            };
+            box.onkeydown = function (event) { if (event.key === 'Escape') { close(false); } };
+            box.hidden = false; $('#voice-offer-yes').focus();
         }
         function closeDetails() { $('#theme-details').hidden = true; if (opener && document.body.contains(opener)) { opener.focus(); } }
         function setupDialog(selector, closeDialog) {

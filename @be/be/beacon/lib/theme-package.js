@@ -14,6 +14,7 @@ function assetPath(name) {
         name.split('/').every(p => p && p !== '.' && p !== '..') &&
         (/^icons\/[^/]+\.(png|svg)$/.test(name) || /^atex\/.+\.png$/.test(name) || /^asfx\/.+\.(wav|mp3|m4a|ogg|oga|aif)$/i.test(name));
 }
+const VOICE_FILES = ['manifest.json', 'README.md', 'banner.png', 'breath.mp3'];
 function accepted(name) { return FILES.indexOf(name) !== -1 || assetPath(name); }
 function audio(buf, name) {
     if (!Buffer.isBuffer(buf) || buf.length < 12 || buf.length > 16 * 1024 * 1024) { throw fail('Invalid or oversized animation sound: ' + name); }
@@ -65,7 +66,7 @@ function inflate(buf, limit, raw, name) {
     });
 }
 function unzip(buf, options) {
-    const skill = !!(options && options.skill);
+    const skill = !!(options && options.skill), voice = !!(options && options.voice);
     if (!Buffer.isBuffer(buf) || buf.length < 22 || buf.length > MAX_ZIP) {
         return Promise.reject(fail('Theme ZIP must be at most 32 MB'));
     }
@@ -133,7 +134,7 @@ function unzip(buf, options) {
                 if (data.length !== r.size || crc32(data) !== r.crc) { throw fail('ZIP checksum or size mismatch'); }
                 const rel = r.name.slice(prefix.length);
                 if (!skill && r.name.indexOf(prefix) === 0 && /^(atex|asfx|icons)\//.test(rel) && !rel.endsWith('/') && !assetPath(rel)) { throw fail('Unsupported animation asset: ' + rel); }
-                if (r.name.indexOf(prefix) === 0 && rel && !r.directory && (skill || accepted(rel))) { out[rel] = data; }
+                if (r.name.indexOf(prefix) === 0 && rel && !r.directory && (skill || (voice ? VOICE_FILES.indexOf(rel) >= 0 : accepted(rel)))) { out[rel] = data; }
             });
         }), Promise.resolve()).then(() => out);
     } catch (err) { return Promise.reject(err.status ? err : fail('Malformed ZIP')); }
@@ -150,7 +151,7 @@ function version(value) { return typeof value === 'string' && /^\d+\.\d+\.\d+(?:
 function manifest(buf) {
     const m = json(buf, 'manifest.json');
     if (typeof m.name !== 'string' || !m.name.trim() || m.name.length > 120 || /[\u0000-\u001f]/.test(m.name) ||
-        !version(m.version) || (m.supported !== undefined && !version(m.supported)) || ['theme', 'skill'].indexOf(m.type) < 0) {
+        !version(m.version) || (m.supported !== undefined && !version(m.supported)) || ['theme', 'skill', 'voice'].indexOf(m.type) < 0) {
         throw fail('Manifest requires name, semantic version, type, and an optional supported minimum jibo-tbd version');
     }
     const out = { name: m.name.trim(), version: m.version, supported: m.supported || null, type: m.type };
@@ -161,6 +162,27 @@ function manifest(buf) {
         if (!Array.isArray(colors) || colors.length < 1 || colors.length > 2 || colors.some(c => typeof c !== 'string' || !/^#[0-9a-f]{6}$/i.test(c))) { throw fail('buttonColor needs one or two #RRGGBB colors'); }
         out.buttonColor = colors.length === 1 ? [colors[0], colors[0]] : colors;
     }
+    if (m.type === 'voice') { out.voice = voiceParams(m.voice); }
+    // A theme may suggest its own voice: a GitHub repository with a published voice release.
+    if (m.type === 'theme' && m.voice !== undefined) {
+        const gh = typeof m.voice === 'string' && /^https?:\/\/github\.com\/([A-Za-z0-9-]{1,39})\/([A-Za-z0-9._-]{1,100}?)(?:\.git)?\/?$/.exec(m.voice.trim());
+        if (!gh) { throw fail('voice must be a GitHub repository URL like https://github.com/owner/repo'); }
+        out.voice = 'https://github.com/' + gh[1] + '/' + gh[2];
+    }
+    return out;
+}
+// Voice packs: every effect is optional; defaults are Jibo's normal voice.
+const VOICE = { pitch: [0, -12, 12], speed: [1, 0.5, 2], volume: [1, 0, 2], vibrato: [0, 0, 2], vibratoSpeed: [5, 0.5, 12], formants: [0, -1, 1] };
+function voiceParams(v) {
+    if (v === undefined) { v = {}; }
+    if (!v || typeof v !== 'object' || Array.isArray(v)) { throw fail('voice must be an object of effects'); }
+    Object.keys(v).forEach(k => { if (!VOICE[k]) { throw fail('Unknown voice effect: ' + k); } });
+    const out = {};
+    Object.keys(VOICE).forEach(k => {
+        const r = VOICE[k], x = v[k] === undefined ? r[0] : v[k];
+        if (typeof x !== 'number' || !isFinite(x) || x < r[1] || x > r[2]) { throw fail('voice.' + k + ' must be a number from ' + r[1] + ' to ' + r[2]); }
+        out[k] = x;
+    });
     return out;
 }
 function placement(value) {
@@ -293,6 +315,6 @@ function validate(files) {
         readme: files['README.md'] ? files['README.md'].toString('utf8').slice(0, 256 * 1024) : ''
     }));
 }
-module.exports = { MAX_ZIP: MAX_ZIP, FILES: FILES, unzip: unzip, validate: validate,
+module.exports = { MAX_ZIP: MAX_ZIP, FILES: FILES, unzip: unzip, validate: validate, voiceParams: voiceParams, VOICE: VOICE, VOICE_FILES: VOICE_FILES,
     accepted: accepted, assetPath: assetPath, audio: audio,
     manifest: manifest, png: png, crc32: crc32, placement: placement, fail: fail };
