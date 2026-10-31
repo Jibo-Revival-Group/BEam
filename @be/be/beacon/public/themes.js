@@ -219,8 +219,9 @@
             tab.addEventListener('keydown', function (event) {
                 if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].indexOf(event.key) === -1) { return; }
                 event.preventDefault();
-                var next = event.key === 'Home' ? 0 : event.key === 'End' ? TABS.length - 1 : (i + (event.key === 'ArrowRight' ? 1 : TABS.length - 1)) % TABS.length;
-                selectStoreTab(TABS[next], true);
+                var tabs = TABS.filter(function (t) { return !$('#store-tab-' + t).hidden; }), j = tabs.indexOf(name);
+                var next = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : (j + (event.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length;
+                selectStoreTab(tabs[next], true);
             });
         });
         selectStoreTab('themes');
@@ -261,6 +262,7 @@
             return Promise.all([api('GET', '/api/themes'), api('GET', '/api/skills/custom'), api('GET', '/api/voices')]).then(function (values) {
                 var data = values[0]; skillInventory = values[1] && values[1].skills ? values[1] : { skills: [] };
                 voiceInventory = values[2] && values[2].voices ? values[2] : { voices: [], active: null };
+                $('#store-tab-voices').hidden = !voiceInventory.enabled; // voices are turned off unless BEacon says otherwise
                 var activeVoice = voiceInventory.voices.filter(function (v) { return v.active; })[0];
                 $('#voices-summary').textContent = 'Jibo’s voice: ' + (activeVoice ? activeVoice.manifest.name : 'Normal');
                 var summary = 'Active theme: None';
@@ -426,7 +428,7 @@
         // After a theme is applied: if it links its own voice that Jibo is not using yet, ask once per theme version.
         function offerThemeVoice(themeId) {
             var theme = inventory.themes.filter(function (t) { return t.id === themeId; })[0];
-            if (!theme || !theme.manifest.voice) { return; }
+            if (!theme || !theme.manifest.voice || !voiceInventory.enabled) { return; }
             var url = theme.manifest.voice, using = voiceInventory.voices.filter(function (v) { return v.active && v.origin && v.origin.url === url; })[0];
             var key = 'beacon.voiceOffer.' + theme.id + '.' + theme.manifest.version;
             if (using || localStorage.getItem(key)) { return; }

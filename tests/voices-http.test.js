@@ -1,5 +1,6 @@
 'use strict';
 // HTTP routes for custom voices: Upload ZIP detects voices, apply/remove/assets, and Store sign-in for downloads.
+process.env.BEACON_VOICES = '1'; // voices are off by default
 const assert = require('assert'), fs = require('fs'), os = require('os'), path = require('path'), http = require('http'), createRequire = require('module').createRequire;
 const voicesLib = require('../@be/be/beacon/lib/voices'), fixture = require('./theme-fixtures');
 const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'voices-http-'));
@@ -8,6 +9,7 @@ const files = { 'manifest.json': Buffer.from('{"name":"HTTP Voice","version":"1.
 let connected = false; const themeList = { themes: [{ id: 'theme-1', manifest: { name: 'T', version: '1.0.0', voice: 'https://github.com/example/v' } }, { id: 'theme-2', manifest: { name: 'Plain', version: '1.0.0' } }] };
 const fromTheme = [];
 const voices = voicesLib.create({ root: path.join(temp, 'voices'), compatibility: () => ({ status: 'compatible' }), catalog: () => ({ entries: [] }), store: { download: () => Promise.reject(new Error('offline')) } });
+voices.ENABLED = voicesLib.ENABLED;
 voices.installFromTheme = (url, name) => { fromTheme.push([url, name]); return Promise.resolve(voices.inventory()); };
 const serverPath = path.resolve(__dirname, '../@be/be/beacon/server.js'), serverRequire = createRequire(serverPath), mod = { exports: {} };
 new Function('require', 'module', 'exports', '__dirname', fs.readFileSync(serverPath, 'utf8'))(name => name === './lib/github-auth' ? { token: () => connected ? 'gho_test' : null } :

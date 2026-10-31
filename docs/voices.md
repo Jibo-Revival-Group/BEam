@@ -1,5 +1,9 @@
 # Custom voices
 
+> **Turned off for now.** The code is kept; BEacon only enables it when started with
+> `BEACON_VOICES=1` (as the tests do). While off, nothing hooks Jibo's speech, the
+> Voices tab and theme voice pop-up are hidden, and voice routes/uploads are refused.
+
 A voice pack changes how Jibo's own text-to-speech sounds. Install one from
 **Store › Voices**, with **Upload ZIP**, or from a theme that links its voice.
 Choose **Use** to switch; the **Jibo** card restores his normal voice. Jibo says a

@@ -1,6 +1,7 @@
 'use strict';
 // Custom voices: package format, Store listing/download, theme voice links, TTS hook and the ALSA fx file.
 // Node 6 compatible (promise chains, no async/await).
+process.env.BEACON_VOICES = '1'; // voices are off by default
 const assert = require('assert'), fs = require('fs'), os = require('os'), path = require('path');
 const pkg = require('../@be/be/beacon/lib/theme-package'), stores = require('../@be/be/beacon/lib/theme-store');
 const voicesLib = require('../@be/be/beacon/lib/voices'), hook = require('../@be/be/beacon/lib/voice-tts');

@@ -53,7 +53,7 @@ store URL requires removing the old installation first. ZIP uploads can replace
 an installation with the same name for local testing.
 
 A theme may suggest its own voice with `"voice": "https://github.com/owner/repo"`
-(a [custom voice](voices.md) repository with a published release). When the
+(a [custom voice](voices.md) repository with a published release; custom voices are currently turned off, so this is ignored). When the
 theme is applied, BEacon asks once per theme version whether to download and use
 that voice. Nothing is downloaded unless the owner agrees.
 

@@ -89,6 +89,7 @@ async function run() {
     assert(ids['store-switch'].className.includes('is-skills')); assert.strictEqual(ids['store-themes'].hidden, true);
     assert.strictEqual(ids['store-skills'].hidden, false); assert.strictEqual(calls.length, beforeSwitch, 'Skills tab has no install API calls');
     await ui.loadStore(false); assert.strictEqual(ids['store-skills'].hidden, false, 'Refresh preserves the selected tab');
+    assert.strictEqual(ids['store-tab-voices'].hidden, true, 'Voices tab hidden while voices are off');
     ids['store-tab-skills'].events.keydown({ key: 'ArrowLeft', preventDefault() {} });
     assert.strictEqual(ids['store-themes'].hidden, false); assert.strictEqual(document.activeElement, ids['store-tab-themes']);
     const remove = all(ids['store-list']).find(n => n.tagName === 'button' && n.textContent === 'Remove');

@@ -29,7 +29,7 @@ const calls = [], toasts = [], errors = [];
 const voiceRepo = 'https://github.com/example/robo-voice';
 const theme = { id: 'theme-id', revision: 'r1', manifest: { name: 'Robo Theme', version: '1.0.0', voice: voiceRepo }, compatibility: { status: 'compatible' }, images: {}, active: false, pending: false, origin: { kind: 'zip' } };
 const robo = { id: 'voice-id', revision: 'r2', manifest: { name: 'Robo', version: '1.0.0', type: 'voice', voice: { pitch: 2 } }, compatibility: { status: 'compatible' }, images: {}, active: false, origin: { kind: 'zip' }, readme: 'A robot voice.' };
-let themes = { active: null, live: { live: true }, themes: [theme] }, voices = { active: null, voices: [robo] };
+let themes = { active: null, live: { live: true }, themes: [theme] }, voices = { enabled: true, active: null, voices: [robo] };
 const catalog = { sources: [{ id: 'local', url: 'local:added', name: 'Added by themes', local: true, entries: [] }],
     entries: [{ id: 'entry-chorus', type: 'voice', name: 'Chorus', url: 'https://github.com/example/chorus', manifest: { name: 'Chorus', version: '1.0.0', type: 'voice' }, compatibility: { status: 'compatible' }, description: 'Many Jibos.' }] };
 function api(method, url, data) {
@@ -40,10 +40,10 @@ function api(method, url, data) {
     if (url === '/api/voices') { return Promise.resolve(voices); }
     if (url === '/api/store') { return Promise.resolve(catalog); }
     if (url === '/api/themes/apply') { themes = Object.assign({}, themes, { active: data.id, themes: themes.themes.map(t => Object.assign({}, t, { active: t.id === data.id })) }); return Promise.resolve(themes); }
-    if (url === '/api/voices/apply') { voices = { active: data.id, voices: voices.voices.map(v => Object.assign({}, v, { active: v.id === data.id })) }; return Promise.resolve(voices); }
+    if (url === '/api/voices/apply') { voices = { enabled: true, active: data.id, voices: voices.voices.map(v => Object.assign({}, v, { active: v.id === data.id })) }; return Promise.resolve(voices); }
     if (url === '/api/voices/theme') {
         const v = Object.assign({}, robo, { id: 'theme-voice', active: true, origin: { kind: 'theme', url: voiceRepo } });
-        voices = { active: v.id, voices: voices.voices.map(x => Object.assign({}, x, { active: false })).concat(v) }; return Promise.resolve(voices);
+        voices = { enabled: true, active: v.id, voices: voices.voices.map(x => Object.assign({}, x, { active: false })).concat(v) }; return Promise.resolve(voices);
     }
     return Promise.resolve({});
 }
@@ -75,7 +75,7 @@ ui.loadStore(false).then(() => {
     assert(calls.some(c => c.method === 'POST' && c.url === '/api/voices/theme' && c.data.themeId === 'theme-id'));
     assert.strictEqual(voices.active, 'theme-voice');
     // Re-applying the theme does not ask again.
-    voices = { active: null, voices: voices.voices.map(v => Object.assign({}, v, { active: false })) };
+    voices = { enabled: true, active: null, voices: voices.voices.map(v => Object.assign({}, v, { active: false })) };
     return buttonIn(card('Jibo'), 'Use').onclick().then(() => buttonIn(ids['store-list'].children.find(c => all(c).some(n => n.textContent === 'None')), 'Apply').onclick())
         .then(() => buttonIn(ids['store-list'].children.find(c => all(c).some(n => n.textContent === 'Robo Theme')), 'Apply').onclick());
 }).then(() => {

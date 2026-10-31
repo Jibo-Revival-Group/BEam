@@ -155,4 +155,6 @@ function create(options) {
         onChange: fn => { listeners.push(fn); }, fxFile: () => path.join(root, 'fx.txt'),
         progress: id => !id || progressState.id === id ? Object.assign({}, progressState) : { id: id, state: 'idle' } };
 }
-module.exports = Object.assign(create(), { create: create });
+// Custom voices are turned off for now (code kept for later). Set BEACON_VOICES=1 to turn them on (the tests do).
+const ENABLED = process.env.BEACON_VOICES === '1';
+module.exports = Object.assign(create(), { create: create, ENABLED: ENABLED });

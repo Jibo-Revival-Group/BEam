@@ -70,6 +70,7 @@ function guard (fn) {
             if (/^\/api\/store(?:\/|$)/.test(pathname) || (req.method === 'POST' && /^\/api\/(?:(?:themes|skills|voices)\/install|voices\/theme)$/.test(pathname))) {
                 if (!githubAuth.token()) { req.resume(); throw fail('Sign in to GitHub to use the Store.', 401); }
             }
+            if (!voices.ENABLED && /^\/api\/voices\//.test(pathname)) { req.resume(); throw fail('Custom voices are turned off.', 404); }
             const result = fn(req, res, query);
             if (result && typeof result.then === 'function') {
                 result.catch((err) => handleError(res, err));
@@ -222,10 +223,11 @@ const routes = {
     'PUT /api/store/upload': guard((req, res, query) => {
         return u.readBody(req, themePackage.MAX_ZIP, 120000).then(buf => themePackage.unzip(buf, { skill: true })
             .then(files => themePackage.manifest(files['manifest.json']).type)
+            .then(type => { if (type === 'voice' && !voices.ENABLED) { throw fail('Custom voices are turned off.'); } return type; })
             .then(type => (type === 'skill' ? customSkills : type === 'voice' ? voices : themes).upload(buf, query.name).then(data => Object.assign({ type: type }, data))))
             .then(data => u.sendJson(res, 200, data));
     }),
-    'GET /api/voices': guard((req, res) => { u.sendJson(res, 200, voices.inventory()); }),
+    'GET /api/voices': guard((req, res) => { u.sendJson(res, 200, voices.ENABLED ? Object.assign({ enabled: true }, voices.inventory()) : { enabled: false, voices: [], active: null }); }),
     'GET /api/voices/progress': guard((req, res, query) => { u.sendJson(res, 200, voices.progress(query.id)); }),
     'POST /api/voices/install': guard((req, res) => {
         return u.readJson(req, 4096).then(body => voices.install(body.entryId, body.requestId)).then(data => u.sendJson(res, 200, data));

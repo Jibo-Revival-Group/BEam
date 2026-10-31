@@ -121,8 +121,13 @@ function start (options, callback) {
         }
         try {
             const voices = require('./lib/voices');
-            require('./lib/voice-tts').install(require('jibo').tts, voices.current);
-            voices.start();
+            if (voices.ENABLED) {
+                require('./lib/voice-tts').install(require('jibo').tts, voices.current);
+                voices.start();
+            } else {
+                // No settings file: BEnch's launcher keeps the voice-effects plugin out of TTS.
+                try { require('fs').unlinkSync(voices.fxFile()); } catch (err) { /* already gone */ }
+            }
         } catch (err) {
             warn('could not start custom voices:', err && err.message);
         }
