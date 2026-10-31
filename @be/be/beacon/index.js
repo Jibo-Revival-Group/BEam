@@ -119,6 +119,14 @@ function start (options, callback) {
         } catch (err) {
             warn('could not restore theme:', err && err.message);
         }
+        // New (e.g. OOBE) robots start with an empty loop: add a placeholder owner to rename in BEacon.
+        try {
+            require('./lib/people').ensureOwner()
+                .then((added) => { if (added) warn('loop was empty: added placeholder owner FirstName LastName'); })
+                .catch((err) => warn('could not check the loop owner:', err && err.message));
+        } catch (err) {
+            warn('could not check the loop owner:', err && err.message);
+        }
         // Keep Store listings current with no BEacon tab open. refresh(.., true) skips storefronts tried in the last 30 minutes;
         // like the Store itself, it needs GitHub sign-in (unauthenticated GitHub API limits are too low).
         const githubAuth = require('./lib/github-auth');

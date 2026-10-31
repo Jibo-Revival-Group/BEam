@@ -345,6 +345,38 @@ function setOwner (memberId) {
     });
 }
 
+// An OOBE/new robot has no people yet; give it a placeholder owner so loop-dependent features work.
+// The owner renames it in BEacon › People. Runs at BEacon start; a loop with any person is left alone.
+const PLACEHOLDER_OWNER = { firstName: 'FirstName', lastName: 'LastName' };
+
+function ensureOwner () {
+    const jibo = ensureRobot();
+    return jibo.kb.onInit().then(() => loadRootAndLoop(jibo)).then((results) => {
+        const root = results[0];
+        const people = (results[1] || []).filter((looper) => {
+            const status = (looper.data && looper.data.status) || '';
+            return !isRobotMember(looper) && status !== 'removed' && status !== 'declined';
+        });
+        if (!root || people.length) return false;
+        const node = jibo.kb.loop.createNode('user');
+        node.type = 'user';
+        node.data = {
+            firstName: PLACEHOLDER_OWNER.firstName,
+            lastName: PLACEHOLDER_OWNER.lastName,
+            gender: 'unknown',
+            type: 'owner',
+            status: 'accepted',
+            enrolled: { face: false, voice: false }
+        };
+        root.addEdges(node, 'user');
+        root.clearEdges('owner');
+        root.addEdges(node, 'owner');
+        return asPromise((cb) => node.save(cb))
+            .then(() => asPromise((cb) => root.save(cb)))
+            .then(() => true);
+    });
+}
+
 function setPhoneticName (memberId, phoneticName) {
     if (!memberId) throw fail('memberId is required.', 400);
     const value = phoneticName == null ? '' : String(phoneticName);
@@ -413,6 +445,8 @@ function clearPhoto (memberId) {
 }
 
 module.exports = {
+    ensureOwner,
+    PLACEHOLDER_OWNER,
     list,
     findMember,
     addMember,
