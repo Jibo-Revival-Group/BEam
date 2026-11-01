@@ -468,7 +468,7 @@ const timeout = PromiseUtils.timeout;
 const prify = PromiseUtils.promisify;
 const TemperatureUnits_1 = require("../utils/TemperatureUnits");
 const ATTENTION_TIMEOUT = 2000;
-const CLOUD_SKILL_TIMEOUT = 8000;
+const CLOUD_SKILL_TIMEOUT = 8000; const MIN_THINKING_MS = 1000; // Fast lookups answer before the eye's first frame; show it for two bounces first.
 const PERSONAL_REPORT_TIMEOUT = 20000;
 const CLOUD_SKILL_TIMED_OUT = 'CLOUD_SKILL_TIMED_OUT';
 const SKILL_ENTRY = 'Skill Entry';
@@ -481,7 +481,7 @@ class ProcessCloudState extends exports.State {
         this.onEntry = (transition, data) => __awaiter(this, void 0, void 0, function* () {
             this.stoppedOrComplete = false;
             const cloudSkill = data.listenResult.match && data.listenResult.match.cloudSkill;
-            const isGQA = !!((cloudSkill === 'answer') || (cloudSkill === 'news'));
+            const isGQA = !!((cloudSkill === 'answer') || (cloudSkill === 'news')); const thinkingStart = Date.now();
             if (isGQA) {
                 this.loopingAsset = this.nimbus.jibo.animDB.getAnimByName(this.loopingAssetName);
                 try {
@@ -500,7 +500,7 @@ class ProcessCloudState extends exports.State {
                     ? PERSONAL_REPORT_TIMEOUT
                     : CLOUD_SKILL_TIMEOUT;
                 data.cloudResponse = yield timeout(data.listenResult.cloudSkillResponse, responseTimeout, 'Cloud Skill Response Timeout');
-                this.nimbus.log.info('Received Cloud Skill response.');
+                this.nimbus.log.info('Received Cloud Skill response.'); if (isGQA) { yield new Promise(resolve => setTimeout(resolve, Math.max(0, MIN_THINKING_MS - (Date.now() - thinkingStart)))); }
             }
             catch (error) {
                 yield this.stopThinkingAnim();
