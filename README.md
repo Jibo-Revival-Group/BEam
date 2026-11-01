@@ -21,7 +21,7 @@ Here are a few things these skills change:
 ```text
 @be/
   be/                # host only (what SSM lists / launches)
-  skills/            # idle, main-menu, jukebox, be-framework, …
+  skills/            # idle, main-menu, music, be-framework, …
     idle/
     main-menu/
     …
@@ -35,15 +35,13 @@ only lists `@be/be` as a launchable skill and OTA of `@be/be` ships the packs.
 
 - Recipe (aka Cooking): Cooking Videos inside Jibo
 - Music: Say “Hey Jibo, play Yes I'm A Mess” to search and play songs online, with video or album layouts. See [built-in music](docs/examples/music.md).
-- Jukebox: Loads music from local disk
 - Bad Apple: Bad Apple!! PV fullscreen on the face; swipe down to exit
 - Doom: (paused) Playable shareware DOOM — not currently on the menu
 
 ## BEacon
 
 Be starts a web control panel on **port 8123**. Open `http://<jibo-ip>:8123` from
-any device on your network to watch and touch Jibo's screen, manage the jukebox
-library, browse custom theme storefronts, upload theme ZIPs, change Jibo's face
+any device on your network to watch and touch Jibo's screen, browse custom theme storefronts, upload theme ZIPs, change Jibo's face
 and standard menus, see what skills are loaded, and update BEam.
 
 See [docs/beacon.md](docs/beacon.md).
@@ -54,7 +52,7 @@ See [docs/README.md](docs/README.md) for how to create, build, and deploy Be ski
 
 ## Fresh-robot storage
 
-Be prepares missing Knowledge, BEacon, and jukebox directories before loading
+Be prepares missing Knowledge and BEacon directories before loading
 skills or cleanup modules, and prepares them again before opening a skill.
 BEacon recreates its data directory when accessed. The standalone
 `@be/be/runtime-state.js` helper matches BEnch's runtime helper so BEam can prepare

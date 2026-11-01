@@ -1,5 +1,0 @@
-TopRule = $* (
-    jukebox |
-    (juke box) |
-    (music player)
-) $* {skill='\@be/jukebox'};

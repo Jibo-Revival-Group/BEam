@@ -2,7 +2,7 @@
 
 Fullscreen Be skills in this repo use **swipe down** on the face to leave the skill and return via Be’s normal exit flow.
 
-Used by: `@be/bad-apple`, `@be/jukebox`, `@be/doom`, `@be/recipe` (skill-level handler).
+Used by: `@be/bad-apple`, `@be/doom`, `@be/recipe` (skill-level handler).
 
 ## Mechanism
 

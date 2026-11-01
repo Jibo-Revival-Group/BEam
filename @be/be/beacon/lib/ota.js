@@ -219,7 +219,7 @@ function tarPathFor (subsystem) {
  * Discover OTA-able packs under Skills root.
  * - Skills/foo/package.json → subsystem foo
  * - Skills/@org/name/package.json → subsystem @org/name
- * Nested packs (e.g. @be/be/skills/jukebox) are intentionally ignored.
+ * Nested packs (e.g. @be/be/skills/music) are intentionally ignored.
  */
 function listPackages () {
     const root = paths.onRobot()
@@ -790,7 +790,6 @@ function apply (request, onEvent, done) {
 
             if (subsystem === '@be/be') {
                 try {
-                    paths.ensureDir(paths.musicDirCanonical());
                     paths.ensureDir(paths.dataDir());
                 } catch (mkdirErr) {
                     console.warn('[beacon] Knowledge mkdir after OTA:', mkdirErr.message);

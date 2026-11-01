@@ -15,7 +15,6 @@ const querystring = require('querystring');
 
 const paths = require('./lib/paths');
 const u = require('./lib/http-util');
-const jukebox = require('./lib/jukebox');
 const photos = require('./lib/photos');
 const themes = require('./lib/themes');
 const themePackage = require('./lib/theme-package');
@@ -138,45 +137,6 @@ const routes = {
     'POST /api/menu': guard((req, res) => { return u.readJson(req, 128 * 1024).then(body => u.sendJson(res, 200, menuLayout.save(body.tree))); }),
     'GET /api/menu/icon': guard((req, res, query) => { u.serveFile(req, res, menuLayout.icon(query.name), { contentType: 'image/png' }); }),
     'PUT /api/menu/icon': guard((req, res) => { return u.readBody(req, 2 * 1024 * 1024).then(buf => menuLayout.uploadIcon(buf)).then(data => u.sendJson(res, 200, data)); }),
-
-    'GET /api/jukebox': guard((req, res) => {
-        u.sendJson(res, 200, jukebox.scan());
-    }),
-
-    'POST /api/jukebox/album': guard((req, res) => {
-        return u.readJson(req).then((body) => {
-            u.sendJson(res, 200, jukebox.createAlbum(body.artist, body.album));
-        });
-    }),
-
-    'PUT /api/jukebox/file': guard((req, res, query) => {
-        return u.readBody(req, MAX_UPLOAD).then((buf) => {
-            u.sendJson(res, 200, jukebox.saveFile(query.album, query.name, buf));
-        });
-    }),
-
-    'POST /api/jukebox/rename': guard((req, res) => {
-        return u.readJson(req).then((body) => {
-            u.sendJson(res, 200, jukebox.rename(body.type, body.path, body.name));
-        });
-    }),
-
-    'DELETE /api/jukebox/album': guard((req, res, query) => {
-        u.sendJson(res, 200, jukebox.removeAlbum(query.path));
-    }),
-
-    'DELETE /api/jukebox/track': guard((req, res, query) => {
-        u.sendJson(res, 200, jukebox.removeTrack(query.path));
-    }),
-
-    'GET /api/jukebox/cover': guard((req, res, query) => {
-        const abs = jukebox.resolveFile(query.path);
-        u.serveFile(req, res, abs);
-    }),
-
-    'GET /api/jukebox/audio': guard((req, res, query) => {
-        jukebox.streamAudio(req, res, query.path);
-    }),
 
     'GET /api/photos': guard((req, res) => {
         return photos.scan().then((result) => u.sendJson(res, 200, result));
@@ -571,7 +531,6 @@ if (require.main === module) {
         catch (err) { console.warn('[beacon] home assistant watcher:', err && err.message); }
         console.log('[beacon] listening on http://localhost:' + port);
         console.log('[beacon] be root   :', paths.BE_ROOT);
-        console.log('[beacon] music dir :', paths.musicDir());
         console.log('[beacon] data dir  :', paths.dataDir());
         console.log('[beacon] public    :', path.relative(paths.BE_ROOT, paths.publicDir));
     });

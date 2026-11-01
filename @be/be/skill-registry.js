@@ -146,7 +146,7 @@ function purgeSkillModules (id) {
         });
     });
 
-    // Browserify UMD also assigns a global (e.g. bejukebox, bemainMenu).
+    // Browserify UMD also assigns a global (e.g. bemusic, bemainMenu).
     try {
         const short = id.replace(/^@be\//, '');
         const candidates = [

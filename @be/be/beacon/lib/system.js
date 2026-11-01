@@ -111,8 +111,6 @@ function status () {
         paths: {
             beRoot: paths.BE_ROOT,
             skillsRoot: paths.skillsRoot(),
-            musicDir: paths.musicDir(),
-            musicDirExists: paths.isDir(paths.musicDir()),
             photosDir: paths.photosDir(),
             photosDirExists: paths.isDir(paths.photosDir()),
             texturesDir: paths.texturesDir(),

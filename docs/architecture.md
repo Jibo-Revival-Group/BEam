@@ -43,7 +43,7 @@ Skills/                         (repo root on robot)
       skills/                   # packs ship inside Be (OTA of @be/be)
         idle/
         main-menu/
-        jukebox/
+        music/
         be-framework/           # library, not launchable
         …
       package.json              # jibo.skillsRoot: "./skills"
@@ -92,7 +92,7 @@ Example:
     "@be/clock"
   ],
   "lazySkills": [
-    "@be/jukebox",
+    "@be/music",
     "@be/bad-apple"
   ]
 }
@@ -177,7 +177,7 @@ Skills in this repo typically implement:
 | `close(done)` | Tear down UI, remove listeners, call `done()` |
 | `exit()` | Leave the skill (often triggered by swipe-down) |
 
-Pattern used by Bad Apple, Jukebox, and Doom:
+Pattern used by Bad Apple and Doom:
 
 - **`open`**: subscribe swipe-down, defer heavy work with `setTimeout(..., 50)` so the first frame can paint.
 - **`close`**: unsubscribe gestures, cleanup views, null references.

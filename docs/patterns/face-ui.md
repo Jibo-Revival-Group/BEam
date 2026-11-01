@@ -63,7 +63,7 @@ Be expects this shell. DOM-on-body skills use `#face` indirectly (Be/Eye may ren
 
 ## Loading overlays
 
-Jukebox and Doom use a **status overlay** on `document.body` before heavy work:
+Doom uses a **status overlay** on `document.body` before heavy work:
 
 - Show “Loading…” immediately in `open`.
 - Defer scan/engine boot with `setTimeout(..., 50)` so the first paint happens.

@@ -94,26 +94,20 @@ function start (options, callback) {
         warn('endpoint rewrite:', err && err.message);
     }
 
-    // Themes + music live under Knowledge so Skills/@be/be OTA cannot wipe them.
+    // Themes live under Knowledge so Skills/@be/be OTA cannot wipe them.
     try {
         paths.ensureDir(paths.dataDir());
-        paths.ensureDir(paths.musicDirCanonical());
     } catch (err) {
         warn(
             'cannot create Knowledge data dirs:',
             err && err.message,
-            '(need writable /opt/jibo/Knowledge; run: mkdir -p /opt/jibo/Knowledge/beacon /opt/jibo/Knowledge/jukebox/music && chmod -R 777 /opt/jibo/Knowledge)'
+            '(need writable /opt/jibo/Knowledge; run: mkdir -p /opt/jibo/Knowledge/beacon && chmod -R 777 /opt/jibo/Knowledge)'
         );
     }
 
-    // Music migration and theme texture loading are deferred so
-    // Be construct and splash paint are not blocked on the critical path.
+    // Theme texture loading is deferred so Be construct and splash paint
+    // are not blocked on the critical path.
     setImmediate(() => {
-        try {
-            paths.migrateMusicToKnowledge();
-        } catch (err) {
-            warn('music migrate:', err && err.message);
-        }
         try {
             themes.start();
         } catch (err) {

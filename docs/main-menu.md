@@ -61,7 +61,7 @@ The **`destination`** string is the skill’s short name — **not** the full `@
 
 Implemented in `@be/be/skills/main-menu/index.js`:
 
-1. Receives `destination` (e.g. `"bad-apple"`, `"recipe"`, `"jukebox"`).
+1. Receives `destination` (e.g. `"bad-apple"`, `"recipe"`, `"gallery"`).
 2. Maps special cases (cloud skills, photobooth → create, etc.).
 3. For normal Be skills: `targetSkill = '@be/' + skill`.
 4. Calls `jibo.face.views.changeView({ remove: true, leaveEmpty: true, ... })`.

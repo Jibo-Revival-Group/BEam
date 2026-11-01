@@ -65,12 +65,6 @@
             "iconSrc": "assets/icons/pizza.png"
         },
         {
-            "id": "jukebox",
-            "label": "Jukebox",
-            "colors": ["0x8A2BE2", "0x3B1266"],
-            "iconSrc": "assets/icons/record-player.png"
-        },
-        {
             "id": "bad-apple",
             "label": "Bad Apple",
             "colors": ["0x58586D", "0x282735"],

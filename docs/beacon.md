@@ -77,34 +77,6 @@ Tap or drag the picture to send mouse/touch events at 1280×720 face coordinates
 A flick is also recognized as a swipe (including swipe-down to leave a skill).
 **Swipe down** fires the same `swipedown` gesture skills use to go back.
 
-## Jukebox
-
-BEacon writes into the same `music/` folder the jukebox skill scans. Canonical
-store on the robot is under **Knowledge** so Skills / `@be/be` OTA cannot wipe
-albums:
-
-```
-/opt/jibo/Knowledge/jukebox/music                            (canonical on robot)
-/opt/jibo/Jibo/Skills/@be/Skills/Jukebox/Music               (legacy — migrated once)
-/opt/jibo/Jibo/Skills/@be/be/skills/jukebox/music            (pack-local)
-/opt/jibo/Jibo/Skills/@be/skills/jukebox/music               (pre-move legacy)
-/opt/jibo/Jibo/Skills/@be/be/node_modules/@be/jukebox/music  (legacy)
-/opt/tmp/jukebox-music
-<repo>/@be/be/skills/jukebox/music                           (development)
-```
-
-If Knowledge is empty but a legacy path has albums, BEacon and Jukebox migrate
-that library into Knowledge once (rename, else copy).
-
-Album layout, cover names and accepted audio formats are unchanged: folders are
-albums, `Artist/Album/` nests one level, covers are `cover.png` / `cover.jpg` /
-`cover.jpeg` / `folder.png` / `folder.jpg`, and tracks are `.mp3`, `.opus`,
-`.ogg` or `.oga`. Drop files onto an album card to upload them; the jukebox picks
-them up the next time it opens, with no rebuild.
-
-Every path from the browser is resolved inside `music/` and rejected if it tries
-to escape, so a malformed request cannot touch the rest of the filesystem.
-
 ## Photos
 
 The **Photos** panel reads saved image entries from `jibo.kb.media` and serves
@@ -281,9 +253,8 @@ Robot-only actions refuse to run off-robot.
 node @be/be/beacon/server.js 8123
 ```
 
-It detects the repo root instead of `/opt/jibo/...`, so the jukebox panel operates
-on `@be/be/skills/jukebox/music/` and the eye panel on the textures inside
-`@be/be/node_modules/`. Robot-only actions report that they are unavailable
+It detects the repo root instead of `/opt/jibo/...`, so the eye panel operates
+on the textures inside `@be/be/node_modules/`. Robot-only actions report that they are unavailable
 rather than failing.
 
 ## HTTP API
@@ -309,14 +280,6 @@ rather than failing.
 | GET | `/api/themes/asset?id=&name=` | Serve a validated installed PNG |
 | GET | `/api/skills` | Registered and on-disk skills |
 | POST | `/api/skills/install` | Install or update a custom skill from a storefront |
-| GET | `/api/jukebox` | Albums, tracks, ignored folders |
-| POST | `/api/jukebox/album` | `{artist, album}` creates a folder |
-| PUT | `/api/jukebox/file?album=&name=` | Raw body upload of a track or cover |
-| POST | `/api/jukebox/rename` | `{type: album\|track, path, name}` |
-| DELETE | `/api/jukebox/album?path=` | Delete a folder and its tracks |
-| DELETE | `/api/jukebox/track?path=` | Delete one track |
-| GET | `/api/jukebox/cover?path=` | Serve a cover image |
-| GET | `/api/jukebox/audio?path=` | Stream a track, supports Range |
 | GET | `/api/photos` | List saved full-size robot photos |
 | GET | `/api/photos/file?id=` | Serve a photo JPEG; `download=1` downloads it |
 | DELETE | `/api/photos?id=` | Delete a photo from the local robot gallery |
@@ -357,7 +320,6 @@ rather than failing.
   server.js               router; also runnable standalone
   lib/paths.js            robot and repo path resolution
   lib/http-util.js        JSON, raw bodies, static files, traversal guard
-  lib/jukebox.js          library operations
   lib/photos.js           saved robot photo listing and deletion
   lib/people.js           local loop roster CRUD and profile photos
   lib/calendars.js        personal-report iCal feeds via signed cloud calls

@@ -13,7 +13,6 @@ Located in `@be/be/node_modules/jibo-dev/`:
 | Script | Skill |
 |--------|--------|
 | `build-bad-apple.js` | `@be/bad-apple` |
-| `build-jukebox.js` | `@be/jukebox` |
 | `build-recipe.js` | `@be/recipe` |
 | `build-doom.js` | `@be/doom` |
 
@@ -136,7 +135,7 @@ Without console access:
 - Skills like Bad Apple show status text on load failure.
 - Main menu tap should transition to the skill; swipe down should return to idle/menu.
 
-With console: watch for `[bad-apple]`, `[jukebox]`, etc. log prefixes.
+With console: watch for `[bad-apple]`, `[music]`, etc. log prefixes.
 
 ## Troubleshooting
 

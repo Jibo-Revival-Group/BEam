@@ -39,7 +39,6 @@ The robot face is **1280×720** pixels.
 | Document | Skill | When to copy |
 |----------|-------|--------------|
 | [examples/bad-apple.md](examples/bad-apple.md) | `@be/bad-apple` | Fullscreen video, minimal UI |
-| [examples/jukebox.md](examples/jukebox.md) | `@be/jukebox` | Touch UI + local files |
 | [examples/recipe.md](examples/recipe.md) | `@be/recipe` | Voice flows + guided steps |
 | [examples/doom.md](examples/doom.md) | `@be/doom` | Paused; reference only |
 

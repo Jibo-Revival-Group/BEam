@@ -26,7 +26,7 @@ Doom contributed debugging and UX patterns reused in other skills:
 
 1. **On-screen diagnostics** — FPS/blit HUD when console is unavailable.
 2. **`document.body` mount** — same fixed 1280×720 layer as Bad Apple when `#face` hid content.
-3. **Swipe-down exit** — shared with Jukebox/Bad Apple/Recipe.
+3. **Swipe-down exit** — shared with Bad Apple/Recipe.
 4. **Loading overlay** — `StatusOverlay` on body until first real frame.
 5. **Permissions** — `chmod -R a+rX` required for `@be/doom` to load.
 6. **Menu redirect race** — main-menu must not `done('')` before async `redirect()` (fixed for Doom launch path).
@@ -50,7 +50,6 @@ Deploy requires both `index.js` and `resources/engine/websockets-doom.wasm2js.js
 For new face media or games on Jibo today:
 
 - **Video / animation** → `@be/bad-apple`
-- **Touch + local files** → `@be/jukebox`
 - **Voice multi-step** → `@be/recipe`
 
 ## Related

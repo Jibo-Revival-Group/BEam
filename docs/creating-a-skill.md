@@ -182,7 +182,6 @@ See [build-and-deploy.md](build-and-deploy.md):
 | Goal | Start from |
 |------|------------|
 | Fullscreen video | `@be/bad-apple` — [examples/bad-apple.md](examples/bad-apple.md) |
-| Local files + touch UI | `@be/jukebox` — [examples/jukebox.md](examples/jukebox.md) |
 | Flows + voice + video | `@be/recipe` — [examples/recipe.md](examples/recipe.md) |
 
 Do **not** use `@be/doom` as a template for new skills (paused; see [examples/doom.md](examples/doom.md)).

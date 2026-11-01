@@ -8,12 +8,10 @@
     var SCREEN_MOVE_MS = 16;
     var SCREEN_FLICK_DIST = 120;
     var SCREEN_FLICK_MS = 900;
-    var AUDIO_RE = /\.(mp3|opus|ogg|oga)$/i;
     var IMAGE_RE = /\.(png|jpe?g|gif|webp|bmp)$/i;
 
     var state = {
         panel: 'status',
-        jukebox: null,
         photos: null,
         location: {
             current: null,
@@ -192,7 +190,6 @@
             var rows = [
                 ['App folder', data.paths.beRoot],
                 ['Skills folder', data.paths.skillsRoot],
-                ['Music folder', data.paths.musicDir + (data.paths.musicDirExists ? '' : '  (missing)')],
                 ['Photos folder', data.paths.photosDir + (data.paths.photosDirExists ? '' : '  (missing)')],
                 ['BEacon data', data.paths.dataDir]
             ];
@@ -205,312 +202,6 @@
             setLive(false);
             throw err;
         });
-    }
-
-    /* ------------------------------------------------------------ jukebox */
-
-    function uploadFile (albumRel, name, file, onProgress) {
-        return new Promise(function (resolve, reject) {
-            var xhr = new XMLHttpRequest();
-            xhr.open('PUT', '/api/jukebox/file?album=' + encodeURIComponent(albumRel) +
-                '&name=' + encodeURIComponent(name));
-            xhr.upload.onprogress = function (event) {
-                if (onProgress && event.lengthComputable) { onProgress(event.loaded / event.total); }
-            };
-            xhr.onload = function () {
-                var data = null;
-                try { data = JSON.parse(xhr.responseText); } catch (err) { /* non-JSON error */ }
-                if (xhr.status >= 200 && xhr.status < 300) {
-                    resolve(data);
-                    return;
-                }
-                reject(new Error((data && data.error) || ('Upload failed (' + xhr.status + ')')));
-            };
-            xhr.onerror = function () { reject(new Error('Upload failed: connection lost')); };
-            xhr.send(file);
-        });
-    }
-
-    function coverName (file) {
-        var match = /\.(png|jpe?g)$/i.exec(file.name);
-        var ext = match ? match[1].toLowerCase() : 'png';
-        return 'cover.' + (ext === 'jpeg' ? 'jpg' : ext);
-    }
-
-    function uploadToAlbum (albumRel, files, progress) {
-        var bar = progress ? progress.firstChild : null;
-        var list = Array.prototype.slice.call(files);
-        var accepted = list.filter(function (file) {
-            return AUDIO_RE.test(file.name) || /\.(png|jpe?g)$/i.test(file.name);
-        });
-        var rejected = list.length - accepted.length;
-        if (rejected) {
-            toast(rejected + ' file(s) skipped — use audio (.mp3/.opus/.ogg) or cover images (.png/.jpg)', 'error');
-        }
-        if (!accepted.length) { return Promise.resolve(); }
-
-        if (progress) {
-            progress.hidden = false;
-            bar.style.width = '0%';
-        }
-
-        var index = 0;
-        function next () {
-            if (index >= accepted.length) { return Promise.resolve(); }
-            var file = accepted[index++];
-            var isAudio = AUDIO_RE.test(file.name);
-            var name = isAudio ? file.name : coverName(file);
-            return uploadFile(albumRel, name, file, function (fraction) {
-                if (!bar) { return; }
-                var overall = ((index - 1) + fraction) / accepted.length;
-                bar.style.width = Math.round(overall * 100) + '%';
-            }).then(next);
-        }
-
-        return next().then(function () {
-            toast('Added ' + accepted.length + ' file' + (accepted.length === 1 ? '' : 's') + '.', 'ok');
-            return loadJukebox();
-        }).catch(function (err) {
-            reportError(err);
-            return loadJukebox();
-        }).then(function () {
-            if (progress) { progress.hidden = true; }
-        });
-    }
-
-    function playTrack (rel, button) {
-        if (state.playing === rel && state.audio) {
-            state.audio.pause();
-            state.audio = null;
-            state.playing = null;
-            button.textContent = 'Play';
-            return;
-        }
-        if (state.audio) { state.audio.pause(); }
-        var audio = new Audio('/api/jukebox/audio?path=' + encodeURIComponent(rel));
-        audio.play().catch(function (err) { toast('Could not play that track.', 'error'); });
-        audio.onended = function () {
-            state.audio = null;
-            state.playing = null;
-            renderJukebox();
-        };
-        state.audio = audio;
-        state.playing = rel;
-        renderJukebox();
-    }
-
-    function deleteAlbum (album) {
-        var label = album.albumTitle || album.rel;
-        var message = album.tracks.length
-            ? 'Delete "' + label + '" and its ' + album.tracks.length +
-                ' track' + (album.tracks.length === 1 ? '' : 's') + '?'
-            : 'Delete the empty album "' + label + '"?';
-        if (!confirm(message)) { return; }
-        api('DELETE', '/api/jukebox/album?path=' + encodeURIComponent(album.rel))
-            .then(function () { toast('Album deleted.', 'ok'); return loadJukebox(); })
-            .catch(reportError);
-    }
-
-    function albumCard (album) {
-        var card = el('div', 'album');
-        var head = el('div', 'album-head');
-
-        if (album.coverRel) {
-            var img = el('img', 'album-cover');
-            img.src = '/api/jukebox/cover?path=' + encodeURIComponent(album.coverRel);
-            img.alt = album.title;
-            head.appendChild(img);
-        } else {
-            head.appendChild(el('div', 'album-cover is-empty', '♪'));
-        }
-
-        var meta = el('div');
-        var title = el('div', 'album-title', album.albumTitle);
-        if (album.isSingle) { title.appendChild(el('span', 'badge', 'single')); }
-        meta.appendChild(title);
-        meta.appendChild(el('div', 'album-sub',
-            (album.artist ? album.artist + ' · ' : '') +
-            album.tracks.length + ' track' + (album.tracks.length === 1 ? '' : 's') +
-            ' · ' + bytes(album.bytes)));
-        head.appendChild(meta);
-        card.appendChild(head);
-
-        var bar = el('span');
-        var progress = el('div', 'progress');
-        progress.hidden = true;
-        progress.appendChild(bar);
-        card.appendChild(progress);
-
-        var tracks = el('ul', 'album-tracks');
-        if (!album.tracks.length) {
-            var empty = el('li', 'track-empty');
-            var emptyMain = el('div', 'track-main');
-            emptyMain.appendChild(el('span', 'track-title', 'No songs yet — drop audio here or tap Add files'));
-            empty.appendChild(emptyMain);
-            var emptyActions = el('div', 'track-actions');
-            var emptyDelete = el('button', 'btn btn-icon btn-danger', 'Delete album');
-            emptyDelete.onclick = function () { deleteAlbum(album); };
-            emptyActions.appendChild(emptyDelete);
-            empty.appendChild(emptyActions);
-            tracks.appendChild(empty);
-        }
-        album.tracks.forEach(function (track) {
-            var li = el('li');
-            var main = el('div', 'track-main');
-            main.appendChild(el('span', 'track-title', track.title));
-            main.appendChild(el('span', 'track-meta', track.format + ' · ' + bytes(track.size)));
-            li.appendChild(main);
-
-            var row = el('div', 'track-actions');
-            var play = el('button', 'btn btn-icon', state.playing === track.rel ? 'Pause' : 'Play');
-            play.onclick = function () { playTrack(track.rel, play); };
-            row.appendChild(play);
-
-            var rename = el('button', 'btn btn-icon', 'Rename');
-            rename.onclick = function () {
-                prompt2({
-                    title: 'Rename song',
-                    hint: 'Keep the file extension (for example .mp3).',
-                    value: track.file
-                }).then(function (name) {
-                    if (!name) { return null; }
-                    return api('POST', '/api/jukebox/rename', { type: 'track', path: track.rel, name: name })
-                        .then(function () { toast('Renamed.', 'ok'); return loadJukebox(); });
-                }).catch(reportError);
-            };
-            row.appendChild(rename);
-
-            var del = el('button', 'btn btn-icon btn-danger', 'Delete');
-            del.onclick = function () {
-                if (!confirm('Delete "' + track.title + '"?')) { return; }
-                api('DELETE', '/api/jukebox/track?path=' + encodeURIComponent(track.rel))
-                    .then(function () { toast('Song deleted.', 'ok'); return loadJukebox(); })
-                    .catch(reportError);
-            };
-            row.appendChild(del);
-            li.appendChild(row);
-            tracks.appendChild(li);
-        });
-        card.appendChild(tracks);
-
-        var foot = el('div', 'album-foot');
-
-        var addFiles = el('button', 'btn btn-icon', 'Add files');
-        var picker = el('input');
-        picker.type = 'file';
-        picker.multiple = true;
-        picker.accept = '.mp3,.opus,.ogg,.oga,.png,.jpg,.jpeg';
-        picker.hidden = true;
-        picker.onchange = function () {
-            if (picker.files.length) { uploadToAlbum(album.rel, picker.files, progress); }
-        };
-        addFiles.onclick = function () { picker.click(); };
-        foot.appendChild(addFiles);
-        foot.appendChild(picker);
-
-        var setCover = el('button', 'btn btn-icon', album.coverRel ? 'Replace cover' : 'Add cover');
-        var coverPicker = el('input');
-        coverPicker.type = 'file';
-        coverPicker.accept = '.png,.jpg,.jpeg';
-        coverPicker.hidden = true;
-        coverPicker.onchange = function () {
-            if (coverPicker.files.length) { uploadToAlbum(album.rel, coverPicker.files, progress); }
-        };
-        setCover.onclick = function () { coverPicker.click(); };
-        foot.appendChild(setCover);
-        foot.appendChild(coverPicker);
-
-        var renameAlbum = el('button', 'btn btn-icon', 'Rename');
-        renameAlbum.onclick = function () {
-            prompt2({
-                title: 'Rename album',
-                hint: 'Underscores become spaces when Jibo shows the name.',
-                value: album.rel.split('/').pop()
-            }).then(function (name) {
-                if (!name) { return null; }
-                return api('POST', '/api/jukebox/rename', { type: 'album', path: album.rel, name: name })
-                    .then(function () { toast('Renamed.', 'ok'); return loadJukebox(); });
-            }).catch(reportError);
-        };
-        foot.appendChild(renameAlbum);
-
-        var delAlbum = el('button', 'btn btn-icon btn-danger', 'Delete album');
-        delAlbum.onclick = function () { deleteAlbum(album); };
-        foot.appendChild(delAlbum);
-        card.appendChild(foot);
-
-        card.addEventListener('dragover', function (event) {
-            event.preventDefault();
-            card.classList.add('is-drop');
-        });
-        card.addEventListener('dragleave', function () { card.classList.remove('is-drop'); });
-        card.addEventListener('drop', function (event) {
-            event.preventDefault();
-            card.classList.remove('is-drop');
-            if (event.dataTransfer.files.length) {
-                uploadToAlbum(album.rel, event.dataTransfer.files, progress);
-            }
-        });
-
-        return card;
-    }
-
-    function renderJukebox () {
-        var data = state.jukebox;
-        if (!data) { return; }
-
-        $('#jukebox-dir').textContent = data.albums.length
-            ? data.albums.length + ' album' + (data.albums.length === 1 ? '' : 's')
-            : 'No albums yet';
-
-        var list = $('#jukebox-albums');
-        list.innerHTML = '';
-        if (data.error) {
-            var problem = el('div', 'empty', data.error);
-            list.appendChild(problem);
-        } else if (!data.albums.length) {
-            list.appendChild(el('div', 'empty',
-                'No albums yet. Tap New album, then add songs.'));
-        } else {
-            data.albums.forEach(function (album) { list.appendChild(albumCard(album)); });
-        }
-
-        var skipped = $('#jukebox-skipped');
-        skipped.innerHTML = '';
-        if (data.skipped && data.skipped.length) {
-            var wrap = el('details', 'advanced');
-            wrap.appendChild(el('summary', null, 'Skipped folders'));
-            var card = el('div', 'card');
-            var ul = el('ul', 'list');
-            data.skipped.forEach(function (line) { ul.appendChild(el('li', null, line)); });
-            card.appendChild(ul);
-            wrap.appendChild(card);
-            skipped.appendChild(wrap);
-        }
-    }
-
-    function loadJukebox () {
-        return api('GET', '/api/jukebox').then(function (data) {
-            state.jukebox = data;
-            renderJukebox();
-            return data;
-        });
-    }
-
-    function newAlbum () {
-        prompt2({
-            title: 'New album',
-            hint: 'Artist is optional.',
-            placeholder: 'Album name',
-            placeholder2: 'Artist (optional)'
-        }).then(function (values) {
-            if (!values) { return null; }
-            return api('POST', '/api/jukebox/album', { album: values[0], artist: values[1] })
-                .then(function () {
-                    toast('Album created.', 'ok');
-                    return loadJukebox();
-                });
-        }).catch(reportError);
     }
 
     /* ---------------------------------------------------------------- photos */
@@ -1412,13 +1103,6 @@
             title: 'Screen',
             actions: [{ action: 'screen-refresh', label: 'Refresh' }]
         },
-        jukebox: {
-            title: 'Music',
-            actions: [
-                { action: 'new-album', label: 'New' },
-                { action: 'refresh-jukebox', label: 'Refresh' }
-            ]
-        },
         photos: {
             title: 'Photos',
             actions: [{ action: 'refresh-photos', label: 'Refresh' }]
@@ -1442,7 +1126,6 @@
     var loaders = {
         status: loadStatus,
         screen: loadScreen,
-        jukebox: loadJukebox,
         photos: loadPhotos,
         people: loadPeople,
         store: themeUI.loadStore,
@@ -1495,7 +1178,6 @@
             return sendScreenInput({ type: 'swipe', direction: 'down' })
                 .then(function () { toast('Swipe down sent.', 'ok'); });
         },
-        'refresh-jukebox': loadJukebox,
         'refresh-photos': loadPhotos,
         'refresh-people': loadPeople,
         'refresh-store': function () { return themeUI.refreshStore(); },
@@ -1508,7 +1190,6 @@
         'apply-location': applyLocation,
         'save-location-city': saveLocationCity,
         'save-units': saveUnits,
-        'new-album': newAlbum,
         'add-person': function () {
             var first = $('#people-new-first');
             var last = $('#people-new-last');

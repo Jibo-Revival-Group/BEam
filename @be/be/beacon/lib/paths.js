@@ -33,13 +33,6 @@ function isFile (p) {
     }
 }
 
-function firstDir (candidates) {
-    for (let i = 0; i < candidates.length; i++) {
-        if (isDir(candidates[i])) { return candidates[i]; }
-    }
-    return null;
-}
-
 function firstFile (candidates) {
     for (let i = 0; i < candidates.length; i++) {
         if (isFile(candidates[i])) { return candidates[i]; }
@@ -63,145 +56,6 @@ function skillsRoot () {
     const pkg = bePackage();
     const rel = (pkg.jibo && pkg.jibo.skillsRoot) || './skills';
     return path.isAbsolute(rel) ? rel : path.resolve(BE_ROOT, rel);
-}
-
-/**
- * Canonical user library — under Knowledge so OTA of @be/be (and Skills
- * tree swaps) cannot wipe albums. Legacy Skills paths stay as read fallbacks
- * and are migrated once into Knowledge when found.
- */
-function musicDirCanonical () {
-    return path.join(ROBOT_KNOWLEDGE, 'jukebox', 'music');
-}
-
-function musicDirCandidates () {
-    return [
-        musicDirCanonical(),
-        ROBOT_SKILLS + '/@be/Skills/Jukebox/Music',
-        ROBOT_SKILLS + '/@be/be/skills/jukebox/music',
-        ROBOT_SKILLS + '/@be/skills/jukebox/music',
-        ROBOT_SKILLS + '/@be/jukebox/music',
-        ROBOT_SKILLS + '/@be/be/node_modules/@be/jukebox/music',
-        ROBOT_SKILLS + '/skills/jukebox/music',
-        '/opt/tmp/jukebox-music',
-        path.join(skillsRoot(), 'jukebox', 'music')
-    ];
-}
-
-const AUDIO_FILE_RE = /\.(mp3|opus|ogg|oga)$/i;
-
-/** True when dir has at least one playable track (album or Artist/Album layout). */
-function musicDirHasAlbums (dir) {
-    if (!isDir(dir)) { return false; }
-    let entries;
-    try {
-        entries = fs.readdirSync(dir);
-    } catch (err) {
-        return false;
-    }
-    for (let i = 0; i < entries.length; i++) {
-        const name = entries[i];
-        if (!name || name.charAt(0) === '.' || name === 'README.md') { continue; }
-        const full = path.join(dir, name);
-        let st;
-        try {
-            st = fs.statSync(full);
-        } catch (err) {
-            continue;
-        }
-        if (st.isFile()) {
-            if (AUDIO_FILE_RE.test(name)) { return true; }
-            continue;
-        }
-        if (!st.isDirectory()) { continue; }
-        let kids;
-        try {
-            kids = fs.readdirSync(full);
-        } catch (err) {
-            continue;
-        }
-        for (let k = 0; k < kids.length; k++) {
-            const kid = kids[k];
-            if (!kid || kid.charAt(0) === '.') { continue; }
-            if (AUDIO_FILE_RE.test(kid)) { return true; }
-            const nested = path.join(full, kid);
-            try {
-                if (!fs.statSync(nested).isDirectory()) { continue; }
-                const grand = fs.readdirSync(nested);
-                for (let g = 0; g < grand.length; g++) {
-                    if (AUDIO_FILE_RE.test(grand[g])) { return true; }
-                }
-            } catch (err) { /* try next */ }
-        }
-    }
-    return false;
-}
-
-function copyDirRecursive (src, dest) {
-    ensureDir(dest);
-    const entries = fs.readdirSync(src);
-    for (let i = 0; i < entries.length; i++) {
-        const name = entries[i];
-        const from = path.join(src, name);
-        const to = path.join(dest, name);
-        const st = fs.statSync(from);
-        if (st.isDirectory()) {
-            copyDirRecursive(from, to);
-        } else {
-            fs.writeFileSync(to, fs.readFileSync(from));
-        }
-    }
-}
-
-/**
- * If Knowledge has no albums yet but a legacy Skills/tmp library does, move
- * (or copy) it into Knowledge once so the next OTA cannot wipe it.
- */
-function migrateMusicToKnowledge () {
-    if (!onRobot()) { return null; }
-    const dest = musicDirCanonical();
-    if (musicDirHasAlbums(dest)) { return null; }
-
-    const candidates = musicDirCandidates();
-    for (let i = 0; i < candidates.length; i++) {
-        const src = candidates[i];
-        if (!src || src === dest || !musicDirHasAlbums(src)) { continue; }
-        try {
-            ensureDir(path.dirname(dest));
-            if (isDir(dest)) {
-                try { fs.rmdirSync(dest); } catch (err) { /* may be non-empty stub */ }
-            }
-            try {
-                fs.renameSync(src, dest);
-            } catch (err) {
-                copyDirRecursive(src, dest);
-            }
-            console.log('[beacon] migrated jukebox music from', src, 'to', dest);
-            return dest;
-        } catch (err) {
-            console.warn('[beacon] music migrate failed from', src, ':', err && err.message);
-        }
-    }
-    return null;
-}
-
-/**
- * Resolve the live music library. Prefer a directory that actually contains
- * albums; empty libraries write to Knowledge.
- */
-function musicDir () {
-    migrateMusicToKnowledge();
-    const candidates = musicDirCandidates();
-    for (let i = 0; i < candidates.length; i++) {
-        if (musicDirHasAlbums(candidates[i])) {
-            return candidates[i];
-        }
-    }
-    if (onRobot()) {
-        return ensureDir(musicDirCanonical());
-    }
-    const local = path.join(skillsRoot(), 'jukebox', 'music');
-    return firstDir([local]) || local;
 }
 
 /** Local photo store used by the Jibo media and media-manager services. */
@@ -321,11 +175,6 @@ module.exports = {
     ensureDir: ensureDir,
     bePackage: bePackage,
     skillsRoot: skillsRoot,
-    musicDir: musicDir,
-    musicDirCanonical: musicDirCanonical,
-    musicDirCandidates: musicDirCandidates,
-    musicDirHasAlbums: musicDirHasAlbums,
-    migrateMusicToKnowledge: migrateMusicToKnowledge,
     photosDir: photosDir,
     texturesDir: texturesDir,
     eyeTextures: eyeTextures,

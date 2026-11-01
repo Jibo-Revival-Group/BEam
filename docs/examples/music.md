@@ -3,7 +3,7 @@
 Say “Hey Jibo, play Yes I'm A Mess” or “play Yes I'm A Mess by AJR.”
 BEefy sends `playSong` with `nlu.entities.query` and optional `artist` to the
 bundled BEam skill. The player searches online and plays the strongest verified
-music match. JiboTube and a local Jukebox library are not required. Matching
+music match. JiboTube is not required. Matching
 normalizes punctuation, optional leading articles, small title spelling errors,
 and spoken artist initials such as “A J R.” Short titles must match the entire
 song title, so “Bang!” does not accidentally select “Bang Bang.”
