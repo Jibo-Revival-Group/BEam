@@ -332,6 +332,30 @@ function applyCityOnly (input) {
     });
 }
 
+// A geocoded home address (from the cloud's TomTom lookup): town and coordinates; the time zone stays.
+function applyAddress (found) {
+    const lat = numberValue(found && found.lat, -90, 90);
+    const lng = numberValue(found && found.lng, -180, 180);
+    if (lat === null || lng === null) { throw fail('The address lookup returned no coordinates', 502); }
+    return loadLocationNodes().then((loaded) => {
+        const timezone = loaded.timezone.data || {};
+        const nextHome = Object.assign({}, loaded.home.data, {
+            city: stringValue(found.city, 120),
+            state: stringValue(found.state, 120),
+            stateAbbr: stringValue(found.stateAbbr, 20),
+            country: stringValue(found.country, 120),
+            countryCode: stringValue(found.countryCode, 10),
+            lat: lat,
+            lng: lng
+        });
+        loaded.home.data = nextHome;
+        return loaded.home.save().then(() => ({
+            ok: true,
+            location: locationPayload(nextHome, timezone),
+            refreshedInMemory: refreshInMemory(loaded.jibo, nextHome, timezone)
+        }));
+    });
+}
 function apply (input) {
     if (isCityOnlyPatch(input)) {
         return applyCityOnly(input);
@@ -354,6 +378,7 @@ module.exports = {
     current: current,
     detect: detect,
     apply: apply,
+    applyAddress: applyAddress,
     normalizeDetected: normalizeDetected,
     normalizeForSave: normalizeForSave,
     offsetFromTimezone: offsetFromTimezone,

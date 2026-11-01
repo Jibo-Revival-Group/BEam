@@ -241,6 +241,9 @@ function testFeed (memberId, icalUrl) {
 }
 
 module.exports = {
+    callCloud: callCloud,
+    robotIdFrom: robotIdFrom,
+    homeTimeZone: homeTimeZone,
     attachStatus: attachStatus,
     save: save,
     clear: clear,

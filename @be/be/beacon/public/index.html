@@ -213,16 +213,15 @@
         </div>
         <div class="location-city">
             <label class="location-city-label" for="location-city-input">
-                Town or city
+                Home address
             </label>
             <div class="location-city-row">
-                <input id="location-city-input" type="text" placeholder="Town or city (e.g. Boston)"
-                    autocomplete="off" spellcheck="false">
+                <input id="location-city-input" type="text" placeholder="Street, town (e.g. 1 Main St, Boston)"
+                    autocomplete="street-address" spellcheck="false">
                 <button class="btn btn-primary" data-action="save-location-city">Save</button>
             </div>
             <p class="hint" id="location-city-hint">
-                Type the name directly into the Knowledge Base. Use Find my location first if
-                coordinates are not set yet.
+                Used for commute times, and sets Jibo's town and weather location.
             </p>
         </div>
     </div>

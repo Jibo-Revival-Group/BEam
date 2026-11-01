@@ -30,6 +30,7 @@ const location = require('./lib/location');
 const units = require('./lib/units');
 const people = require('./lib/people');
 const calendars = require('./lib/calendars');
+const commute = require('./lib/commute');
 const screen = require('./lib/screen');
 const setup = require('./lib/setup');
 const orchestra = require('./lib/orchestra');
@@ -84,6 +85,7 @@ function guard (fn) {
 function sendPeople (res, snapshotPromise) {
     return Promise.resolve(snapshotPromise)
         .then((data) => calendars.attachStatus(data))
+        .then((data) => commute.attach(data))
         .then((data) => u.sendJson(res, 200, data));
 }
 
@@ -285,7 +287,24 @@ const routes = {
     }),
 
     'GET /api/location': guard((req, res) => {
-        return location.current().then((result) => u.sendJson(res, 200, result));
+        return location.current().then((result) => commute.homeAddress().then((home) => {
+            result.homeAddress = home.address;
+            result.commuteAvailable = home.available;
+            u.sendJson(res, 200, result);
+        }));
+    }),
+
+    'PUT /api/location/address': guard((req, res) => {
+        return u.readJson(req).then((body) => commute.setHome(body && body.address))
+            .then((result) => u.sendJson(res, 200, result));
+    }),
+
+    'PUT /api/people/work': guard((req, res) => {
+        return u.readJson(req).then((body) => sendPeople(res, commute.setWork(body && body.id, body && body.address)));
+    }),
+
+    'DELETE /api/people/work': guard((req, res, query) => {
+        return sendPeople(res, commute.clearWork(query && query.id));
     }),
 
     'POST /api/location/detect': guard((req, res) => {

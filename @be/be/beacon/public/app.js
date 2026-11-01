@@ -655,9 +655,7 @@
 
         var cityInput = $('#location-city-input');
         if (cityInput && document.activeElement !== cityInput) {
-            cityInput.value = state.location.current && state.location.current.city
-                ? state.location.current.city
-                : '';
+            cityInput.value = state.location.homeAddress || '';
         }
 
         var card = $('#location-detected-card');
@@ -675,6 +673,7 @@
     function loadLocation () {
         return api('GET', '/api/location').then(function (data) {
             state.location.current = data.location || null;
+            state.location.homeAddress = data.homeAddress || null;
             renderLocation();
             return data;
         });
@@ -720,18 +719,21 @@
 
     function saveLocationCity () {
         var input = $('#location-city-input');
-        var city = input ? String(input.value || '').trim() : '';
-        if (!city) {
-            toast('Enter a town or city name.', 'error');
+        var address = input ? String(input.value || '').trim() : '';
+        if (!address) {
+            toast('Enter your home address.', 'error');
             return null;
         }
         var button = $('[data-action="save-location-city"]');
         if (button) { button.disabled = true; }
-        return api('POST', '/api/location', { location: { city: city } })
+        toast('Looking up the address…');
+        return api('PUT', '/api/location/address', { address: address })
             .then(function (data) {
                 state.location.current = data.location || state.location.current;
+                state.location.homeAddress = data.address || address;
+                if (input) { input.blur(); }
                 renderLocation();
-                toast('Town saved.', 'ok');
+                toast('Home address saved.', 'ok');
                 return data;
             }).catch(function (err) {
                 reportError(err);
@@ -968,6 +970,7 @@
                 }
                 card.appendChild(actionsRow);
                 card.appendChild(renderPersonCalendar(member, data));
+                card.appendChild(renderPersonWork(member, data));
             }
 
             list.appendChild(card);
@@ -1028,6 +1031,37 @@
         if (calendar.configured) {
             var clear = el('button', 'btn', 'Clear');
             clear.setAttribute('data-action', 'clear-calendar');
+            clear.setAttribute('data-member-id', member.id);
+            actions.appendChild(clear);
+        }
+        block.appendChild(actions);
+        return block;
+    }
+
+    function renderPersonWork (member, data) {
+        var block = el('div', 'people-calendar');
+        block.appendChild(el('p', 'setting-title', 'Work address'));
+        block.appendChild(el('p', 'hint', data && data.commuteAvailable
+            ? 'Where this person works, for live commute times in their personal report.'
+            : 'Commute times aren\'t available right now.'));
+        var row = el('div', 'setting-row');
+        var input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'people-calendar-url people-work-address';
+        input.placeholder = 'Street, town (e.g. 1 Main St, Boston)';
+        input.value = member.workAddress || '';
+        input.setAttribute('data-member-id', member.id);
+        input.setAttribute('autocomplete', 'off');
+        row.appendChild(input);
+        block.appendChild(row);
+        var actions = el('div', 'setting-row people-actions-row');
+        var save = el('button', 'btn btn-primary', 'Save address');
+        save.setAttribute('data-action', 'save-work');
+        save.setAttribute('data-member-id', member.id);
+        actions.appendChild(save);
+        if (member.workAddress) {
+            var clear = el('button', 'btn', 'Clear');
+            clear.setAttribute('data-action', 'clear-work');
             clear.setAttribute('data-member-id', member.id);
             actions.appendChild(clear);
         }
@@ -1576,6 +1610,25 @@
                 } else {
                     toast(probe.error || 'Calendar test failed.', 'error');
                 }
+                renderPeople(data);
+            });
+        },
+        'save-work': function (button) {
+            var memberId = button && button.getAttribute('data-member-id');
+            var input = document.querySelector('.people-work-address[data-member-id="' + memberId + '"]');
+            var address = input ? input.value.trim() : '';
+            if (!memberId || !address) { toast('Enter a work address.', 'error'); return; }
+            toast('Looking up the address…');
+            return api('PUT', '/api/people/work', { id: memberId, address: address }).then(function (data) {
+                toast('Work address saved.', 'ok');
+                renderPeople(data);
+            });
+        },
+        'clear-work': function (button) {
+            var memberId = button && button.getAttribute('data-member-id');
+            if (!memberId || !confirm('Remove this work address?')) { return; }
+            return api('DELETE', '/api/people/work?id=' + encodeURIComponent(memberId)).then(function (data) {
+                toast('Work address removed.', 'ok');
                 renderPeople(data);
             });
         },
