@@ -110,8 +110,20 @@ assert.strictEqual(airplay.show(be, Data), false);
 be.currentSkill = be.idle;
 assert.strictEqual(airplay.show(be, Data), true);
 assert.strictEqual(opened[0].skill, be.skills['@be/music']);
-// Swiped away or stopped: stays closed until the phone plays or resumes again.
-airplay.dismiss();
+// Swiped away or stopped: the session ends on Jibo, and the player stays closed until the phone plays or resumes again.
+const spawned = [];
+require('child_process').spawn = () => { const fake = new (require('events'))(); fake.kill = () => { fake.killed = true; fake.emit('exit', null); }; spawned.push(fake); return fake; };
+require('../@be/be/skills/music/paths').ensureDirectory = () => require('os').tmpdir();
+airplay.start();
+setTimeout(() => {
+    assert.strictEqual(spawned.length, 1, 'receiver running');
+    airplay.stop();
+    assert.strictEqual(spawned[0].killed, true, 'closing the player ends the session even if the phone ignores the pause');
+    assert.strictEqual(airplay.state.active, false);
+    console.log('airplay stop test passed'); process.exit(0);
+}, 300);
+airplay.packet(msg('ssnc', 'pbeg'));
+airplay.state.dismissed = true;
 assert.strictEqual(airplay.show(be, Data), false);
 airplay.packet(msg('ssnc', 'prsm'));
 assert.strictEqual(airplay.show(be, Data), true);

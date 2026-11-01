@@ -15,7 +15,7 @@ function create() {
     const events = new EventEmitter();
     const state = { active: false, playing: false, device: '', title: '', artist: '', album: '', art: null, artVersion: 0,
         duration: 0, position: 0, at: 0, remote: null, dacp: null };
-    let deviceAt = 0, proc = null, socket = null, restartDelay = 2000, pending = {}, chunks = {};
+    let deviceAt = 0, stopped = false, proc = null, socket = null, restartDelay = 2000, pending = {}, chunks = {};
 
     function word(buffer, offset) { return buffer.toString('latin1', offset, offset + 4); }
     function changed() { events.emit('change', state); }
@@ -99,7 +99,7 @@ function create() {
             proc = null;
             if (state.active) item('ssnc', 'pend', Buffer.alloc(0));
             // A receiver that ran for a while restarts quickly; one that keeps dying backs off.
-            restartDelay = Date.now() - started > 60000 ? 2000 : Math.min(restartDelay * 2, 300000);
+            restartDelay = stopped || Date.now() - started > 60000 ? 2000 : Math.min(restartDelay * 2, 300000); stopped = false;
             console.warn('[airplay] receiver exited (' + code + '), restarting in ' + restartDelay / 1000 + ' s');
             setTimeout(spawn, restartDelay);
         });
@@ -203,7 +203,15 @@ function create() {
     }
     events.on('started', showNow);
 
+    // Closing the player stops the music: ask the phone to pause, and end the session on Jibo
+    // (restarting the receiver) because the phone may not get or obey the pause.
+    function stop() {
+        state.dismissed = true;
+        control('pause').catch(() => {});
+        if (proc) { stopped = true; proc.kill(); }
+    }
+
     const api = { start: start, state: state, events: events, position: position, control: control, packet: packet, show: show,
-        watchVolume: watchVolume, dismiss: () => { state.dismissed = true; } };
+        watchVolume: watchVolume, stop: stop };
     return api;
 }

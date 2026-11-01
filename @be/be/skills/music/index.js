@@ -28,7 +28,7 @@ class MusicSkill extends BeSkill {
         const views = jibo.face.views;
         this.ui = new UI(actions);
         const view = this.view = lifecycle.prepareView(views.createView('View', this.ui.config(views)));
-        view.addAction(views.ActionData.CALLBACK, { callback: () => { if (request.airplay) require('./airplay').dismiss(); this.leave(); } }, true, false, views.GESTURE.SWIPE_DOWN);
+        view.addAction(views.ActionData.CALLBACK, { callback: () => { if (request.airplay) require('./airplay').stop(); this.leave(); } }, true, false, views.GESTURE.SWIPE_DOWN);
         const current = () => this.current(generation);
         const ready = () => {
             if (!current()) return;
@@ -92,7 +92,7 @@ class MusicSkill extends BeSkill {
         const remote = command => () => { require('./airplay').control(command).catch(() => {}); };
         return { toggle: remote('playpause'), back: remote('previtem'), forward: remote('nextitem'),
             quieter: () => this.volume(-1), louder: () => this.volume(1),
-            stop: () => { const airplay = require('./airplay'); airplay.dismiss(); airplay.control('pause').catch(() => {}); this.leave(); } };
+            stop: () => { require('./airplay').stop(); this.leave(); } };
     }
     followAirplay() {
         const airplay = require('./airplay'), update = () => {
