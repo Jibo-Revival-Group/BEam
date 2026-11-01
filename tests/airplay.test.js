@@ -82,6 +82,13 @@ airplay.packet(msg('ssnc', 'pend'));
 assert.strictEqual(airplay.state.active, false); assert.strictEqual(airplay.state.title, '');
 assert.strictEqual(airplay.state.synced, false, 'the next session starts at Jibo\'s volume again');
 
+// A dropped 'prsm': the next progress report still shows the phone as playing.
+airplay.packet(msg('ssnc', 'pbeg'));
+airplay.packet(msg('ssnc', 'pfls'));
+assert.strictEqual(airplay.state.playing, false);
+airplay.packet(msg('ssnc', 'prgr', '1000/45100/8821000'));
+assert.strictEqual(airplay.state.playing, true);
+
 // The player only opens over the idle screen.
 const opened = [];
 function Data(skill, options) { this.skill = skill; this.options = options; }
@@ -91,6 +98,16 @@ assert.strictEqual(airplay.show(be, Data), false);
 be.currentSkill = be.idle;
 assert.strictEqual(airplay.show(be, Data), true);
 assert.strictEqual(opened[0].skill, be.skills['@be/music']);
+// Swiped away or stopped: stays closed until the phone plays or resumes again.
+airplay.dismiss();
+assert.strictEqual(airplay.show(be, Data), false);
+airplay.packet(msg('ssnc', 'prsm'));
+assert.strictEqual(airplay.show(be, Data), true);
+// Paused or finished: nothing to show.
+airplay.packet(msg('ssnc', 'pfls'));
+assert.strictEqual(airplay.show(be, Data), false);
+airplay.packet(msg('ssnc', 'pend'));
+assert.strictEqual(airplay.show(be, Data), false);
 assert.strictEqual(opened[0].options.nlu.entities.airplay, true);
 
 // That launch reaches the Music skill as an AirPlay request.

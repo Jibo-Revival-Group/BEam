@@ -49,13 +49,14 @@ function create() {
             if (parts.length !== 3 || parts.some(isNaN)) return;
             state.duration = ((parts[2] - parts[0]) >>> 0) / RATE;
             state.position = ((parts[1] - parts[0]) >>> 0) / RATE;
-            state.at = Date.now(); changed(); return;
+            // The phone sends progress on every play and resume; 'prsm' can be dropped.
+            state.at = Date.now(); state.active = state.playing = true; changed(); return;
         }
         case 'acre': state.remote = text(); return;
         case 'daid': state.dacp = text(); return;
         case 'pvol': phoneVolume(Number(text().split(',')[0])); return;
         case 'pbeg': case 'prsm': case 'pres':
-            state.position = position(); state.active = state.playing = true; state.at = Date.now();
+            state.position = position(); state.active = state.playing = true; state.at = Date.now(); state.dismissed = false;
             changed(); events.emit('started'); return;
         case 'pfls': case 'paus':
             state.position = position(); state.playing = false; changed(); return;
@@ -99,6 +100,7 @@ function create() {
     function start() {
         watchVolume();
         if (socket) return;
+        setInterval(showNow, 3000);
         socket = dgram.createSocket('udp4');
         socket.on('message', packet);
         socket.on('error', error => console.warn('[airplay] metadata socket:', error.message));
@@ -168,17 +170,21 @@ function create() {
         });
     }
 
-    // Open the Music player for AirPlay when nothing else is on screen.
+    // Open the Music player for AirPlay when nothing else is on screen. It comes back after
+    // Jibo answers a question or is touched, unless it was swiped away or stopped (until the
+    // next play or resume on the phone).
     function show(be, Data) {
+        if (!state.active || !state.playing || state.dismissed) return false;
         if (!be || !be.skills || !be.skills['@be/music'] || be.currentSkill !== be.idle) return false;
         be.redirect(new Data(be.skills['@be/music'], { nlu: { intent: 'airplay', entities: { airplay: true } } }));
         return true;
     }
-    events.on('started', () => {
+    function showNow() {
         try { show(global.be, require('../../lib/SkillSwitchData').default); } catch (error) { console.warn('[airplay] show failed:', error.message); }
-    });
+    }
+    events.on('started', showNow);
 
     const api = { start: start, state: state, events: events, position: position, control: control, packet: packet, show: show,
-        watchVolume: watchVolume };
+        watchVolume: watchVolume, dismiss: () => { state.dismissed = true; } };
     return api;
 }

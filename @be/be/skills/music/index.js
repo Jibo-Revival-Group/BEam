@@ -27,12 +27,13 @@ class MusicSkill extends BeSkill {
         const views = jibo.face.views;
         this.ui = new UI(actions);
         const view = this.view = lifecycle.prepareView(views.createView('View', this.ui.config(views)));
-        view.addAction(views.ActionData.CALLBACK, { callback: () => this.leave() }, true, false, views.GESTURE.SWIPE_DOWN);
+        view.addAction(views.ActionData.CALLBACK, { callback: () => { if (request.airplay) require('./airplay').dismiss(); this.leave(); } }, true, false, views.GESTURE.SWIPE_DOWN);
         const current = () => this.current(generation);
         const ready = () => {
             if (!current()) return;
             ['hjHeard', 'localTurnStarted', 'globalTurnStarted', 'skillSwitch'].forEach(name => this.watch(jibo.jetstream, name));
-            ['touchOn', 'hatchOpen'].forEach(name => this.watch(jibo.system, name));
+            // AirPlay keeps playing on the phone, so touching Jibo doesn't close its player.
+            if (!request.airplay) ['touchOn', 'hatchOpen'].forEach(name => this.watch(jibo.system, name));
             this.timer = setInterval(() => this.tick(), 1000);
             if (request.airplay) { this.followAirplay(); return; }
             if (!request.title) return;
@@ -43,7 +44,7 @@ class MusicSkill extends BeSkill {
                 if (!ok) throw Error('service_unavailable');
                 return this.client.resolve(request).then(song => {
                     if (!current()) return;
-                    this.state.song = song; this.state.format = song.format; this.detector = new Detector(song.format);
+                    this.state.song = song; this.state.format = song.format; this.detector = new Detector(song.format); this.recoveries = 0;
                     this.ui.artwork(this.client.media('/art/' + song.id), () => { if (current()) this.render(); });
                     return this.startAt(0);
                 });
@@ -90,7 +91,7 @@ class MusicSkill extends BeSkill {
         const remote = command => () => { require('./airplay').control(command).catch(() => {}); };
         return { toggle: remote('playpause'), back: remote('previtem'), forward: remote('nextitem'),
             quieter: () => this.volume(-1), louder: () => this.volume(1),
-            stop: () => { require('./airplay').control('pause').catch(() => {}); this.leave(); } };
+            stop: () => { const airplay = require('./airplay'); airplay.dismiss(); airplay.control('pause').catch(() => {}); this.leave(); } };
     }
     followAirplay() {
         const airplay = require('./airplay'), update = () => {
@@ -137,6 +138,14 @@ class MusicSkill extends BeSkill {
     }
     fail(code) {
         if (this.leaving) return;
+        // A dropped or stuck stream mid-song: pick the song up where it was (as a skip does)
+        // instead of giving up on it. A few times per song, so a dead stream still ends in an error.
+        if ((code === 'media_buffer' || code === 'playback_stalled') && this.state.song && !this.state.airplay &&
+            this.state.position > 0 && (this.recoveries || 0) < 3) {
+            this.recoveries = (this.recoveries || 0) + 1;
+            this.startAt(Math.max(0, Math.min(this.state.song.duration - 1, this.state.position)));
+            return;
+        }
         if (this.session) this.session.stop('error'); this.session = null;
         this.state.phase = 'error';
         this.state.message = code === 'song_not_found' ? 'I couldn’t find that song.' : /network|timeout/.test(code) ? 'I couldn’t connect to the music service. Try again.' : 'Music is unavailable right now. Try again.';
