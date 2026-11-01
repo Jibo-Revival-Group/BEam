@@ -78,7 +78,8 @@ function prepare(theme, dir) {
     const bg = stock.filter(a => a.id === 'background')[0];
     descriptors.push({ id: 'stockBackground', src: bg.src, type: 'texture', cache: cache });
     if (theme) {
-        Object.keys(theme.images).filter(name => name !== 'banner.png' && !/\.svg$/.test(name)).forEach(name => descriptors.push({ id: name, src: path.join(dir, name), type: 'texture', cache: cache }));
+        // Animation PNGs (atex/) load on demand in loadTexture below, like stock animation frames.
+        Object.keys(theme.images).filter(name => name !== 'banner.png' && !/\.svg$/.test(name) && !/^atex\/.*\.png$/.test(name)).forEach(name => descriptors.push({ id: name, src: path.join(dir, name), type: 'texture', cache: cache }));
     }
     const svgTextures = {};
     const svgNames = theme ? Object.keys(theme.images).filter(name => /\.svg$/.test(name)) : [];
@@ -93,10 +94,13 @@ function prepare(theme, dir) {
                 try { jibo.loader.deleteCache(cache); } catch (ignored) { /* already removed */ }
                 reject(err || fail('Theme texture loading failed')); return;
             }
-            resolve({ jibo: jibo, theme: theme, textures: Object.assign(textures, svgTextures), svgTextures: svgTextures, audio: audio, animationAssets: overrides, cache: cache, live: true });
+            resolve({ jibo: jibo, theme: theme, textures: Object.assign(textures, svgTextures), svgTextures: svgTextures, audio: audio, animationAssets: overrides, cache: cache, dir: dir, live: true });
         }
         try { jibo.loader.load(descriptors, { complete: complete }); } catch (err) { complete(err); }
     })).catch(err => { Object.keys(svgTextures).forEach(name => svgTextures[name].destroy(true)); throw err; });
+}
+function animationOverride(value) {
+    return nonEyeThemesEnabled() && current && current.live && current.dir && animationAssets.lookup(current.animationAssets, 'atex', value) || null;
 }
 function hookFace(jibo) {
     const container = jibo.face.eye;
@@ -129,14 +133,25 @@ function hookFace(jibo) {
     const originalTexture = container.getTexture;
     container.getTexture = function(value) {
         const override = nonEyeThemesEnabled() && current && current.live && animationAssets.lookup(current.animationAssets, 'atex', value);
-        if (override) { return current.textures[override.name]; }
+        if (override) { return current.textures[override.name] || null; }
         if (current && current.live && stockEye(value)) { return current.textures['face/eye.png'] || current.textures.stockEye; }
         const texture = originalTexture.call(this, value);
         const resolved = texture && texture.baseTexture && nonEyeThemesEnabled() && current && animationAssets.lookup(current.animationAssets, 'atex', texture.baseTexture.imageUrl);
-        return resolved ? current.textures[resolved.name] : texture;
+        return resolved ? current.textures[resolved.name] || null : texture;
     };
     const originalDefault = eye._isDefaultTexture;
-    eye._isDefaultTexture = function(texture, value) { return stockEye(value) || originalDefault.call(this, texture, value); };
+    eye._isDefaultTexture = function(texture, value) { return !animationOverride(value) && (stockEye(value) || originalDefault.call(this, texture, value)); };
+    // Layers load textures getTexture doesn't have; point themed animation frames at the theme's file.
+    let owner = Object.getPrototypeOf(eye);
+    while (owner && !owner.hasOwnProperty('_loadTexture')) { owner = Object.getPrototypeOf(owner); }
+    if (owner && !owner._beamThemeLoadHooked) {
+        const originalLoad = owner._loadTexture;
+        owner._loadTexture = function(value) {
+            const override = animationOverride(value);
+            return originalLoad.call(this, override ? path.join(current.dir, override.name) : value);
+        };
+        owner._beamThemeLoadHooked = true;
+    }
     const originalDisplay = eye.display;
     eye.display = function(timestamp, dofs) {
         const result = originalDisplay.call(this, timestamp, dofs);

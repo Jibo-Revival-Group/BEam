@@ -131,6 +131,8 @@ jibo.face.views = { MenuButton: Button, MenuView: Menu, currentView: menu(), vie
 const nativeMenu = jibo.face.views.currentView; nativeMenu.loaded();
 const caches = []; let loadError = false; let pendingRecovery = null;
 jibo.loader = { addCache(id) { caches.push(id); }, deleteCache() {}, load(descriptors, options) {
+    // A layer loading one texture on demand (stock Layer._loadTexture).
+    if (!Array.isArray(descriptors)) { const request = descriptors, load = { tokens: [request.src], cancel() { load.cancelled = true; } }; setImmediate(() => { if (!load.cancelled) { request.complete(null, texture(request.src)); } }); return load; }
     if (descriptors.some(d => d.id === 'eyeOverlay')) { pendingRecovery = () => options.complete(null, {
         eye: texture('animation-utilities/Default_Eye.png'), eyeOverlay: texture('stock-overlay'),
         background: texture('animation-utilities/JiBO_BG_00.png') }); return; }
@@ -184,13 +186,20 @@ async function run() {
     nativeMenu._list.componentList.pop(); customIconButton.destroy();
     const animationTheme = await pkg.validate(Object.assign({}, fixture.astra(), { 'atex/blackeye_blur1.png': fixture.png(), 'atex/White_Eye.png': fixture.png() }));
     await runtime.apply(await runtime.prepare(animationTheme, '/tmp/theme'));
-    assert.strictEqual(c.getTexture('/animations/blackeye_blur1.png').name, 'atex/blackeye_blur1.png');
-    assert.strictEqual(c.getTexture('/animations/White_Eye.png').name, 'atex/White_Eye.png', 'Explicit animation overrides take priority over stock aliases');
+    // Animation PNGs aren't preloaded (large hand-drawn sets); the layer loads the theme's file on demand.
+    const loadedSrc = value => { const load = jibo.loader.load; let src = null;
+        jibo.loader.load = request => { src = request.src; return { tokens: [] }; };
+        try { c.eye._loadTexture(value); } finally { jibo.loader.load = load; c.eye._load = null; } return src; };
+    assert.strictEqual(c.getTexture('/animations/blackeye_blur1.png'), null, 'Animation frames are not preloaded');
+    assert.strictEqual(loadedSrc('/animations/blackeye_blur1.png'), '/tmp/theme/atex/blackeye_blur1.png');
+    assert.strictEqual(loadedSrc('/animations/White_Eye.png'), '/tmp/theme/atex/White_Eye.png', 'Explicit animation overrides take priority over stock aliases');
+    assert.strictEqual(c.eye._isDefaultTexture(c.eye._defaultTexture, '/animations/White_Eye.png'), false, 'An overridden stock eye alias loads the theme frame');
     assert.strictEqual(c.getTexture('/skill/special.png').name, 'special-animation', 'Other skill assets remain unchanged');
+    assert.strictEqual(loadedSrc('/skill/other.png'), '/skill/other.png', 'Other skill assets load unchanged');
     recover();
-    assert.strictEqual(c.getTexture('/animations/blackeye_blur1.png').name, 'atex/blackeye_blur1.png', 'Animation overrides survive renderer recovery');
+    assert.strictEqual(loadedSrc('/animations/blackeye_blur1.png'), '/tmp/theme/atex/blackeye_blur1.png', 'Animation overrides survive renderer recovery');
     await runtime.apply(await runtime.prepare(null));
-    assert.strictEqual(c.getTexture('/animations/blackeye_blur1.png'), null, 'None removes overrides and delegates to the stock animation');
+    assert.strictEqual(loadedSrc('/animations/blackeye_blur1.png'), '/animations/blackeye_blur1.png', 'None removes overrides and delegates to the stock animation');
     c._currentDofValues = dofs();
     const withSound = await runtime.prepare(Object.assign({}, animationTheme, { face: Object.assign({}, animationTheme.face, { eyeSize: 300 }) }), '/tmp/theme');
     withSound.animationAssets.push({ name: 'asfx/ds_bloop_01.mp3', type: 'asfx', target: 'device/ds_bloop_01.mp3' });
@@ -208,7 +217,7 @@ async function run() {
     assert(nativeMenu._buttonLabels.every(label => label.display.visible));
     assert.strictEqual(nativeMenu._list.componentList[0]._beamThemeDisplay, null, 'Existing stock button art is restored');
     assert.strictEqual(sound.play().buffer.name, 'stock', 'Opt-out disables themed animation sounds');
-    assert.strictEqual(c.getTexture('/animations/blackeye_blur1.png'), null, 'Animation artwork overrides are disabled');
+    assert.strictEqual(loadedSrc('/animations/blackeye_blur1.png'), '/animations/blackeye_blur1.png', 'Animation artwork overrides are disabled');
     const gameButton = new Button(); gameButton.assignConfig({ id: 'game-answer', iconSrc: 'icon' }); gameButton.setupDisplay(assets);
     assert(!gameButton._beamThemeDisplay, 'Buttons created during gameplay remain stock');
     const gameView = { componentList: [gameButton], pausedParent: nativeMenu };

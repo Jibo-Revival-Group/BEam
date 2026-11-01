@@ -203,9 +203,10 @@ alias resolution; assets from other skills/packages remain unchanged.
 
 Supported audio extensions are `.wav`, `.mp3`, `.m4a`, `.ogg`, `.oga`, and `.aif`.
 Files must match their image/audio format; audio files are limited to 16 MB each.
-Activation preloads textures and decodes sounds before changing appearance.
+Activation preloads textures and decodes sounds before changing appearance;
+animation PNGs (`atex/`) load on demand when an animation shows them, like stock frames.
 Undecodable audio or more than 64 MB of decoded sound retains the prior theme.
-Decoded images together are limited to 256 MB of RGBA pixels, independently of
+Preloaded images (everything except `atex/` PNGs) are limited to 256 MB of RGBA pixels, independently of
 the 64 MB archive extraction limit and per-image decoding limit. Larger sets of
 animation textures can therefore install even when their combined pixel memory
 exceeds 64 MB. Errors above the limit identify the image crossing the budget;

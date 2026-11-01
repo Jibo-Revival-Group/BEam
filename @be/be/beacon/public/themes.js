@@ -125,8 +125,8 @@
             item.nodes.forEach(function (node) {
                 if (typeof percent === 'number') { node.bar.value = percent; }
                 else { node.bar.removeAttribute('value'); }
-                var label = data.state === 'resolving' ? 'Preparing download…' : data.state === 'validating' ? 'Validating theme…' :
-                    data.state === 'installing' ? 'Installing theme…' : data.state === 'complete' ? 'Installed' :
+                var label = data.state === 'resolving' ? 'Preparing download…' : data.state === 'validating' ? 'Validating ' + (item.kind || 'theme') + '…' :
+                    data.state === 'installing' ? 'Installing ' + (item.kind || 'theme') + '…' : data.state === 'complete' ? 'Installed' :
                     data.state === 'failed' ? 'Download failed: ' + data.error : 'Downloading…';
                 if (data.state === 'downloading') {
                     if (typeof percent === 'number') { label += ' ' + Math.floor(percent) + '%'; }

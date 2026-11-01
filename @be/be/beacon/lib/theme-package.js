@@ -283,6 +283,7 @@ function png(buf, name) {
         });
     } catch (err) { return Promise.reject(err.status ? err : fail('Malformed PNG')); }
 }
+function lazyTexture(name) { return /^atex\/.*\.png$/.test(name); }
 function validate(files) {
     if (Object.keys(files).length > 1024) { throw fail('Theme has too many files'); }
     Object.keys(files).forEach(name => { if (!accepted(name)) { throw fail('Unsupported theme file: ' + name); } });
@@ -302,7 +303,8 @@ function validate(files) {
     animationAssets.filter(n => n.indexOf('asfx/') === 0).forEach(n => audio(files[n], n));
     return Object.keys(files).filter(n => /\.(png|svg)$/.test(n)).reduce((chain, n) => chain.then(() => Promise.resolve().then(() => /\.svg$/.test(n) ? require('./theme-svg')(files[n], n) : png(files[n], n)).then(size => {
         const raster = /\.svg$/.test(n) ? require('./theme-svg').rasterSize(size) : size;
-        decodedSize += raster.width * raster.height * 4;
+        // Animation PNGs load on demand when an animation shows them, so only preloaded art counts.
+        if (!lazyTexture(n)) { decodedSize += raster.width * raster.height * 4; }
         if (decodedSize > MAX_DECODED_IMAGES) {
             throw fail('Decoded theme images exceed the 256 MB limit (' + Math.ceil(decodedSize / (1024 * 1024)) + ' MB at ' + n + '). Reduce image dimensions or remove unused textures.');
         }
