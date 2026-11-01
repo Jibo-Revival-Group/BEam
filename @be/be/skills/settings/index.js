@@ -813,6 +813,92 @@ class PrivacySkill extends SubSkill_1.default {
         super.destroy();
     }
 }
+// Settings › Storage: one bar over every partition, measured by beacon/lib/storage.
+const STORAGE_TIMEOUT = 120000;
+const STORAGE_BAR = { x: 90, y: 250, width: 1100, height: 80 };
+const STORAGE_SEGMENTS = [
+    { id: 'system', color: 0xBBC6CA },
+    { id: 'photos', color: 0x34C759 },
+    { id: 'skills', color: 0xFF5FA8 },
+    { id: 'knowledge', color: 0xFD362F },
+    { id: 'free', color: 0x434D55 }
+];
+const STORAGE_DOTS = { system: [110, 410], photos: [110, 500], skills: [110, 590], knowledge: [660, 410], free: [660, 500] };
+class StorageSkill extends SubSkill_1.default {
+    constructor(skill, intent, onClose) {
+        super(skill, intent, onClose);
+        this.view = jibo.face.views.createView('View', 'assets/storage/storageView.json');
+        this.view.on(jibo.face.views.LOADED, (view) => this.measure(view));
+        this.view.once(jibo.face.views.CLOSED, this.destroyThenClose);
+        jibo.face.views.addView(this.view);
+        this.timeout = setTimeout(() => this.stopAndDestroy(this.onClose), STORAGE_TIMEOUT);
+    }
+    measure(view) {
+        let storage;
+        try { storage = require(require('path').join(__dirname, '../../beacon/lib/storage')); }
+        catch (err) { this.log.error('storage module unavailable', err); return; }
+        const unavailable = () => { if (this.view) { view.getComponentById('summary').text = 'Storage information is unavailable.'; } };
+        try {
+            storage.usage((err, sizes) => {
+                if (!this.view) { return; }
+                if (err || !sizes || !sizes.total) { this.log.warn('Storage unavailable', err); unavailable(); return; }
+                try { this.draw(view, sizes, storage.formatBytes); }
+                catch (e) { this.log.error('Failed to draw storage', e); unavailable(); }
+            });
+        } catch (err) { this.log.error('Storage check failed', err); unavailable(); }
+    }
+    draw(view, sizes, format) {
+        view.getComponentById('summary').text = `${format(sizes.free)} free of ${format(sizes.total)}`;
+        const bar = new PIXI.Container();
+        bar.x = STORAGE_BAR.x;
+        bar.y = STORAGE_BAR.y;
+        const fill = new PIXI.Graphics();
+        let x = 0;
+        STORAGE_SEGMENTS.forEach((segment) => {
+            const bytes = sizes[segment.id] || 0;
+            view.getComponentById(segment.id + 'Size').text = format(bytes);
+            // Free takes the rest; any non-empty part stays visible as a sliver.
+            let width = segment.id === 'free' ? STORAGE_BAR.width - x : Math.round(STORAGE_BAR.width * bytes / sizes.total);
+            if (bytes > 0 && width < 6) { width = 6; }
+            width = Math.max(0, Math.min(width, STORAGE_BAR.width - x));
+            if (width > 0) {
+                fill.beginFill(segment.color);
+                fill.drawRect(x, 0, width, STORAGE_BAR.height);
+                fill.endFill();
+            }
+            x += width;
+            const dot = new PIXI.Graphics();
+            dot.beginFill(segment.color);
+            dot.drawCircle(STORAGE_DOTS[segment.id][0], STORAGE_DOTS[segment.id][1], 16);
+            dot.endFill();
+            view.stage.addChild(dot);
+        });
+        const mask = new PIXI.Graphics();
+        mask.beginFill(0xFFFFFF);
+        mask.drawRoundedRect(0, 0, STORAGE_BAR.width, STORAGE_BAR.height, STORAGE_BAR.height / 2);
+        mask.endFill();
+        bar.addChild(fill);
+        bar.addChild(mask);
+        fill.mask = mask;
+        view.stage.addChild(bar);
+    }
+    stopAndDestroy(done) {
+        if (this.view) { this.view.removeListener(jibo.face.views.CLOSED, this.destroyThenClose); }
+        jibo.face.views.changeView({ removeAll: true, leaveEmpty: true }, () => {
+            this.destroy();
+            done();
+        }, () => {
+            this.destroy();
+            done('storage view close failed');
+        });
+    }
+    destroy() {
+        clearTimeout(this.timeout);
+        this.timeout = null;
+        this.view = null;
+        super.destroy();
+    }
+}
 class Settings extends be_framework_1.BeSkill {
     constructor(assetPack) {
         super(assetPack);
@@ -824,6 +910,7 @@ class Settings extends be_framework_1.BeSkill {
             menu: { Class: MenuSkill_1.default },
             shutDown: { Class: ShutdownSkill_1.default },
             shutdownAnimation: { Class: ShutdownAnimationSkill_1.default, uninterruptible: true },
+            storage: { Class: StorageSkill },
             updates: { Class: UpdatesSkill_1.default },
             volumeQuery: { Class: VolumeSkill_1.default },
             wifiStatus: { Class: WifiSkill_1.default },
