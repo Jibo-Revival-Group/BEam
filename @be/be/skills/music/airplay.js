@@ -20,10 +20,14 @@ function create() {
     function word(buffer, offset) { return buffer.toString('latin1', offset, offset + 4); }
     function changed() { events.emit('change', state); }
 
-    // Position now, advancing from the last progress report while playing.
-    function position() {
+    // Position now, advancing from the last progress report while playing. The phone reports
+    // what it expects the speaker to be playing; Jibo plays LEAD seconds earlier than that
+    // (airplay.conf's audio_backend_latency_offset_in_seconds), so `heard` adds it back.
+    const LEAD = 1.0;
+    function position(heard) {
+        const lead = heard && state.playing ? LEAD : 0;
         if (!state.playing || !state.at) return state.position;
-        return Math.min(state.duration || Infinity, state.position + (Date.now() - state.at) / 1000);
+        return Math.min(state.duration || Infinity, state.position + lead + (Date.now() - state.at) / 1000);
     }
 
     function item(type, code, data) {
@@ -107,9 +111,10 @@ function create() {
         socket.bind(PORT, '127.0.0.1', spawn);
     }
 
-    // Ask the phone to pause/skip, using the DACP remote it announced for this session.
-    function control(command) {
-        if (!state.dacp || !state.remote) return Promise.reject(Error('no_remote'));
+    // Ask the phone to pause/skip, using the DACP remote it announced for this session. The
+    // phone's address is looked up once per session (avahi-browse takes seconds), not per press.
+    let remoteAddress = null;
+    function findRemote() {
         return new Promise((resolve, reject) => {
             let out = '';
             const browse = child.spawn('/usr/bin/avahi-browse', ['-rpt', '_dacp._tcp'], { stdio: ['ignore', 'pipe', 'ignore'] });
@@ -122,13 +127,23 @@ function create() {
                 const line = lines.filter(l => l.split(';')[2] === 'IPv4')[0] || lines[0];
                 if (!line) { reject(Error('remote_not_found')); return; }
                 const fields = line.split(';');
-                const host = fields[2] === 'IPv6' ? fields[7] + '%' + fields[1] : fields[7];
-                const req = http.get({ host: host, port: Number(fields[8]), path: '/ctrl-int/1/' + command,
-                    headers: { 'Active-Remote': state.remote }, timeout: 4000 }, res => { res.resume(); resolve(res.statusCode); });
-                req.on('error', reject);
-                req.on('timeout', () => req.abort());
+                resolve({ dacp: state.dacp, host: fields[2] === 'IPv6' ? fields[7] + '%' + fields[1] : fields[7], port: Number(fields[8]) });
             });
         });
+    }
+    function send(address, command) {
+        return new Promise((resolve, reject) => {
+            const req = http.get({ host: address.host, port: address.port, path: '/ctrl-int/1/' + command,
+                headers: { 'Active-Remote': state.remote }, timeout: 4000 }, res => { res.resume(); resolve(res.statusCode); });
+            req.on('error', reject);
+            req.on('timeout', () => req.abort());
+        });
+    }
+    function control(command) {
+        if (!state.dacp || !state.remote) return Promise.reject(Error('no_remote'));
+        const lookup = () => findRemote().then(address => { remoteAddress = address; return send(address, command); });
+        if (!remoteAddress || remoteAddress.dacp !== state.dacp) return lookup();
+        return send(remoteAddress, command).catch(() => lookup()); // the phone moved: look it up again
     }
 
     // Volume: Jibo's 1-10 is the only volume. AirPlay volume is -30..0 dB (-144 = muted).

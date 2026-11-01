@@ -2,14 +2,21 @@
 
 `shairport-sync` is shairport-sync 4.3.7 (classic AirPlay) built for Jibo: 32-bit ARM, glibc 2.21, linked to Jibo's own ALSA and avahi libraries, with mbedTLS 2.28.9, libconfig 1.7.3 and popt 1.19 built in. `../airplay.js` starts it with `airplay.conf`.
 
-## The one change to shairport-sync
+## Changes to shairport-sync
 
-At the top of `main()` in `shairport.c`:
+1. At the top of `main()` in `shairport.c`, so the receiver exits with the Be renderer that started it and is never orphaned:
 
 ```c
 #include <sys/prctl.h>
 ...
-  prctl(PR_SET_PDEATHSIG, SIGTERM); // exit with the Be renderer that started us, never orphaned
+  prctl(PR_SET_PDEATHSIG, SIGTERM);
+```
+
+2. In `rtp.c`'s control thread, just before `if (conn->local_to_remote_time_difference) {` in the sync-packet handler. The first sync packet often arrives before the first clock exchange and was dropped, so timing only started with the next sync packet a second later. With `airplay.conf`'s shorter latency, that second of audio was already due and got skipped:
+
+```c
+for (int jibo_wait = 0; jibo_wait < 50 && conn->local_to_remote_time_difference == 0; jibo_wait++)
+  usleep(10000);
 ```
 
 ## Rebuilding
