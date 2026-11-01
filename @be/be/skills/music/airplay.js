@@ -53,13 +53,14 @@ function create() {
         }
         case 'acre': state.remote = text(); return;
         case 'daid': state.dacp = text(); return;
+        case 'pvol': phoneVolume(Number(text().split(',')[0])); return;
         case 'pbeg': case 'prsm': case 'pres':
             state.position = position(); state.active = state.playing = true; state.at = Date.now();
             changed(); events.emit('started'); return;
         case 'pfls': case 'paus':
             state.position = position(); state.playing = false; changed(); return;
         case 'pend':
-            state.position = position(); state.active = state.playing = false; state.title = state.artist = state.album = '';
+            state.position = position(); state.active = state.playing = state.synced = false; pushed = null; state.title = state.artist = state.album = '';
             state.art = null; state.artVersion++; state.duration = state.position = 0; changed(); return;
         }
     }
@@ -96,6 +97,7 @@ function create() {
     }
 
     function start() {
+        watchVolume();
         if (socket) return;
         socket = dgram.createSocket('udp4');
         socket.on('message', packet);
@@ -127,6 +129,45 @@ function create() {
         });
     }
 
+    // Volume: Jibo's 1-10 is the only volume. AirPlay volume is -30..0 dB (-144 = muted).
+    let fromPhone = null, wanted = null, watching = null, pushed = null;
+    function jiboVolume() { try { return require('jibo').volume || null; } catch (_) { return null; } }
+    function toJibo(db, v) { return db <= -30 ? v.MIN_VOLUME : Math.round(v.MIN_VOLUME + (db + 30) / 30 * (v.MAX_VOLUME - v.MIN_VOLUME)); }
+    function toPhone(level, v) { return (-30 + (level - v.MIN_VOLUME) / (v.MAX_VOLUME - v.MIN_VOLUME) * 30).toFixed(2); }
+    function pushVolume() {
+        const v = jiboVolume();
+        if (!v || !state.active || !state.remote || !state.dacp) return false;
+        const db = toPhone(v.currentVolume, v);
+        if (db === pushed) return true; // the plugin reports each change twice
+        pushed = db; api.control('setproperty?dmcp.device-volume=' + db).catch(() => {});
+        return true;
+    }
+    function applyWanted() {
+        const v = jiboVolume();
+        if (!v || wanted === null || v._volumeChanging) return;
+        const level = wanted; wanted = null;
+        if (level === v.currentVolume) return;
+        // The plugin's own setter, silent: no volume beep on every slider step.
+        v._volumeChanging = true; v.currentVolume = level; fromPhone = level; pushed = null; v._setVolume(null, true);
+    }
+    function phoneVolume(db) {
+        const v = jiboVolume();
+        if (!v || isNaN(db)) return;
+        // A new session starts at Jibo's volume: send it to the phone instead of taking the phone's.
+        if (!state.synced) { state.synced = pushVolume(); if (state.synced) return; }
+        wanted = toJibo(db, v); applyWanted();
+    }
+    function watchVolume() {
+        const v = jiboVolume();
+        if (!v || watching === v) return;
+        watching = v;
+        v.on('change', level => {
+            if (wanted !== null) { applyWanted(); return; }
+            if (level === fromPhone) return; // the phone already shows it
+            fromPhone = null; pushVolume();
+        });
+    }
+
     // Open the Music player for AirPlay when nothing else is on screen.
     function show(be, Data) {
         if (!be || !be.skills || !be.skills['@be/music'] || be.currentSkill !== be.idle) return false;
@@ -137,5 +178,7 @@ function create() {
         try { show(global.be, require('../../lib/SkillSwitchData').default); } catch (error) { console.warn('[airplay] show failed:', error.message); }
     });
 
-    return { start: start, state: state, events: events, position: position, control: control, packet: packet, show: show };
+    const api = { start: start, state: state, events: events, position: position, control: control, packet: packet, show: show,
+        watchVolume: watchVolume };
+    return api;
 }
