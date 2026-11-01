@@ -9,7 +9,8 @@ class ThinkingEye {
             if (this.token !== token || !this.allowed()) return;
             const asset = this.jibo.animDB.getAnimByName('Thinking_Eye_Loop_01');
             if (!asset) return;
-            return asset.createFromConfig({ loops: 0, cache: null });
+            // 'global' is the cache Nimbus preloads it into; with cache: null the load never finishes on the robot.
+            return asset.createFromConfig({ loops: 0, cache: 'global' });
         }).then(playback => {
             if (!playback) return;
             if (this.token !== token || !this.allowed()) return playback.stop();
