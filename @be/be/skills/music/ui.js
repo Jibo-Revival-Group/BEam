@@ -70,10 +70,10 @@ class UI {
         this.lyricsLayer = new PIXI.Container(); this.lyricsLayer.visible = false;
         const mask = new PIXI.Graphics(); mask.beginFill(0xFFFFFF); mask.drawRect(VIDEO.x, VIDEO.y, VIDEO.width, VIDEO.height); mask.endFill();
         this.lyricsLayer.addChild(mask); this.lyricsLayer.mask = mask;
-        this.lyricLines = [0, 1, 2, 3, 4].map(() => {
-            const text = new PIXI.Text('', { fontFamily: 'Proxima Nova Light', fontSize: 32, fill: '#8C8CA3', align: 'center', wordWrap: true, wordWrapWidth: VIDEO.width - 20 });
-            text.anchor.set(0.5, 0.5); text.x = VIDEO.x + VIDEO.width / 2; this.lyricsLayer.addChild(text); return text;
-        });
+        // All the lines in one column that glides so the line being sung stays in the middle.
+        this.lyricsList = new PIXI.Container(); this.lyricsLayer.addChild(this.lyricsList);
+        this.lyricsNote = this.lyricText(''); this.lyricsNote.y = VIDEO.y + VIDEO.height / 2; this.lyricsLayer.addChild(this.lyricsNote);
+        this.glide = () => { this.lyricsList.y += (this.scrollTo - this.lyricsList.y) * 0.3; }; // Jibo draws ~15 frames a second: ~0.6 s glide
         view.stage.addChild(this.lyricsLayer);
         const tap = new PIXI.Container();
         tap.interactive = true; tap.hitArea = new PIXI.Rectangle(VIDEO.x, VIDEO.y, VIDEO.width, VIDEO.height);
@@ -81,33 +81,41 @@ class UI {
         tap.on('click', toggle); tap.on('tap', toggle);
         view.stage.addChild(tap);
     }
+    lyricText(text) {
+        const line = new this.PIXI.Text(text, { fontFamily: 'Proxima Nova', fontSize: 36, fill: '#58586D', align: 'center', wordWrap: true, wordWrapWidth: VIDEO.width - 80 });
+        line.anchor.set(0.5, 0.5); line.x = VIDEO.x + VIDEO.width / 2; return line;
+    }
     // lyrics: null (hide), { message } or { lines, at } (at = index of the line being sung).
     lyrics(show) {
         if (!this.lyricsLayer) return;
         this.lyricsShown = !!show;
         this.lyricsLayer.visible = !!show;
         this.artLayer.visible = this.artLayer.visible && !show; this.mediaLayer.visible = this.mediaLayer.visible && !show;
-        if (!show) { this.lyricsKey = null; return; }
-        const key = show.message || show.lines.length + ':' + show.at;
-        if (key === this.lyricsKey) return;
-        this.lyricsKey = key;
-        const centre = VIDEO.y + VIDEO.height / 2;
-        const rows = show.message ? [null, null, show.message, null, null]
-            : [-2, -1, 0, 1, 2].map(d => { const i = show.at + d; return i < 0 ? (d === 0 ? '♪' : '') : i < show.lines.length ? show.lines[i].text || '♪' : ''; });
-        this.lyricLines.forEach((line, i) => {
-            const now = i === 2;
-            line.style.fontFamily = now ? 'Proxima Nova' : 'Proxima Nova Light';
-            line.style.fontWeight = now ? 'bold' : 'normal';
-            line.style.fontSize = now ? 44 : 32;
-            line.style.fill = now ? '#FFFFFF' : i === 1 || i === 3 ? '#8C8CA3' : '#58586D';
-            line.text = rows[i] || '';
+        if (this.PIXI.ticker) this.PIXI.ticker.shared[show && show.lines ? 'add' : 'remove'](this.glide);
+        if (!show) { this.lyricsSet = null; return; }
+        this.lyricsNote.text = show.message || ''; this.lyricsList.visible = !show.message;
+        if (show.message) return;
+        if (show.lines !== this.lyricsSet) { // new song: one text per line, stacked by wrapped height
+            this.lyricsSet = show.lines; this.lyricsAt = null;
+            this.lyricsList.removeChildren().forEach(old => old.destroy());
+            let y = 0;
+            show.lines.forEach(entry => {
+                const line = this.lyricText(entry.text || '♪');
+                line.y = y + line.height / 2; y += line.height + 22;
+                this.lyricsList.addChild(line);
+            });
+        }
+        if (show.at === this.lyricsAt) return;
+        const first = this.lyricsAt === null;
+        this.lyricsAt = show.at;
+        this.lyricsList.children.forEach((line, i) => {
+            const away = Math.abs(i - show.at);
+            line.style.fill = away === 0 ? '#FFFFFF' : away === 1 ? '#8C8CA3' : '#58586D';
+            line.scale.set(away === 0 ? 1.15 : 1);
         });
-        // Stack the lines outward from the current one by their wrapped heights.
-        const gap = 18, mid = this.lyricLines[2];
-        mid.y = centre;
-        let up = centre - mid.height / 2, down = centre + mid.height / 2;
-        [1, 0].forEach(i => { const l = this.lyricLines[i]; l.y = up - gap - l.height / 2; up = l.y - l.height / 2; });
-        [3, 4].forEach(i => { const l = this.lyricLines[i]; l.y = down + gap + l.height / 2; down = l.y + l.height / 2; });
+        const target = this.lyricsList.children[Math.max(show.at, 0)];
+        this.scrollTo = VIDEO.y + VIDEO.height / 2 - (target ? target.y : 0) + (show.at < 0 ? 60 : 0); // before the first line: it waits just below the middle
+        if (first) this.lyricsList.y = this.scrollTo; // opening mid-song jumps straight there
     }
     label(id, value, width) {
         const component = this.view.getComponentById(id);

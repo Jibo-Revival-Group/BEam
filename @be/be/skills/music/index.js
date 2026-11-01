@@ -190,7 +190,7 @@ class MusicSkill extends BeSkill {
             return;
         }
         const closing = this.closing = { finished: false, error: null, callbacks: [done] };
-        ++this.generation; this.leaving = true; clearInterval(this.timer); this.timer = null; clearInterval(this.lyricsTimer); this.lyricsTimer = null;
+        ++this.generation; this.leaving = true; clearInterval(this.timer); this.timer = null; if (this.lyricsTimer && this.ui) this.ui.lyrics(null); clearInterval(this.lyricsTimer); this.lyricsTimer = null;
         this.events.forEach(off => { try { off(); } catch (_) {} }); this.events = [];
         if (this.client) this.client.close(); this.client = null;
         if (this.speaking) { try { Promise.resolve(jibo.tts.stop()).catch(() => {}); } catch (_) {} this.speaking = false; }

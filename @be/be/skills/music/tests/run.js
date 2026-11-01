@@ -147,8 +147,9 @@ test('adaptive layouts, artwork failures and stale image callbacks', () => {
         addChildAt(child, at) { child.parent = this; this.children.splice(at, 0, child); }
         removeChild(child) { this.children.splice(this.children.indexOf(child), 1); child.parent = null; }
         on(name, handler) { (this.handlers = this.handlers || {})[name] = handler; }
+        removeChildren() { const old = this.children; this.children = []; return old; }
     }
-    class Text { constructor(text, style) { this.text = text; this.style = style; this.anchor = { set() {} }; this.height = 40; } }
+    class Text { constructor(text, style) { this.text = text; this.style = style; this.anchor = { set() {} }; this.height = 40; this.scale = { set(v) { this.x = v; } }; } destroy() { this.destroyed = true; } }
     class Rectangle { constructor(x, y, width, height) { this.x = x; this.y = y; this.width = width; this.height = height; } }
     class Graphics extends Container {
         constructor() { super(); this.shapes = []; }
@@ -202,13 +203,20 @@ test('adaptive layouts, artwork failures and stale image callbacks', () => {
         tap.handlers.tap(); tap.handlers.click(); assert.strictEqual(lyricTaps, 2);
         ui.lyrics({ message: 'Finding lyrics…' }); ui.render(state, session);
         assert(ui.lyricsLayer.visible && !ui.artLayer.visible && !ui.mediaLayer.visible);
-        assert.strictEqual(ui.lyricLines[2].text, 'Finding lyrics…');
+        assert.strictEqual(ui.lyricsNote.text, 'Finding lyrics…'); assert(!ui.lyricsList.visible);
         const sung = [{ t: 1, text: 'one' }, { t: 2, text: 'two' }, { t: 3, text: '' }, { t: 4, text: 'four' }];
         ui.lyrics({ lines: sung, at: 1 });
-        assert.deepStrictEqual(ui.lyricLines.map(l => l.text), ['', 'one', 'two', '♪', 'four'], 'current line in the middle, an empty line shows a note');
-        assert.strictEqual(ui.lyricLines[2].style.fill, '#FFFFFF'); assert.strictEqual(ui.lyricLines[1].style.fill, '#8C8CA3');
-        assert(ui.lyricLines[1].y < ui.lyricLines[2].y && ui.lyricLines[2].y < ui.lyricLines[3].y);
-        ui.lyrics({ lines: sung, at: -1 }); assert.strictEqual(ui.lyricLines[2].text, '♪', 'before the first line');
+        const list = ui.lyricsList.children, middle = 110 + 394 / 2;
+        assert.deepStrictEqual(list.map(l => l.text), ['one', 'two', '♪', 'four'], 'every line, an empty one shows a note');
+        assert.strictEqual(ui.lyricsNote.text, ''); assert(ui.lyricsList.visible);
+        assert.deepStrictEqual(list.map(l => l.style.fill), ['#8C8CA3', '#FFFFFF', '#8C8CA3', '#58586D']);
+        assert.strictEqual(ui.lyricsList.y + list[1].y, middle, 'opening jumps the sung line to the middle');
+        ui.lyrics({ lines: sung, at: 3 });
+        assert.strictEqual(ui.lyricsList.y + list[1].y, middle, 'then it glides rather than jumps');
+        for (let frame = 0; frame < 120; frame++) ui.glide();
+        assert(Math.abs(ui.lyricsList.y + list[3].y - middle) < 1, 'and settles on the new line');
+        ui.lyrics({ lines: sung.slice(), at: 0 });
+        assert(list.every(l => l.destroyed) && ui.lyricsList.children.length === 4, 'a new song replaces (and frees) the old lines');
         ui.lyrics(null); ui.render(state, session); assert(!ui.lyricsLayer.visible && ui.artLayer.visible, 'hiding brings the picture back');
         state.phase = 'loading'; ui.render(state, null);
         assert(components.toggle_pause.locked && components.back.locked); assert(!components.stop.locked);
