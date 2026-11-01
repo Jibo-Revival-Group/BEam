@@ -5,8 +5,10 @@ const service = require('./service'), Client = require('./client'), video = requ
 const lifecycle = require('./touch-lifecycle'), UI = require('./ui'), Detector = require('./format');
 function launchRequest(result) {
     const entities = result && result.nlu && result.nlu.entities || {};
-    return { title: typeof entities.query === 'string' ? entities.query.trim().slice(0, 160) : '',
+    const request = { title: typeof entities.query === 'string' ? entities.query.trim().slice(0, 160) : '',
         artist: typeof entities.artist === 'string' ? entities.artist.trim().slice(0, 120) : '' };
+    if (entities.airplay === true) request.airplay = true;
+    return request;
 }
 class MusicSkill extends BeSkill {
     constructor() {
@@ -20,7 +22,7 @@ class MusicSkill extends BeSkill {
         const request = launchRequest(result), generation = ++this.generation;
         this.closing = null; this.leaving = false;
         this.state = { phase: 'loading', position: 0, song: null, format: 'video', message: request.title ? 'Finding ' + request.title + '…' : 'Ask me to play a song by name.' };
-        const actions = { toggle: () => this.toggle(), back: () => this.seek(-15), forward: () => this.seek(15),
+        const actions = request.airplay ? this.airplayActions() : { toggle: () => this.toggle(), back: () => this.seek(-15), forward: () => this.seek(15),
             quieter: () => this.volume(-1), louder: () => this.volume(1), stop: () => this.leave() };
         const views = jibo.face.views;
         this.ui = new UI(actions);
@@ -32,6 +34,7 @@ class MusicSkill extends BeSkill {
             ['hjHeard', 'localTurnStarted', 'globalTurnStarted', 'skillSwitch'].forEach(name => this.watch(jibo.jetstream, name));
             ['touchOn', 'hatchOpen'].forEach(name => this.watch(jibo.system, name));
             this.timer = setInterval(() => this.tick(), 1000);
+            if (request.airplay) { this.followAirplay(); return; }
             if (!request.title) return;
             try { this.client = new Client(service.settings()); }
             catch (_) { this.fail('storage_unavailable'); return; }
@@ -82,7 +85,32 @@ class MusicSkill extends BeSkill {
             this.render();
         }).catch(error => { if (current()) this.fail(error.message); });
     }
+    // AirPlay: the phone plays; the same player shows its track and the buttons control the phone.
+    airplayActions() {
+        const remote = command => () => { require('./airplay').control(command).catch(() => {}); };
+        return { toggle: remote('playpause'), back: remote('previtem'), forward: remote('nextitem'),
+            quieter: () => this.volume(-1), louder: () => this.volume(1),
+            stop: () => { require('./airplay').control('pause').catch(() => {}); this.leave(); } };
+    }
+    followAirplay() {
+        const airplay = require('./airplay'), update = () => {
+            const now = airplay.state;
+            if (!now.active) { this.leave(); return; }
+            this.state.airplay = true; this.state.format = 'cover'; this.state.phase = now.playing ? 'playing' : 'paused';
+            this.state.message = now.playing ? 'AirPlay' : 'Paused';
+            this.state.song = { title: now.title, artist: now.artist || now.album, duration: now.duration };
+            this.state.position = airplay.position();
+            if (this.artVersion !== now.artVersion) {
+                this.artVersion = now.artVersion;
+                if (now.art) this.ui.artwork(now.art, () => this.render()); else this.ui.releaseArtwork();
+            }
+            this.render();
+        };
+        airplay.events.on('change', update); this.events.push(() => airplay.events.removeListener('change', update));
+        update();
+    }
     tick() {
+        if (this.state.airplay) { this.state.position = require('./airplay').position(); this.render(); return; }
         if (!this.session || !this.state.song) return;
         this.state.position = Math.min(this.state.song.duration, this.offset + this.session.position());
         const media = this.session.media;

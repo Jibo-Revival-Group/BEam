@@ -50,6 +50,8 @@
             } catch (err) {
               console.warn('[Be] beacon.start failed:', err && err.message);
             }
+            try { require('./skills/music/airplay').start(); }
+            catch (err) { console.warn('[Be] airplay.start failed:', err && err.message); }
           }, 0);
           be.init(()=>{
              // @if DEBUG

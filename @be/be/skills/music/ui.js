@@ -23,6 +23,7 @@ const BUTTONS = [
     ['stop', 'stop', 'Stop', core('stop'), 1135, 2]
 ];
 const ROW_Y = [100, 255, 410];
+const AIRPLAY_LABELS = { back: 'Previous', forward: 'Next' };
 
 class UI {
     constructor(actions) {
@@ -82,7 +83,7 @@ class UI {
         this.label('status', state.message || 'Music', 1000);
         this.label('artist', song && song.artist, 1120);
         this.label('title', song && song.title, 1120);
-        this.label('position', song ? clock(state.position) + ' / ' + clock(song.duration) : '', 400);
+        this.label('position', song && song.duration ? clock(state.position) + ' / ' + clock(song.duration) : '', 400);
 
         const duration = song && Number(song.duration);
         this.progressFraction = duration > 0 ? Math.max(0, Math.min(1, Number(state.position || 0) / duration)) : 0;
@@ -91,9 +92,9 @@ class UI {
         this.progressFill.clear(); this.progressFill.beginFill(0x58586D);
         if (this.progressFraction > 0) this.progressFill.drawRect(BAR.x, BAR.y, BAR.width * this.progressFraction, BAR.height);
         this.progressFill.endFill();
-        this.progressTrack.visible = this.progressFill.visible = !!song;
+        this.progressTrack.visible = this.progressFill.visible = duration > 0;
 
-        const playable = !!song && !!session && /^(playing|paused|ended)$/.test(state.phase);
+        const playable = !!song && (!!session || state.airplay) && /^(playing|paused|ended)$/.test(state.phase);
         const toggle = state.phase === 'ended' ? 'toggle_replay' : state.phase === 'paused' ? 'toggle_play' : 'toggle_pause';
         BUTTONS.forEach(button => {
             const id = button[0], component = this.view.getComponentById(id), text = this.view.getComponentById(id + 'Text');
@@ -102,7 +103,7 @@ class UI {
             component.lockInput(!enabled);
             component.display.visible = text.display.visible = shown;
             component.display.alpha = text.display.alpha = enabled ? 1 : 0.4;
-            text.text = button[2];
+            text.text = state.airplay && AIRPLAY_LABELS[id] || button[2];
         });
         const showArt = album && (state.format === 'lyrics' || !!this.texture || !session);
         this.artLayer.visible = showArt; this.mediaLayer.visible = !showArt;
