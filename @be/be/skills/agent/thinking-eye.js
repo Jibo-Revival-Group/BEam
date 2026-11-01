@@ -21,7 +21,12 @@ class ThinkingEye {
     stop() {
         this.token = null;
         const playback = this.playback; this.playback = null;
-        if (playback) this.stopping = Promise.resolve().then(() => playback.stop()).catch(() => {});
+        // Like Nimbus: the loop ends on a closed eye and Agent Mode keeps attention off, so re-center it (never over the privacy eye).
+        if (playback) this.stopping = Promise.resolve().then(() => playback.stop()).catch(() => {}).then(() => {
+            const jibo = this.jibo, expression = jibo.expression;
+            if ((jibo.privacyController && jibo.privacyController.enabled) || !expression || !expression.centerRobot) return;
+            return expression.centerRobot({ requestor: 'Behavior', centerGlobally: false, dofs: expression.dofs.EYE });
+        }).catch(() => {});
         return this.stopping || Promise.resolve();
     }
 }

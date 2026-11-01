@@ -6,6 +6,8 @@ function fixture() {
     const env = fixtures.fixture();
     const calls = env.calls = [], load = env.load = deferred(), stop = env.stop = deferred(), play = env.play = deferred();
     env.playback = { play: options => { calls.push(['play', options]); return play.promise; }, stop: () => { calls.push(['stop']); return stop.promise; } };
+    const centers = env.centers = [];
+    Object.assign(env.jibo.expression, { dofs: { EYE: 'EYE' }, centerRobot: config => { centers.push(config); return Promise.resolve(); } });
     env.jibo.animDB = { getAnimByName: name => { calls.push(['lookup', name]); return { createFromConfig: config => { calls.push(['load', config]); return load.promise; } }; } };
     return env;
 }
@@ -28,6 +30,7 @@ async function run() {
         assert.strictEqual(env.calls[3][0], 'stop');
         assert.strictEqual(env.speech.length, 1, 'TTS must wait for native stop');
         env.stop.resolve(); await fixtures.flush();
+        assert.deepStrictEqual(env.centers, [{ requestor: 'Behavior', centerGlobally: false, dofs: 'EYE' }], 'Re-center the eye after the closed-eye loop ends');
         assert.strictEqual(env.speech[1].text, 'Here is something.');
         console.log('PASS native thinking eye during generation; stop barrier before TTS');
     } finally { env.stop.resolve(); await env.runtime.close(); }
@@ -87,6 +90,7 @@ async function run() {
                     assert.strictEqual(race.jibo.face.eye, eye);
                     assert.deepStrictEqual(eye.filters, ['privacy-eye']);
                     assert.strictEqual(race.jibo.face.views._waterMark, red);
+                    assert.deepStrictEqual(race.centers, [], 'Never re-center over the privacy eye');
                 }
                 if (reason === 'skillSwitch') assert.strictEqual(race.exits(), 0);
             } finally { race.stop.resolve(); await race.runtime.close(); }
