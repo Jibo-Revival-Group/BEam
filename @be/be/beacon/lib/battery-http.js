@@ -17,4 +17,14 @@ function status(req, res) {
     u.sendJson(res, 200, { battery: Math.round(level * 10) / 10 });
 }
 
-module.exports = { status: status };
+// Level and plug state only, for /api/status (BEep's low-battery alert); full telemetry stays behind auth.
+function summary() {
+    try {
+        const system = require('jibo').system;
+        const level = system.getBatteryLevel();
+        if (typeof level !== 'number' || !Number.isFinite(level) || level < 0 || level > 100) { return null; }
+        return { level: Math.round(level), pluggedIn: typeof system.pluggedIn === 'boolean' ? system.pluggedIn : null };
+    } catch (error) { return null; }
+}
+
+module.exports = { status: status, summary: summary };

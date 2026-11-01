@@ -117,7 +117,7 @@ const routes = {
     'GET /api/camera-stream/image': guard(cameraStream.image),
     'GET /api/camera-stream/video': guard(cameraStream.stream),
     'GET /api/status': guard((req, res) => {
-        u.sendJson(res, 200, system.status());
+        u.sendJson(res, 200, Object.assign(system.status(), { battery: battery.summary() }));
     }),
 
     'GET /api/skills': guard((req, res) => {
