@@ -3,12 +3,12 @@
 /**
  * Access to photos saved by the Jibo media service.
  *
- * The media service stores JPEGs in /opt/jibo/Photos, while the KB media
- * model is the source of truth for which files are full photos versus
- * generated thumbnails.
+ * The media service stores JPEGs in /opt/jibo/Photos; the KB media model
+ * (the same list Jibo's Gallery shows) decides which photos exist.
  */
 
 const fs = require('fs');
+const http = require('http');
 
 const paths = require('./paths');
 const u = require('./http-util');
@@ -91,95 +91,6 @@ function findPhotoFile (id) {
     return null;
 }
 
-/** Read JPEG dimensions without loading the whole image into memory. */
-function jpegSize (file) {
-    let fd;
-    try {
-        fd = fs.openSync(file, 'r');
-        const buffer = Buffer.alloc(64 * 1024);
-        const length = fs.readSync(fd, buffer, 0, buffer.length, 0);
-        fs.closeSync(fd);
-        fd = null;
-        if (length < 10 || buffer[0] !== 0xff || buffer[1] !== 0xd8) { return null; }
-
-        let offset = 2;
-        while (offset + 9 < length) {
-            if (buffer[offset] !== 0xff) {
-                offset++;
-                continue;
-            }
-            const marker = buffer[offset + 1];
-            offset += 2;
-            if (marker === 0xd8 || marker === 0xd9 || marker === 0x01) { continue; }
-            if (offset + 2 > length) { break; }
-            const segmentLength = buffer.readUInt16BE(offset);
-            if (segmentLength < 2 || offset + segmentLength > length) { break; }
-            const isFrame = (marker >= 0xc0 && marker <= 0xc3) ||
-                (marker >= 0xc5 && marker <= 0xc7) ||
-                (marker >= 0xc9 && marker <= 0xcb) ||
-                (marker >= 0xcd && marker <= 0xcf);
-            if (isFrame && offset + 7 < length) {
-                return {
-                    width: buffer.readUInt16BE(offset + 5),
-                    height: buffer.readUInt16BE(offset + 3)
-                };
-            }
-            offset += segmentLength;
-        }
-    } catch (err) {
-        if (fd !== undefined && fd !== null) {
-            try { fs.closeSync(fd); } catch (closeErr) { /* best effort */ }
-        }
-    }
-    return null;
-}
-
-function isGeneratedThumbnail (file) {
-    const size = jpegSize(file);
-    return !!(size && (
-        (size.width === 330 && size.height === 330) ||
-        (size.width === 720 && size.height === 405)
-    ));
-}
-
-/**
- * Fallback for robots whose media KB is unavailable or has not populated its
- * root edges yet. Full photos are the non-thumbnail JPEGs in the media store.
- */
-function scanFiles () {
-    const byId = {};
-    photoDirectories().forEach((dir) => {
-        let entries;
-        try {
-            entries = fs.readdirSync(dir);
-        } catch (err) {
-            entries = [];
-        }
-        entries.forEach((name) => {
-            if (!/\.jpg$/i.test(name)) { return; }
-            const file = u.safeJoin(dir, name);
-            const stat = file && statOrNull(file);
-            if (!stat || !stat.isFile() || isGeneratedThumbnail(file)) { return; }
-            const id = name.replace(/\.jpg$/i, '');
-            try {
-                const normalized = normalizeId(id);
-                if (byId[normalized]) { return; }
-                byId[normalized] = {
-                    id: normalized,
-                    file: normalized + '.jpg',
-                    created: stat.mtime.getTime(),
-                    size: stat.size,
-                    available: true
-                };
-            } catch (err) {
-                // Ignore non-photo JPEGs in the media directory.
-            }
-        });
-    });
-    return Object.keys(byId).map((id) => byId[id])
-        .sort((a, b) => b.created - a.created);
-}
-
 function photoId (item) {
     return item && (item.id || item._id);
 }
@@ -213,52 +124,29 @@ function unavailable (message) {
     };
 }
 
-function available (photos, source) {
-    const result = {
+function available (photos) {
+    return {
         available: true,
         dir: paths.photosDir(),
         count: photos.length,
         photos: photos
     };
-    if (source) { result.source = source; }
-    return result;
 }
 
 /**
- * Load saved full-photo nodes from the KB, excluding thumbnail nodes.
- * This intentionally returns a response object so a development checkout
- * without a running Jibo media runtime can show a useful empty state.
+ * List photos exactly as Jibo's Gallery does: KB media nodes that are still
+ * linked (have edges) and are full images, newest first.
  */
 function scan () {
     const model = mediaModel();
     if (!model || typeof model.loadMedia !== 'function') {
-        const files = scanFiles();
-        return Promise.resolve(files.length
-            ? available(files, 'filesystem')
-            : unavailable('The Jibo media library is unavailable. Run BEacon from Be on a robot.'));
+        return Promise.resolve(unavailable('The Jibo media library is unavailable. Run BEacon from Be on a robot.'));
     }
-
-    const type = model.MediaType && model.MediaType.image
-        ? model.MediaType.image
-        : 'image';
-    let loading;
-    try {
-        loading = model.loadMedia();
-    } catch (err) {
-        const files = scanFiles();
-        if (files.length) { return Promise.resolve(available(files, 'filesystem')); }
-        return Promise.reject(err);
-    }
-
-    return Promise.resolve(loading).then((items) => {
-        const dir = paths.photosDir();
-        if (!paths.isDir(dir)) {
-            return unavailable('Photo store not found at ' + dir + '.');
-        }
+    const type = model.MediaType && model.MediaType.image ? model.MediaType.image : 'image';
+    return Promise.resolve(model.loadMedia()).then((items) => {
         const photos = [];
         (items || []).forEach((item) => {
-            const data = item && item.data;
-            if (!data || data.type !== type) { return; }
+            if (!item || !item.edges || !item.data || item.data.type !== type) { return; }
             try {
                 photos.push(buildPhoto(item));
             } catch (err) {
@@ -266,22 +154,37 @@ function scan () {
                 // arbitrary path through the file endpoint.
             }
         });
-        if (!photos.length) {
-            const files = scanFiles();
-            if (files.length) { return available(files, 'filesystem'); }
-        }
         photos.sort((a, b) => b.created - a.created);
         return available(photos);
     });
 }
 
-function resolveFile (id) {
-    const file = findPhotoFile(id);
-    const stat = statOrNull(file);
-    if (!stat || !stat.isFile()) {
-        throw fail('Photo not found: ' + id, 404);
+/** Stream a photo from the media service, as the Gallery does (new photos are root-only on disk). */
+function serve (req, res, id, download) {
+    const normalized = normalizeId(id);
+    const jibo = getJibo();
+    if (!jibo || !jibo.media || typeof jibo.media.getUrl !== 'function') {
+        throw fail('The Jibo media library is unavailable. Run BEacon from Be on a robot.', 503);
     }
-    return file;
+    http.get(jibo.media.getUrl(normalized), (upstream) => {
+        if (upstream.statusCode !== 200) {
+            upstream.resume();
+            u.sendText(res, 404, 'Photo not found: ' + normalized);
+            return;
+        }
+        const headers = { 'Content-Type': 'image/jpeg' };
+        if (upstream.headers['content-length']) { headers['Content-Length'] = upstream.headers['content-length']; }
+        if (download) { headers['Content-Disposition'] = 'attachment; filename="' + normalized + '.jpg"'; }
+        u.noCache(res);
+        res.writeHead(200, headers);
+        if (req.method === 'HEAD') {
+            upstream.resume();
+            res.end();
+            return;
+        }
+        upstream.on('error', () => res.destroy());
+        upstream.pipe(res);
+    }).on('error', () => u.sendText(res, 502, 'The Jibo media service did not answer.'));
 }
 
 function remove (id) {
@@ -310,7 +213,7 @@ function remove (id) {
 
 module.exports = {
     scan: scan,
-    resolveFile: resolveFile,
+    serve: serve,
     remove: remove,
     normalizeId: normalizeId
 };

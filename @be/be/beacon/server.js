@@ -183,12 +183,7 @@ const routes = {
     }),
 
     'GET /api/photos/file': guard((req, res, query) => {
-        const abs = photos.resolveFile(query.id);
-        const download = query.download === '1' || query.download === 'true';
-        u.serveFile(req, res, abs, {
-            contentType: 'image/jpeg',
-            download: download
-        });
+        photos.serve(req, res, query.id, query.download === '1' || query.download === 'true');
     }),
 
     'DELETE /api/photos': guard((req, res, query) => {
