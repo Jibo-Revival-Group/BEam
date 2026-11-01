@@ -73,7 +73,8 @@ class UI {
         // All the lines in one column that glides so the line being sung stays in the middle.
         this.lyricsList = new PIXI.Container(); this.lyricsLayer.addChild(this.lyricsList);
         this.lyricsNote = this.lyricText(''); this.lyricsNote.y = VIDEO.y + VIDEO.height / 2; this.lyricsLayer.addChild(this.lyricsNote);
-        this.glide = () => { this.lyricsList.y += (this.scrollTo - this.lyricsList.y) * 0.3; }; // Jibo draws ~15 frames a second: ~0.6 s glide
+        // delta = frames elapsed at 60 fps, so the glide takes ~0.6 s whatever Jibo's frame rate (screen sharing drops it to 15)
+        this.glide = delta => { this.lyricsList.y += (this.scrollTo - this.lyricsList.y) * (1 - Math.pow(0.92, delta || 1)); };
         view.stage.addChild(this.lyricsLayer);
         const tap = new PIXI.Container();
         tap.interactive = true; tap.hitArea = new PIXI.Rectangle(VIDEO.x, VIDEO.y, VIDEO.width, VIDEO.height);

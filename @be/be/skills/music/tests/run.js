@@ -213,7 +213,12 @@ test('adaptive layouts, artwork failures and stale image callbacks', () => {
         assert.strictEqual(ui.lyricsList.y + list[1].y, middle, 'opening jumps the sung line to the middle');
         ui.lyrics({ lines: sung, at: 3 });
         assert.strictEqual(ui.lyricsList.y + list[1].y, middle, 'then it glides rather than jumps');
-        for (let frame = 0; frame < 120; frame++) ui.glide();
+        const start = ui.lyricsList.y;
+        for (let frame = 0; frame < 9; frame++) ui.glide(4); // 0.6 s at 15 fps
+        const slow = ui.lyricsList.y; ui.lyricsList.y = start;
+        for (let frame = 0; frame < 36; frame++) ui.glide(1); // 0.6 s at 60 fps
+        assert(Math.abs(slow - ui.lyricsList.y) < 1, 'same speed at any frame rate');
+        for (let frame = 0; frame < 60; frame++) ui.glide(1);
         assert(Math.abs(ui.lyricsList.y + list[3].y - middle) < 1, 'and settles on the new line');
         ui.lyrics({ lines: sung.slice(), at: 0 });
         assert(list.every(l => l.destroyed) && ui.lyricsList.children.length === 4, 'a new song replaces (and frees) the old lines');
