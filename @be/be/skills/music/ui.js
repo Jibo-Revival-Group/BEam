@@ -66,6 +66,48 @@ class UI {
         this.progressTrack = new PIXI.Graphics(); this.progressFill = new PIXI.Graphics();
         view.stage.addChild(this.progressTrack); view.stage.addChild(this.progressFill);
         this.artLayer.visible = false;
+        // Timed lyrics take the picture's place; tapping the picture shows or hides them.
+        this.lyricsLayer = new PIXI.Container(); this.lyricsLayer.visible = false;
+        const mask = new PIXI.Graphics(); mask.beginFill(0xFFFFFF); mask.drawRect(VIDEO.x, VIDEO.y, VIDEO.width, VIDEO.height); mask.endFill();
+        this.lyricsLayer.addChild(mask); this.lyricsLayer.mask = mask;
+        this.lyricLines = [0, 1, 2, 3, 4].map(() => {
+            const text = new PIXI.Text('', { fontFamily: 'Proxima Nova Light', fontSize: 32, fill: '#8C8CA3', align: 'center', wordWrap: true, wordWrapWidth: VIDEO.width - 20 });
+            text.anchor.set(0.5, 0.5); text.x = VIDEO.x + VIDEO.width / 2; this.lyricsLayer.addChild(text); return text;
+        });
+        view.stage.addChild(this.lyricsLayer);
+        const tap = new PIXI.Container();
+        tap.interactive = true; tap.hitArea = new PIXI.Rectangle(VIDEO.x, VIDEO.y, VIDEO.width, VIDEO.height);
+        const toggle = () => { if (this.actions.lyrics) this.actions.lyrics(); };
+        tap.on('click', toggle); tap.on('tap', toggle);
+        view.stage.addChild(tap);
+    }
+    // lyrics: null (hide), { message } or { lines, at } (at = index of the line being sung).
+    lyrics(show) {
+        if (!this.lyricsLayer) return;
+        this.lyricsShown = !!show;
+        this.lyricsLayer.visible = !!show;
+        this.artLayer.visible = this.artLayer.visible && !show; this.mediaLayer.visible = this.mediaLayer.visible && !show;
+        if (!show) { this.lyricsKey = null; return; }
+        const key = show.message || show.lines.length + ':' + show.at;
+        if (key === this.lyricsKey) return;
+        this.lyricsKey = key;
+        const centre = VIDEO.y + VIDEO.height / 2;
+        const rows = show.message ? [null, null, show.message, null, null]
+            : [-2, -1, 0, 1, 2].map(d => { const i = show.at + d; return i < 0 ? (d === 0 ? '♪' : '') : i < show.lines.length ? show.lines[i].text || '♪' : ''; });
+        this.lyricLines.forEach((line, i) => {
+            const now = i === 2;
+            line.style.fontFamily = now ? 'Proxima Nova' : 'Proxima Nova Light';
+            line.style.fontWeight = now ? 'bold' : 'normal';
+            line.style.fontSize = now ? 44 : 32;
+            line.style.fill = now ? '#FFFFFF' : i === 1 || i === 3 ? '#8C8CA3' : '#58586D';
+            line.text = rows[i] || '';
+        });
+        // Stack the lines outward from the current one by their wrapped heights.
+        const gap = 18, mid = this.lyricLines[2];
+        mid.y = centre;
+        let up = centre - mid.height / 2, down = centre + mid.height / 2;
+        [1, 0].forEach(i => { const l = this.lyricLines[i]; l.y = up - gap - l.height / 2; up = l.y - l.height / 2; });
+        [3, 4].forEach(i => { const l = this.lyricLines[i]; l.y = down + gap + l.height / 2; down = l.y + l.height / 2; });
     }
     label(id, value, width) {
         const component = this.view.getComponentById(id);
@@ -106,7 +148,7 @@ class UI {
             text.text = state.airplay && AIRPLAY_LABELS[id] || button[2];
         });
         const showArt = album && (state.format === 'lyrics' || !!this.texture || !session);
-        this.artLayer.visible = showArt; this.mediaLayer.visible = !showArt;
+        this.artLayer.visible = showArt && !this.lyricsShown; this.mediaLayer.visible = !showArt && !this.lyricsShown;
         if (session) { session.options.viewport = album ? COVER : VIDEO; session.fit(); }
     }
     artwork(target, changed) {

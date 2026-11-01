@@ -2,7 +2,7 @@
 
 const jibo = require('jibo'), BeSkill = require('@be/be-framework').BeSkill;
 const service = require('./service'), Client = require('./client'), video = require('./video');
-const lifecycle = require('./touch-lifecycle'), UI = require('./ui'), Detector = require('./format');
+const lifecycle = require('./touch-lifecycle'), UI = require('./ui'), Detector = require('./format'), lyrics = require('./lyrics');
 function launchRequest(result) {
     const entities = result && result.nlu && result.nlu.entities || {};
     const request = { title: typeof entities.query === 'string' ? entities.query.trim().slice(0, 160) : '',
@@ -24,6 +24,7 @@ class MusicSkill extends BeSkill {
         this.state = { phase: 'loading', position: 0, song: null, format: 'video', message: request.title ? 'Finding ' + request.title + '…' : 'Ask me to play a song by name.' };
         const actions = request.airplay ? this.airplayActions() : { toggle: () => this.toggle(), back: () => this.seek(-15), forward: () => this.seek(15),
             quieter: () => this.volume(-1), louder: () => this.volume(1), stop: () => this.leave() };
+        actions.lyrics = () => this.toggleLyrics();
         const views = jibo.face.views;
         this.ui = new UI(actions);
         const view = this.view = lifecycle.prepareView(views.createView('View', this.ui.config(views)));
@@ -110,6 +111,31 @@ class MusicSkill extends BeSkill {
         airplay.events.on('change', update); this.events.push(() => airplay.events.removeListener('change', update));
         update();
     }
+    // Where the audio is now, to the fraction of a second (lyrics need better than the 1 s tick).
+    livePosition() {
+        if (this.state.airplay) return require('./airplay').position(true);
+        return this.session ? this.offset + this.session.position() : this.state.position;
+    }
+    toggleLyrics() {
+        if (this.lyricsTimer) { clearInterval(this.lyricsTimer); this.lyricsTimer = null; if (this.ui) this.ui.lyrics(null); this.render(); return; }
+        if (!this.state.song || !this.state.song.title) return;
+        this.lyricsSong = null;
+        this.lyricsTimer = setInterval(() => this.drawLyrics(), 200);
+        this.drawLyrics();
+    }
+    drawLyrics() {
+        const song = this.state.song;
+        if (!this.ui || !song) return;
+        const key = song.title + '\n' + song.artist;
+        if (key !== this.lyricsSong) { // first open, or AirPlay moved to the next track
+            this.lyricsSong = key; this.lyricLines = null; this.lyricsMessage = 'Finding lyrics…';
+            lyrics.find(song).then(lines => {
+                if (this.lyricsSong !== key) return;
+                this.lyricLines = lines; this.lyricsMessage = lines ? null : 'No timed lyrics for this song';
+            }, () => { if (this.lyricsSong === key) this.lyricsMessage = 'Couldn’t reach the lyrics service'; });
+        }
+        this.ui.lyrics(this.lyricLines ? { lines: this.lyricLines, at: lyrics.current(this.lyricLines, this.livePosition()) } : { message: this.lyricsMessage });
+    }
     tick() {
         if (this.state.airplay) { this.state.position = require('./airplay').position(); this.render(); return; }
         if (!this.session || !this.state.song) return;
@@ -163,7 +189,7 @@ class MusicSkill extends BeSkill {
             return;
         }
         const closing = this.closing = { finished: false, error: null, callbacks: [done] };
-        ++this.generation; this.leaving = true; clearInterval(this.timer); this.timer = null;
+        ++this.generation; this.leaving = true; clearInterval(this.timer); this.timer = null; clearInterval(this.lyricsTimer); this.lyricsTimer = null;
         this.events.forEach(off => { try { off(); } catch (_) {} }); this.events = [];
         if (this.client) this.client.close(); this.client = null;
         if (this.speaking) { try { Promise.resolve(jibo.tts.stop()).catch(() => {}); } catch (_) {} this.speaking = false; }

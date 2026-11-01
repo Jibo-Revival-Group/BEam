@@ -146,7 +146,10 @@ test('adaptive layouts, artwork failures and stale image callbacks', () => {
         addChild(child) { child.parent = this; this.children.push(child); }
         addChildAt(child, at) { child.parent = this; this.children.splice(at, 0, child); }
         removeChild(child) { this.children.splice(this.children.indexOf(child), 1); child.parent = null; }
+        on(name, handler) { (this.handlers = this.handlers || {})[name] = handler; }
     }
+    class Text { constructor(text, style) { this.text = text; this.style = style; this.anchor = { set() {} }; this.height = 40; } }
+    class Rectangle { constructor(x, y, width, height) { this.x = x; this.y = y; this.width = width; this.height = height; } }
     class Graphics extends Container {
         constructor() { super(); this.shapes = []; }
         beginFill() { return this; } lineStyle() { return this; }
@@ -159,7 +162,8 @@ test('adaptive layouts, artwork failures and stale image callbacks', () => {
     class Sprite { destroy() {} }
     class Image { constructor() { this.naturalWidth = this.naturalHeight = 500; } }
     const previousImage = global.Image; global.Image = Image;
-    const ui = new UI({});
+    let lyricTaps = 0;
+    const ui = new UI({ lyrics: () => lyricTaps++ });
     try {
         const configuration = ui.config({ ActionData: { CALLBACK: 'callback' } }), components = {};
         configuration.componentConfigs.forEach(config => { components[config.id] = { display: new Container(), style: {}, lockInput: value => { components[config.id].locked = value; } }; });
@@ -172,7 +176,7 @@ test('adaptive layouts, artwork failures and stale image callbacks', () => {
             assert(config.position.x >= 0 && config.position.x + size <= 1280 && config.position.y + size <= 720);
         });
         ui.decorate({ stage: new Container(), getComponentById: id => components[id] },
-            { Container: Container, Graphics: Graphics, Text: class {}, Texture: Texture, BaseTexture: class {}, Sprite: Sprite });
+            { Container: Container, Graphics: Graphics, Text: Text, Rectangle: Rectangle, Texture: Texture, BaseTexture: class {}, Sprite: Sprite });
         const state = { song: { title: 'Hello', artist: 'Adele', duration: 200 }, position: 50, phase: 'playing', format: 'video' };
         const session = { options: {}, fit: () => {} };
         const shown = id => components[id].display.visible;
@@ -192,6 +196,20 @@ test('adaptive layouts, artwork failures and stale image callbacks', () => {
         ui.artwork('http://localhost/art/new', () => {});
         stale(); assert.strictEqual(ui.texture, null);
         ui.image.onerror(); ui.render(state, session); assert(ui.artLayer.visible);
+        // Timed lyrics: tapping the picture asks for them; they replace the picture while shown.
+        const tap = ui.view.stage.children.filter(child => child.hitArea)[0];
+        assert.deepStrictEqual([tap.hitArea.x, tap.hitArea.y, tap.hitArea.width, tap.hitArea.height], [290, 110, 700, 394], 'the whole picture area');
+        tap.handlers.tap(); tap.handlers.click(); assert.strictEqual(lyricTaps, 2);
+        ui.lyrics({ message: 'Finding lyrics…' }); ui.render(state, session);
+        assert(ui.lyricsLayer.visible && !ui.artLayer.visible && !ui.mediaLayer.visible);
+        assert.strictEqual(ui.lyricLines[2].text, 'Finding lyrics…');
+        const sung = [{ t: 1, text: 'one' }, { t: 2, text: 'two' }, { t: 3, text: '' }, { t: 4, text: 'four' }];
+        ui.lyrics({ lines: sung, at: 1 });
+        assert.deepStrictEqual(ui.lyricLines.map(l => l.text), ['', 'one', 'two', '♪', 'four'], 'current line in the middle, an empty line shows a note');
+        assert.strictEqual(ui.lyricLines[2].style.fill, '#FFFFFF'); assert.strictEqual(ui.lyricLines[1].style.fill, '#8C8CA3');
+        assert(ui.lyricLines[1].y < ui.lyricLines[2].y && ui.lyricLines[2].y < ui.lyricLines[3].y);
+        ui.lyrics({ lines: sung, at: -1 }); assert.strictEqual(ui.lyricLines[2].text, '♪', 'before the first line');
+        ui.lyrics(null); ui.render(state, session); assert(!ui.lyricsLayer.visible && ui.artLayer.visible, 'hiding brings the picture back');
         state.phase = 'loading'; ui.render(state, null);
         assert(components.toggle_pause.locked && components.back.locked); assert(!components.stop.locked);
         assert.strictEqual(components.back.display.alpha, 0.4); assert.strictEqual(components.stop.display.alpha, 1);
