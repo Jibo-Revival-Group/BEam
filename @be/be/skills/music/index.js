@@ -99,7 +99,8 @@ class MusicSkill extends BeSkill {
             const now = airplay.state;
             if (!now.active) { this.leave(); return; }
             this.state.airplay = true; this.state.format = 'cover'; this.state.phase = now.playing ? 'playing' : 'paused';
-            this.state.message = now.playing ? 'AirPlay' : 'Paused';
+            // Which device is streaming: "AirPlay - Zane's iPhone".
+            this.state.message = (now.playing ? 'AirPlay' : 'Paused') + (now.device ? ' - ' + now.device : '');
             this.state.song = { title: now.title, artist: now.artist || now.album, duration: now.duration };
             this.state.position = airplay.position();
             if (this.artVersion !== now.artVersion) {

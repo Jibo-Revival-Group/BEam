@@ -21,6 +21,8 @@ airplay.events.on('started', () => started++);
 airplay.packet(msg('ssnc', 'pbeg'));
 assert.strictEqual(airplay.state.active, true); assert.strictEqual(airplay.state.playing, true); assert.strictEqual(started, 1);
 
+airplay.packet(msg('ssnc', 'snam', 'Zane’s iPhone'));
+assert.strictEqual(airplay.state.device, 'Zane’s iPhone', 'the streaming device\'s name');
 airplay.packet(msg('ssnc', 'mdst'));
 airplay.packet(msg('core', 'minm', 'Ding Dong Song'));
 airplay.packet(msg('core', 'asar', 'Günther'));
@@ -78,8 +80,18 @@ airplay.packet(msg('ssnc', 'pfls'));
 assert.strictEqual(airplay.state.playing, false); assert.strictEqual(airplay.state.active, true);
 airplay.packet(msg('ssnc', 'prsm'));
 assert.strictEqual(airplay.state.playing, true); assert.strictEqual(started, 2);
+const realNow = Date.now; Date.now = () => realNow() + 60000; // the song played for a minute
 airplay.packet(msg('ssnc', 'pend'));
+Date.now = realNow;
 assert.strictEqual(airplay.state.active, false); assert.strictEqual(airplay.state.title, '');
+assert.strictEqual(airplay.state.device, '', 'forgotten when the session ends');
+// Another phone takes over: the old session's end arrives after the new phone's name.
+airplay.packet(msg('ssnc', 'snam', 'Zoe’s iPad'));
+airplay.packet(msg('ssnc', 'pend'));
+assert.strictEqual(airplay.state.device, 'Zoe’s iPad', 'the new phone\'s name survives the old session ending');
+airplay.packet(msg('ssnc', 'pbeg'));
+assert.strictEqual(airplay.state.device, 'Zoe’s iPad');
+airplay.packet(msg('ssnc', 'pend'));
 assert.strictEqual(airplay.state.synced, false, 'the next session starts at Jibo\'s volume again');
 
 // A dropped 'prsm': the next progress report still shows the phone as playing.

@@ -13,9 +13,9 @@ function create() {
     const CONFIG = path.join(__dirname, 'airplay', 'airplay.conf');
     const PORT = 18702, RATE = 44100;
     const events = new EventEmitter();
-    const state = { active: false, playing: false, title: '', artist: '', album: '', art: null, artVersion: 0,
+    const state = { active: false, playing: false, device: '', title: '', artist: '', album: '', art: null, artVersion: 0,
         duration: 0, position: 0, at: 0, remote: null, dacp: null };
-    let proc = null, socket = null, restartDelay = 2000, pending = {}, chunks = {};
+    let deviceAt = 0, proc = null, socket = null, restartDelay = 2000, pending = {}, chunks = {};
 
     function word(buffer, offset) { return buffer.toString('latin1', offset, offset + 4); }
     function changed() { events.emit('change', state); }
@@ -57,6 +57,7 @@ function create() {
             state.at = Date.now(); state.active = state.playing = true; changed(); return;
         }
         case 'acre': state.remote = text(); return;
+        case 'snam': state.device = text(); deviceAt = Date.now(); changed(); return; // e.g. "Zane's iPhone"
         case 'daid': state.dacp = text(); return;
         case 'pvol': phoneVolume(Number(text().split(',')[0])); return;
         case 'pbeg': case 'prsm': case 'pres':
@@ -66,7 +67,10 @@ function create() {
             state.position = position(); state.playing = false; changed(); return;
         case 'pend':
             state.position = position(); state.active = state.playing = state.synced = false; pushed = null; state.title = state.artist = state.album = '';
-            state.art = null; state.artVersion++; state.duration = state.position = 0; changed(); return;
+            state.art = null; state.artVersion++; state.duration = state.position = 0;
+            // A phone taking over ends the old session after the new phone has said its name.
+            if (Date.now() - deviceAt > 5000) state.device = '';
+            changed(); return;
         }
     }
 
