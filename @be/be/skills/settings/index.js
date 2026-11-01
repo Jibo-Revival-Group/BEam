@@ -818,12 +818,12 @@ const STORAGE_TIMEOUT = 120000;
 const STORAGE_BAR = { x: 90, y: 250, width: 1100, height: 80 };
 const STORAGE_SEGMENTS = [
     { id: 'system', color: 0xBBC6CA },
+    { id: 'knowledge', color: 0xFD362F },
     { id: 'photos', color: 0x34C759 },
     { id: 'skills', color: 0xFF5FA8 },
-    { id: 'knowledge', color: 0xFD362F },
     { id: 'free', color: 0x434D55 }
 ];
-const STORAGE_DOTS = { system: [110, 410], photos: [110, 500], skills: [110, 590], knowledge: [660, 410], free: [660, 500] };
+const STORAGE_DOTS = { system: [110, 410], knowledge: [110, 500], photos: [110, 590], skills: [680, 410], free: [680, 500] };
 class StorageSkill extends SubSkill_1.default {
     constructor(skill, intent, onClose) {
         super(skill, intent, onClose);

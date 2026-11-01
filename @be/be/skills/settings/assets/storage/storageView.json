@@ -4,14 +4,14 @@
     {"id": "title", "type": "Label", "text": "Storage", "style": {"fontSize": "80", "fontFamily": "Proxima Nova Soft", "fontWeight": "bold", "fill": "#FFFFFF"}, "position": {"x": "640", "y": "40"}, "targetAnchor": {"x": "0.5", "y": "0"}},
     {"id": "summary", "type": "Label", "text": "Checking storage...", "style": {"fontSize": "45", "fontFamily": "Proxima Nova Light", "fill": "#BBC6CA"}, "position": {"x": "640", "y": "150"}, "targetAnchor": {"x": "0.5", "y": "0"}},
     {"id": "systemName", "type": "Label", "text": "System", "style": {"fontSize": "42", "fontFamily": "Proxima Nova Soft", "fontWeight": "bold", "fill": "#FFFFFF"}, "position": {"x": "150", "y": "385"}},
-    {"id": "systemSize", "type": "Label", "text": "", "style": {"fontSize": "42", "fontFamily": "Proxima Nova Light", "fill": "#BBC6CA"}, "position": {"x": "600", "y": "385"}, "targetAnchor": {"x": "1", "y": "0"}},
-    {"id": "photosName", "type": "Label", "text": "Photos", "style": {"fontSize": "42", "fontFamily": "Proxima Nova Soft", "fontWeight": "bold", "fill": "#FFFFFF"}, "position": {"x": "150", "y": "475"}},
-    {"id": "photosSize", "type": "Label", "text": "", "style": {"fontSize": "42", "fontFamily": "Proxima Nova Light", "fill": "#BBC6CA"}, "position": {"x": "600", "y": "475"}, "targetAnchor": {"x": "1", "y": "0"}},
-    {"id": "skillsName", "type": "Label", "text": "Skills & Themes", "style": {"fontSize": "42", "fontFamily": "Proxima Nova Soft", "fontWeight": "bold", "fill": "#FFFFFF"}, "position": {"x": "150", "y": "565"}},
-    {"id": "skillsSize", "type": "Label", "text": "", "style": {"fontSize": "42", "fontFamily": "Proxima Nova Light", "fill": "#BBC6CA"}, "position": {"x": "600", "y": "565"}, "targetAnchor": {"x": "1", "y": "0"}},
-    {"id": "knowledgeName", "type": "Label", "text": "Knowledge Base", "style": {"fontSize": "42", "fontFamily": "Proxima Nova Soft", "fontWeight": "bold", "fill": "#FFFFFF"}, "position": {"x": "700", "y": "385"}},
-    {"id": "knowledgeSize", "type": "Label", "text": "", "style": {"fontSize": "42", "fontFamily": "Proxima Nova Light", "fill": "#BBC6CA"}, "position": {"x": "1190", "y": "385"}, "targetAnchor": {"x": "1", "y": "0"}},
-    {"id": "freeName", "type": "Label", "text": "Free", "style": {"fontSize": "42", "fontFamily": "Proxima Nova Soft", "fontWeight": "bold", "fill": "#FFFFFF"}, "position": {"x": "700", "y": "475"}},
+    {"id": "systemSize", "type": "Label", "text": "", "style": {"fontSize": "42", "fontFamily": "Proxima Nova Light", "fill": "#BBC6CA"}, "position": {"x": "635", "y": "385"}, "targetAnchor": {"x": "1", "y": "0"}},
+    {"id": "knowledgeName", "type": "Label", "text": "Knowledge Base", "style": {"fontSize": "42", "fontFamily": "Proxima Nova Soft", "fontWeight": "bold", "fill": "#FFFFFF"}, "position": {"x": "150", "y": "475"}},
+    {"id": "knowledgeSize", "type": "Label", "text": "", "style": {"fontSize": "42", "fontFamily": "Proxima Nova Light", "fill": "#BBC6CA"}, "position": {"x": "635", "y": "475"}, "targetAnchor": {"x": "1", "y": "0"}},
+    {"id": "photosName", "type": "Label", "text": "Photos", "style": {"fontSize": "42", "fontFamily": "Proxima Nova Soft", "fontWeight": "bold", "fill": "#FFFFFF"}, "position": {"x": "150", "y": "565"}},
+    {"id": "photosSize", "type": "Label", "text": "", "style": {"fontSize": "42", "fontFamily": "Proxima Nova Light", "fill": "#BBC6CA"}, "position": {"x": "635", "y": "565"}, "targetAnchor": {"x": "1", "y": "0"}},
+    {"id": "skillsName", "type": "Label", "text": "Skills & Themes", "style": {"fontSize": "42", "fontFamily": "Proxima Nova Soft", "fontWeight": "bold", "fill": "#FFFFFF"}, "position": {"x": "720", "y": "385"}},
+    {"id": "skillsSize", "type": "Label", "text": "", "style": {"fontSize": "42", "fontFamily": "Proxima Nova Light", "fill": "#BBC6CA"}, "position": {"x": "1190", "y": "385"}, "targetAnchor": {"x": "1", "y": "0"}},
+    {"id": "freeName", "type": "Label", "text": "Free", "style": {"fontSize": "42", "fontFamily": "Proxima Nova Soft", "fontWeight": "bold", "fill": "#FFFFFF"}, "position": {"x": "720", "y": "475"}},
     {"id": "freeSize", "type": "Label", "text": "", "style": {"fontSize": "42", "fontFamily": "Proxima Nova Light", "fill": "#BBC6CA"}, "position": {"x": "1190", "y": "475"}, "targetAnchor": {"x": "1", "y": "0"}}
   ]
 }
