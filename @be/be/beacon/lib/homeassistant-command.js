@@ -33,7 +33,7 @@ class HomeAssistantCommandRelay {
             command: data && data.command,
             requestId: data && data.requestId
         };
-        ['targetName', 'temperature', 'delta', 'entityId', 'action', 'blacklistHeat', 'blacklistCool', 'domain', 'scope', 'value', 'unit']
+        ['targetName', 'temperature', 'delta', 'entityId', 'action', 'blacklistHeat', 'blacklistCool', 'domain', 'scope', 'value', 'unit', 'text']
             .forEach((key) => {
             if (data && data[key] !== undefined && data[key] !== null) {
                 body[key] = data[key];

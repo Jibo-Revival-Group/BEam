@@ -108,6 +108,12 @@ function runTests(receiverSource, clientSource, assert, Buffer) {
             assert.strictEqual(f.requests[0].body[key], action[key]));
         passed++;
     }
+    {
+        const f = fixture(saved);
+        f.emit(Object.assign({}, command, { action: Object.assign({}, command.action, { command: 'conversation', text: 'is the front door locked' }) }));
+        assert.strictEqual(f.requests[0].body.text, 'is the front door locked');
+        passed++;
+    }
     return passed;
 }
 if (typeof module !== 'undefined') { module.exports = runTests; }
