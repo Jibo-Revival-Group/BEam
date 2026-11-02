@@ -142,77 +142,117 @@ test('launch payload, interruption, stale playback and volume controls', () => {
 test('adaptive layouts, artwork failures and stale image callbacks', () => {
     const UI = require('../ui');
     class Container {
-        constructor() { this.children = []; }
-        addChild(child) { child.parent = this; this.children.push(child); }
-        addChildAt(child, at) { child.parent = this; this.children.splice(at, 0, child); }
+        constructor() { this.children = []; this.scale = { x: 1, y: 1, set(v) { this.x = this.y = v; } }; this.anchor = { set() {} }; }
+        addChild(child) { child.parent = this; this.children.push(child); return child; }
+        addChildAt(child, at) { child.parent = this; this.children.splice(at, 0, child); return child; }
         removeChild(child) { this.children.splice(this.children.indexOf(child), 1); child.parent = null; }
         on(name, handler) { (this.handlers = this.handlers || {})[name] = handler; }
         removeChildren() { const old = this.children; this.children = []; return old; }
     }
-    class Text { constructor(text, style) { this.text = text; this.style = style; this.anchor = { set() {} }; this.height = 40; this.scale = { set(v) { this.x = v; } }; } destroy() { this.destroyed = true; } }
+    class Text extends Container {
+        constructor(text, style) { super(); this.text = text; this.style = Object.assign({}, style); }
+        get height() { return this.style.fontSize * 1.2; } get width() { return this.text.length * 15; }
+        destroy() { this.destroyed = true; }
+    }
     class Rectangle { constructor(x, y, width, height) { this.x = x; this.y = y; this.width = width; this.height = height; } }
     class Graphics extends Container {
         constructor() { super(); this.shapes = []; }
-        beginFill() { return this; } lineStyle() { return this; }
-        drawRect() { this.shapes.push({ kind: 'rect' }); return this; }
-        drawRoundedRect() { this.shapes.push({ kind: 'roundedRect', args: Array.prototype.slice.call(arguments) }); return this; }
-        drawCircle() { this.shapes.push({ kind: 'circle' }); return this; }
-        clear() { this.shapes = []; return this; } endFill() { return this; }
+        beginFill() { return this; } lineStyle() { return this; } moveTo() { return this; } lineTo() { return this; } arc() { return this; }
+        drawRect() { this.shapes.push({ kind: 'rect', args: Array.prototype.slice.call(arguments) }); return this; }
+        drawCircle() { this.shapes.push({ kind: 'circle', args: Array.prototype.slice.call(arguments) }); return this; }
+        drawPolygon() { return this; } clear() { this.shapes = []; return this; } endFill() { return this; }
     }
     class Texture { destroy() {} }
     class Sprite { destroy() {} }
     class Image { constructor() { this.naturalWidth = this.naturalHeight = 500; } }
     const previousImage = global.Image; global.Image = Image;
-    let lyricTaps = 0;
-    const ui = new UI({ lyrics: () => lyricTaps++ });
+    const calls = [];
+    const record = name => value => calls.push(value === undefined ? name : [name, value]);
+    const ui = new UI({ lyrics: record('lyrics'), toggle: record('toggle'), back: record('back'), forward: record('forward'),
+        quieter: record('quieter'), louder: record('louder'), setVolume: record('setVolume') });
     try {
         const configuration = ui.config({ ActionData: { CALLBACK: 'callback' } }), components = {};
-        configuration.componentConfigs.forEach(config => { components[config.id] = { display: new Container(), style: {}, lockInput: value => { components[config.id].locked = value; } }; });
+        configuration.componentConfigs.forEach(config => { components[config.id] = { config: config, display: new Container(), lockInput: value => { components[config.id].locked = value; } }; });
         const buttons = configuration.componentConfigs.filter(config => config.type === 'ActionButton');
-        assert.strictEqual(buttons.length, 8, 'native ActionButtons for each control (three toggle faces)');
+        assert.deepStrictEqual(buttons.map(b => b.id), ['back', 'toggle_pause', 'toggle_play', 'toggle_replay', 'forward'], 'previous, play/pause/replay, next');
         buttons.forEach(config => {
             assert(/^core:\/\/resources\/actionIcons\/|\/assets\/icons\//.test(config.iconSrc), 'stock Jibo or bundled white icons');
             if (config.iconSrc.indexOf('core://') !== 0) assert(fs.existsSync(config.iconSrc), config.iconSrc + ' is bundled');
-            const size = 264 * config.transform.scaleX;
-            assert(config.position.x >= 0 && config.position.x + size <= 1280 && config.position.y + size <= 720);
         });
-        ui.decorate({ stage: new Container(), getComponentById: id => components[id] },
+        const stage = new Container();
+        ui.decorate({ stage: stage, getComponentById: id => components[id] },
             { Container: Container, Graphics: Graphics, Text: Text, Rectangle: Rectangle, Texture: Texture, BaseTexture: class {}, Sprite: Sprite });
-        const state = { song: { title: 'Hello', artist: 'Adele', duration: 200 }, position: 50, phase: 'playing', format: 'video' };
+        const state = { song: { title: 'Stateside', artist: 'PinkPantheress', duration: 200 }, position: 50, phase: 'playing', format: 'video', volume: 0.5 };
         const session = { options: {}, fit: () => {} };
         const shown = id => components[id].display.visible;
-        ui.render(state, session); assert.strictEqual(session.options.viewport.width, 700); assert(!ui.artLayer.visible);
-        assert(shown('toggle_pause') && !shown('toggle_play') && !shown('toggle_replay'));
-        assert.strictEqual(ui.progressFraction, 0.25, 'timeline reflects the current song position');
-        state.phase = 'paused'; ui.render(state, session); assert(shown('toggle_play') && !shown('toggle_pause'));
-        assert(components.toggle_pause.locked, 'hidden toggle faces never take touches');
+        const centre = id => components[id].display.x + 264 * components[id].display.scale.x / 2;
+
+        // Music video: video, volume above, progress below; no controls until tapped.
+        ui.render(state, session);
+        assert.strictEqual(ui.mode, 'video'); assert.strictEqual(session.options.viewport, UI.VIDEO);
+        assert(ui.mediaLayer.visible && !ui.artLayer.visible && ui.volumeRow.visible && ui.progress.visible);
+        assert.strictEqual(ui.volumeRow.y, 74); assert.strictEqual(ui.progress.y, 616);
+        assert(!ui.title.visible && !shown('toggle_pause'), 'controls hidden');
+        assert.strictEqual(ui.progressFraction, 0.25); assert.deepStrictEqual([ui.elapsed.text, ui.length.text], ['0:50', '3:20']);
+        ui.tap.handlers.tap();
+        assert(ui.controlsUntil > 0 && ui.title.visible && shown('toggle_pause') && !shown('toggle_play'));
+        assert.strictEqual(ui.title.text, 'Stateside'); assert.strictEqual(ui.title.y, 223, 'no AirPlay line: title higher');
+        assert(!ui.device.visible); assert.strictEqual(components.toggle_pause.display.y + 264 * 0.49 / 2, 450);
+        assert.deepStrictEqual(['back', 'toggle_pause', 'forward'].map(centre), [490, 640, 790]);
+        assert.strictEqual(calls.indexOf('lyrics'), -1, 'no lyrics from the music video');
+        components.toggle_pause.config.action.data.callback(); assert.strictEqual(calls.pop(), 'toggle');
+        state.phase = 'paused'; ui.render(state, session); assert(shown('toggle_play') && !shown('toggle_pause') && components.toggle_pause.locked);
         state.phase = 'ended'; ui.render(state, session); assert(shown('toggle_replay')); state.phase = 'playing';
+        ui.tap.handlers.click(); assert(!ui.controlsUntil && !shown('toggle_pause'), 'tapping again hides them');
         state.position = 240; ui.render(state, session); assert.strictEqual(ui.progressFraction, 1, 'timeline clamps past the end');
-        state.position = -20; ui.render(state, session); assert.strictEqual(ui.progressFraction, 0, 'timeline clamps before the start');
-        state.position = 50; ui.render(state, session);
-        state.format = 'cover'; ui.render(state, session); assert.strictEqual(session.options.viewport.width, 390);
-        state.format = 'lyrics'; ui.render(state, session); assert(ui.artLayer.visible, 'missing lyric artwork uses placeholder');
+        state.position = 50;
+
+        // Volume: drag the slider, tap the speakers.
+        const at = x => ({ data: { getLocalPosition: () => ({ x: x, y: 0 }) } });
+        ui.volumeBar.handlers.pointerdown(at(858)); assert.deepStrictEqual(calls.pop(), ['setVolume', 1]);
+        ui.volumeBar.handlers.pointermove(at(398 + 460 / 4)); assert.deepStrictEqual(calls.pop(), ['setVolume', 0.25]);
+        ui.volumeBar.handlers.pointerup(); const before = calls.length; ui.volumeBar.handlers.pointermove(at(500)); assert.strictEqual(calls.length, before, 'no drag after release');
+        const knob = () => ui.volumeBar.shapes.filter(shape => shape.kind === 'circle')[0].args[0];
+        state.volume = 1; ui.render(state, session); assert.strictEqual(knob(), 858, 'knob follows Jibo\'s volume');
+        ui.volumeRow.children[1].handlers.tap(); assert.strictEqual(calls.pop(), 'quieter');
+        ui.volumeRow.children[2].handlers.tap(); assert.strictEqual(calls.pop(), 'louder');
+
+        // AirPlay: cover layout, "Now playing from <device>", controls always there.
+        Object.assign(state, { airplay: true, format: 'cover', device: 'Victor’s iPhone' });
+        ui.render(state, null);
+        assert.strictEqual(ui.mode, 'cover'); assert(ui.artLayer.visible && ui.placeholder.visible, 'artwork placeholder until art arrives');
+        assert(ui.device.visible && ui.deviceText.text === 'Now playing from Victor’s iPhone');
+        assert.deepStrictEqual([ui.title.x, ui.title.y, ui.artist.y], [905, 210, 265]);
+        assert.deepStrictEqual(['back', 'toggle_pause', 'forward'].map(centre), [755, 905, 1055]);
+        assert(!components.toggle_pause.locked, 'AirPlay plays without a local session');
+        assert.strictEqual(ui.progress.y, 540); assert.strictEqual(ui.volumeRow.y, 619);
+        // Not AirPlay: same layout, text and buttons higher.
+        Object.assign(state, { airplay: false }); ui.render(state, session);
+        assert.strictEqual(ui.mode, 'cover'); assert(!ui.device.visible); assert.strictEqual(ui.title.y, 171);
+        assert.strictEqual(components.toggle_pause.display.y + 264 * 0.49 / 2, 360);
+        assert.strictEqual(session.options.viewport, UI.COVER, 'no artwork yet: the video fills the cover square');
+
+        // Artwork: stale images never land.
         ui.artwork('http://localhost/art/old', () => { throw Error('stale image must not render'); });
         const stale = ui.image.onload;
         ui.artwork('http://localhost/art/new', () => {});
         stale(); assert.strictEqual(ui.texture, null);
-        ui.image.onerror(); ui.render(state, session); assert(ui.artLayer.visible);
-        // Timed lyrics: tapping the picture asks for them; they replace the picture while shown.
-        const tap = ui.view.stage.children.filter(child => child.hitArea)[0];
-        assert.deepStrictEqual([tap.hitArea.x, tap.hitArea.y, tap.hitArea.width, tap.hitArea.height], [290, 110, 700, 394], 'the whole picture area');
-        tap.handlers.tap(); tap.handlers.click(); assert.strictEqual(lyricTaps, 2);
-        ui.lyrics({ message: 'Finding lyrics…' }); ui.render(state, session);
-        assert(ui.lyricsLayer.visible && !ui.artLayer.visible && !ui.mediaLayer.visible);
+        ui.image.onerror(); ui.render(state, session);
+
+        // Tapping the cover opens lyrics; they fill the screen without controls.
+        ui.tap.handlers.tap(); assert.strictEqual(calls.pop(), 'lyrics');
+        ui.lyrics({ message: 'Finding lyrics…' });
+        assert.strictEqual(ui.mode, 'lyrics');
+        assert(ui.lyricsLayer.visible && !ui.artLayer.visible && !ui.mediaLayer.visible && !ui.volumeRow.visible && !ui.progress.visible && !shown('toggle_pause'));
         assert.strictEqual(ui.lyricsNote.text, 'Finding lyrics…'); assert(!ui.lyricsList.visible);
         const sung = [{ t: 1, text: 'one' }, { t: 2, text: 'two' }, { t: 3, text: '' }, { t: 4, text: 'four' }];
         ui.lyrics({ lines: sung, at: 1 });
-        const list = ui.lyricsList.children, middle = 110 + 394 / 2;
+        const list = ui.lyricsList.children, middle = 346;
         assert.deepStrictEqual(list.map(l => l.text), ['one', 'two', '♪', 'four'], 'every line, an empty one shows a note');
-        assert.strictEqual(ui.lyricsNote.text, ''); assert(ui.lyricsList.visible);
-        assert.deepStrictEqual(list.map(l => l.style.fill), ['#8C8CA3', '#FFFFFF', '#8C8CA3', '#58586D']);
+        assert.deepStrictEqual(list.map(l => l.style.fontSize), [48, 78, 48, 48], 'the sung line is larger');
+        assert.deepStrictEqual(list.map(l => l.style.fill), ['#C8C8D2', '#FFFFFF', '#C8C8D2', '#C8C8D2']);
         assert.strictEqual(ui.lyricsList.y + list[1].y, middle, 'opening jumps the sung line to the middle');
         ui.lyrics({ lines: sung, at: 3 });
-        assert.strictEqual(ui.lyricsList.y + list[1].y, middle, 'then it glides rather than jumps');
         const start = ui.lyricsList.y;
         for (let frame = 0; frame < 9; frame++) ui.glide(4); // 0.6 s at 15 fps
         const slow = ui.lyricsList.y; ui.lyricsList.y = start;
@@ -222,10 +262,15 @@ test('adaptive layouts, artwork failures and stale image callbacks', () => {
         assert(Math.abs(ui.lyricsList.y + list[3].y - middle) < 1, 'and settles on the new line');
         ui.lyrics({ lines: sung.slice(), at: 0 });
         assert(list.every(l => l.destroyed) && ui.lyricsList.children.length === 4, 'a new song replaces (and frees) the old lines');
-        ui.lyrics(null); ui.render(state, session); assert(!ui.lyricsLayer.visible && ui.artLayer.visible, 'hiding brings the picture back');
+        // Tap: controls over the lyrics; tap again: back to the artwork.
+        ui.tap.handlers.tap();
+        assert(ui.title.visible && ui.volumeRow.visible && ui.progress.visible && shown('toggle_pause'));
+        assert.strictEqual(ui.volumeRow.y, 74); assert.strictEqual(ui.progress.y, 616);
+        ui.tap.handlers.tap(); assert.strictEqual(calls.pop(), 'lyrics', 'second tap asks to close lyrics');
+        ui.lyrics(null); assert.strictEqual(ui.mode, 'cover'); assert(!ui.lyricsLayer.visible && !ui.controlsUntil);
+
         state.phase = 'loading'; ui.render(state, null);
-        assert(components.toggle_pause.locked && components.back.locked); assert(!components.stop.locked);
-        assert.strictEqual(components.back.display.alpha, 0.4); assert.strictEqual(components.stop.display.alpha, 1);
+        assert(components.toggle_pause.locked && components.back.locked); assert.strictEqual(components.back.display.alpha, 0.4);
     } finally { ui.releaseArtwork(); global.Image = previousImage; }
 });
 test('close always releases all resources and completes every callback', () => {

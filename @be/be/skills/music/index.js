@@ -22,8 +22,8 @@ class MusicSkill extends BeSkill {
         const request = launchRequest(result), generation = ++this.generation;
         this.closing = null; this.leaving = false;
         this.state = { phase: 'loading', position: 0, song: null, format: 'video', message: request.title ? 'Finding ' + request.title + '…' : 'Ask me to play a song by name.' };
-        const actions = request.airplay ? this.airplayActions() : { toggle: () => this.toggle(), back: () => this.seek(-15), forward: () => this.seek(15),
-            quieter: () => this.volume(-1), louder: () => this.volume(1), stop: () => this.leave() };
+        const actions = request.airplay ? this.airplayActions() : { toggle: () => this.toggle(), back: () => this.seek(-15), forward: () => this.seek(15) };
+        actions.quieter = () => this.volume(-1); actions.louder = () => this.volume(1); actions.setVolume = fraction => this.setVolume(fraction);
         actions.lyrics = () => this.toggleLyrics();
         const views = jibo.face.views;
         this.ui = new UI(actions);
@@ -33,6 +33,7 @@ class MusicSkill extends BeSkill {
         const ready = () => {
             if (!current()) return;
             ['hjHeard', 'localTurnStarted', 'globalTurnStarted', 'skillSwitch'].forEach(name => this.watch(jibo.jetstream, name));
+            try { const redraw = () => this.render(); jibo.volume.on('change', redraw); this.events.push(() => jibo.volume.removeListener('change', redraw)); } catch (_) {}
             // AirPlay keeps playing on the phone, so touching Jibo doesn't close its player.
             if (!request.airplay) ['touchOn', 'hatchOpen'].forEach(name => this.watch(jibo.system, name));
             this.timer = setInterval(() => this.tick(), 1000);
@@ -63,7 +64,11 @@ class MusicSkill extends BeSkill {
         if (!event || !event.on || !event.off) return;
         const handler = () => this.leave(); event.on(handler); this.events.push(() => event.off(handler));
     }
-    render() { if (this.ui) this.ui.render(this.state, this.session); }
+    render() {
+        if (!this.ui) return;
+        try { const v = jibo.volume; this.state.volume = (v.currentVolume - v.MIN_VOLUME) / (v.MAX_VOLUME - v.MIN_VOLUME); } catch (_) {}
+        this.ui.render(this.state, this.session);
+    }
     startAt(seconds) {
         const generation = this.generation, ticket = this.playTicket = (this.playTicket || 0) + 1;
         const current = () => this.current(generation) && ticket === this.playTicket;
@@ -90,17 +95,15 @@ class MusicSkill extends BeSkill {
     // AirPlay: the phone plays; the same player shows its track and the buttons control the phone.
     airplayActions() {
         const remote = command => () => { require('./airplay').control(command).catch(() => {}); };
-        return { toggle: remote('playpause'), back: remote('previtem'), forward: remote('nextitem'),
-            quieter: () => this.volume(-1), louder: () => this.volume(1),
-            stop: () => { require('./airplay').stop(); this.leave(); } };
+        return { toggle: remote('playpause'), back: remote('previtem'), forward: remote('nextitem') };
     }
     followAirplay() {
         const airplay = require('./airplay'), update = () => {
             const now = airplay.state;
             if (!now.active) { this.leave(); return; }
             this.state.airplay = true; this.state.format = 'cover'; this.state.phase = now.playing ? 'playing' : 'paused';
-            // Which device is streaming: "AirPlay - Zane's iPhone".
-            this.state.message = (now.playing ? 'AirPlay' : 'Paused') + (now.device ? ' - ' + now.device : '');
+            this.state.device = now.device; // "Now playing from Zane's iPhone"
+            this.state.message = now.playing ? 'AirPlay' : 'Paused';
             this.state.song = { title: now.title, artist: now.artist || now.album, duration: now.duration };
             this.state.position = airplay.position();
             if (this.artVersion !== now.artVersion) {
@@ -160,6 +163,13 @@ class MusicSkill extends BeSkill {
         if (!this.state.song || !/^(playing|paused|ended)$/.test(this.state.phase)) return;
         this.startAt(Math.max(0, Math.min(this.state.song.duration - 1, this.state.position + delta)));
     }
+    // The volume slider: 0-1 onto Jibo's volume steps, sent only when the step changes.
+    setVolume(fraction) {
+        try {
+            const v = jibo.volume, level = Math.round(v.MIN_VOLUME + fraction * (v.MAX_VOLUME - v.MIN_VOLUME));
+            if (level !== v.currentVolume) v.changeVolume('volumeToValue', level);
+        } catch (_) {}
+    }
     volume(delta) {
         try { const volume = jibo.volume; const level = Math.max(volume.MIN_VOLUME, Math.min(volume.MAX_VOLUME, volume.currentVolume + delta)); volume.changeVolume('volumeToValue', level); } catch (_) {}
     }
@@ -200,7 +210,7 @@ class MusicSkill extends BeSkill {
             if (!error) { this.view = null; this.ui = null; }
             closing.callbacks.splice(0).forEach(callback => callback(closing.error));
         };
-        Promise.all([attempt(() => video.shutdown()), attempt(() => service.stop()), attempt(() => { if (this.ui) this.ui.releaseArtwork(); })]).then(() => {
+        Promise.all([attempt(() => video.shutdown()), attempt(() => service.stop()), attempt(() => { if (this.ui) { this.ui.releaseArtwork(); clearTimeout(this.ui.controlsTimer); this.ui.lastState = null; } })]).then(() => {
             this.session = null; this.canvas = null;
             lifecycle.closeView(jibo.face.views, jibo.face.tween, this.view, require('timers'), 'music', finish);
         }).catch(finish);
