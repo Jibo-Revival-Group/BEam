@@ -6,7 +6,7 @@ function event() {
     const emitter = new EventEmitter();
     return { on: fn => emitter.on('event', fn), off: fn => emitter.removeListener('event', fn), emit: value => emitter.emit('event', value), count: () => emitter.listenerCount('event') };
 }
-function fixture() {
+function fixture(providerName) {
     const turns = [], speech = [], requests = [], colors = [], releases = [], timers = new EventEmitter();
     const parent = { removeChild: child => { child.parent = null; } };
     class Graphics {
@@ -26,14 +26,14 @@ function fixture() {
             startLocalTurn: options => { const pending = deferred(); const turn = { promise: pending.promise, options, pending, cancel: () => { turn.cancelled = true; pending.resolve({ status: types.CANCELED }); return Promise.resolve(); } }; turns.push(turn); return Promise.resolve(turn); }
         }
     };
-    const settings = { resolve: () => ({ provider: 'custom', model: 'test' }), ready: () => true };
+    const settings = { resolve: () => ({ provider: providerName || 'custom', model: 'test' }), ready: () => true }, acts = [];
     const provider = { chat: (config, history) => {
         const pending = deferred(), operation = { promise: pending.promise, cancel: () => { operation.cancelled = true; pending.reject(new Error('cancelled')); }, pending, history: JSON.parse(JSON.stringify(history)) };
         requests.push(operation); return operation;
     } };
     let exits = 0;
-    const runtime = new Runtime(jibo, PIXI, settings, provider, () => { exits++; });
-    return { runtime, jibo, turns, speech, requests, colors, releases, types, exits: () => exits };
+    const runtime = new Runtime(jibo, PIXI, settings, provider, () => { exits++; }, command => acts.push(command));
+    return { acts, runtime, jibo, turns, speech, requests, colors, releases, types, exits: () => exits };
 }
 async function flush() { for (let i = 0; i < 25; i++) await Promise.resolve(); }
 async function listening(env) { env.runtime.open(); await flush(); assert.strictEqual(env.speech.length, 1); env.speech[0].pending.resolve(); await flush(); }

@@ -5,6 +5,13 @@ const crypto = require('crypto');
 const settings = require('./agent-settings');
 const SYSTEM = 'You are Jibo, a friendly, curious conversational robot. Respond briefly, preferably in 1–2 sentences. Use plain spoken language and avoid Markdown. You can converse but cannot perform robot or device actions. Do not claim to have performed actions.';
 const HERMES_SYSTEM = 'You are speaking through Jibo, a friendly, curious conversational robot. Respond briefly, preferably in 1–2 sentences. Use plain spoken language and avoid Markdown. You may use your configured tools when useful. Do not claim to have performed robot or device actions unless a tool actually performed them. Only your final answer will be spoken.';
+// Paid models and Hermes may act; Free's small model gets SYSTEM only (Zane: too unreliable).
+function actions() {
+    let skills = [];
+    try { skills = require('./custom-skills').inventory().skills.map(s => s.manifest.name); } catch (_) {}
+    return ' You can also make Jibo do things. To do one, end your reply with a final line "DO: " followed by a spoken command, exactly as a person would say it to Jibo, and only when the user wants it. Jibo speaks the rest of your reply, ends this chat, and runs the command. Commands include: tell me about the weather, tell me about the news, what does my commute look like, tell me about my calendar, personal report, do a dance, tell me a joke, surprise me, set a timer for 5 minutes, open the clock, play <song or artist>, play some <genre> radio, take a picture, open my photos, open settings.' +
+        (skills.length ? ' Installed skills, opened with "DO: open <name>": ' + skills.join(', ') + '.' : '');
+}
 const BASES = { openai: 'https://api.openai.com/v1', claude: 'https://api.anthropic.com/v1', gemini: 'https://generativelanguage.googleapis.com/v1beta', openrouter: 'https://openrouter.ai/api/v1' };
 let authorities;
 function failure(message) { return settings.fail(message || 'The AI service could not complete the request.'); }
@@ -93,18 +100,19 @@ function chat(config, history) {
     if (config.provider === 'hermes' && !config._hermesSession) Object.defineProperty(config, '_hermesSession', { value: 'jibo-' + crypto.randomBytes(16).toString('hex') });
     // Hermes fingerprints header-less chat transcripts using the system and first user
     // message. A stable per-conversation nonce prevents identical greetings colliding.
-    const prompt = config.provider === 'hermes' ? HERMES_SYSTEM + '\nConversation scope: ' + config._hermesSession : SYSTEM;
+    const system = SYSTEM.replace(' You can converse but cannot perform robot or device actions. Do not claim to have performed actions.', '') + actions();
+    const prompt = config.provider === 'hermes' ? HERMES_SYSTEM + actions() + '\nConversation scope: ' + config._hermesSession : system;
     const messages = [{ role: 'system', content: prompt }].concat(history);
     let route = '/chat/completions', body = { model: config.model, messages: messages, stream: false }, extract = data => data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
     if (config.provider === 'openai') {
-        route = '/responses'; body = { model: config.model, instructions: SYSTEM, input: history, store: false };
+        route = '/responses'; body = { model: config.model, instructions: system, input: history, store: false };
         extract = data => (data.output || []).filter(item => item.type === 'message').map(item => (item.content || []).filter(part => part.type === 'output_text').map(part => part.text).join('')).join('\n');
     } else if (config.provider === 'claude') {
-        route = '/messages'; body = { model: config.model, system: SYSTEM, messages: history, max_tokens: 1024, stream: false };
+        route = '/messages'; body = { model: config.model, system: system, messages: history, max_tokens: 1024, stream: false };
         extract = data => (data.content || []).filter(part => part.type === 'text').map(part => part.text).join('\n');
     } else if (config.provider === 'gemini') {
         route = '/models/' + encodeURIComponent(config.model.replace(/^models\//, '')) + ':generateContent';
-        body = { systemInstruction: { parts: [{ text: SYSTEM }] }, contents: history.map(message => ({ role: message.role === 'assistant' ? 'model' : 'user', parts: [{ text: message.content }] })) };
+        body = { systemInstruction: { parts: [{ text: system }] }, contents: history.map(message => ({ role: message.role === 'assistant' ? 'model' : 'user', parts: [{ text: message.content }] })) };
         extract = data => (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts || []).filter(part => !part.thought && typeof part.text === 'string').map(part => part.text).join('\n');
     } else if (config.provider === 'ollama') route = '/api/chat';
     if (config.provider === 'ollama') extract = data => data.message && data.message.content;

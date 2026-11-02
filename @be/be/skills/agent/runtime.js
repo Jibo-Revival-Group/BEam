@@ -22,8 +22,8 @@ function speechChunks(text) {
     return chunks;
 }
 class Runtime {
-    constructor(jibo, PIXI, settings, provider, exit) {
-        this.jibo = jibo; this.PIXI = PIXI; this.settings = settings; this.provider = provider; this.exit = exit;
+    constructor(jibo, PIXI, settings, provider, exit, act) {
+        this.jibo = jibo; this.PIXI = PIXI; this.settings = settings; this.provider = provider; this.exit = exit; this.act = act;
         this.history = []; this.unwatch = []; this.active = false; this.phase = 'entering';
         this.thinkingEye = new ThinkingEye(jibo, () => this.active && !this.private() && this.phase === 'thinking');
     }
@@ -134,7 +134,13 @@ class Runtime {
                 return operation.promise.then(reply => {
                     if (!this.active || this.operation !== operation) return;
                     this.operation = null; this.history.push({ role: 'assistant', content: reply });
-                    return this.speak(reply).then(() => this.listen());
+                    const match = /^\s*DO:\s*(.+?)\s*$/im.exec(reply), spoken = reply.replace(/^\s*DO:.*$/gim, '').trim();
+                    const command = match && this.config.provider !== 'free' && this.act ? match[1] : null;
+                    return (spoken ? this.speak(spoken) : Promise.resolve()).then(() => {
+                        if (!command) return this.listen();
+                        if (!this.active || this.private()) return;
+                        return this.close().then(() => this.act(command));
+                    });
                 });
             });
         }).catch(error => this.fail(error));
@@ -178,5 +184,11 @@ class Runtime {
         return this.closing;
     }
 }
+// "open <name>" for an installed Store skill (they have no voice intent) → its package name.
+Runtime.storeSkill = (command, skills) => {
+    const name = String(command).toLowerCase().replace(/^(open|launch|start|run)\s+(the\s+)?/, '').replace(/[^a-z0-9]+/g, ' ').trim();
+    const skill = skills.filter(s => String(s.manifest && s.manifest.name).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim() === name)[0];
+    return skill ? skill.packageName : null;
+};
 Runtime.isStop = isStop; Runtime.speechChunks = speechChunks;
 module.exports = Runtime;
