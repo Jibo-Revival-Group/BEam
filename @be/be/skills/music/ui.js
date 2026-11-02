@@ -29,7 +29,7 @@ const PLACES = {
     cover: { x: 905, device: 97, title: 210, artist: 265, plainTitle: 171, plainArtist: 227, buttons: 397, plainButtons: 360, progress: 540, volume: 619 }
 };
 const ARROW = 0.37, PAUSE = 0.49, GAP = 150, CONTROLS_MS = 5000;
-const LYRIC_CENTRE = 346;
+const LYRIC_CENTRE = 346, BLUR = 14;
 
 class UI {
     constructor(actions) {
@@ -206,10 +206,19 @@ class UI {
         const area = mode === 'video' ? VIDEO : mode === 'cover' ? COVER : FULL;
         this.tap.hitArea = new this.PIXI.Rectangle(area.x, area.y, area.width, area.height);
 
-        // Dimming under the controls.
+        // Blur and dim the video or lyrics under the controls.
+        const blurred = controls && mode !== 'cover';
+        if (blurred && !this.blur && this.PIXI.filters && this.PIXI.filters.BlurFilter) {
+            this.blur = new this.PIXI.filters.BlurFilter(BLUR, 3);
+            this.blur.resolution = 0.5; // smoother, and a quarter of the work on Jibo's GPU
+        }
+        const layer = mode === 'video' ? this.mediaLayer : this.lyricsLayer, other = mode === 'video' ? this.lyricsLayer : this.mediaLayer;
+        layer.filters = blurred && this.blur ? [this.blur] : null; other.filters = null;
+        // Only the picture's own rectangle, so the blur doesn't spill onto the black around it.
+        layer.filterArea = blurred ? new this.PIXI.Rectangle(area.x, area.y, area.width, area.height) : null;
         this.dim.clear();
         if (controls && mode !== 'cover') {
-            this.dim.beginFill(0x000000, mode === 'video' ? 0.55 : 0.78); this.dim.drawRect(area.x, area.y, area.width, area.height); this.dim.endFill();
+            this.dim.beginFill(0x000000, mode === 'video' ? 0.4 : 0.6); this.dim.drawRect(area.x, area.y, area.width, area.height); this.dim.endFill();
             if (mode === 'lyrics') { this.dim.beginFill(0x0B0B0F, 0.95); this.dim.drawRect(0, 0, 1280, 142); this.dim.drawRect(0, 576, 1280, 144); this.dim.endFill(); }
         }
 

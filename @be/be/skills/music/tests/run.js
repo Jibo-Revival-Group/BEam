@@ -180,8 +180,9 @@ test('adaptive layouts, artwork failures and stale image callbacks', () => {
             if (config.iconSrc.indexOf('core://') !== 0) assert(fs.existsSync(config.iconSrc), config.iconSrc + ' is bundled');
         });
         const stage = new Container();
+        class BlurFilter { constructor(strength) { this.strength = strength; } }
         ui.decorate({ stage: stage, getComponentById: id => components[id] },
-            { Container: Container, Graphics: Graphics, Text: Text, Rectangle: Rectangle, Texture: Texture, BaseTexture: class {}, Sprite: Sprite });
+            { Container: Container, Graphics: Graphics, Text: Text, Rectangle: Rectangle, Texture: Texture, BaseTexture: class {}, Sprite: Sprite, filters: { BlurFilter: BlurFilter } });
         const state = { song: { title: 'Stateside', artist: 'PinkPantheress', duration: 200 }, position: 50, phase: 'playing', format: 'video', volume: 0.5 };
         const session = { options: {}, fit: () => {} };
         const shown = id => components[id].display.visible;
@@ -194,8 +195,10 @@ test('adaptive layouts, artwork failures and stale image callbacks', () => {
         assert.strictEqual(ui.volumeRow.y, 74); assert.strictEqual(ui.progress.y, 616);
         assert(!ui.title.visible && !shown('toggle_pause'), 'controls hidden');
         assert.strictEqual(ui.progressFraction, 0.25); assert.deepStrictEqual([ui.elapsed.text, ui.length.text], ['0:50', '3:20']);
+        assert.strictEqual(ui.mediaLayer.filters, null, 'video sharp without controls');
         ui.tap.handlers.tap();
         assert(ui.controlsUntil > 0 && ui.title.visible && shown('toggle_pause') && !shown('toggle_play'));
+        assert(ui.mediaLayer.filters && ui.mediaLayer.filters[0] instanceof BlurFilter, 'video blurred under the controls');
         assert.strictEqual(ui.title.text, 'Stateside'); assert.strictEqual(ui.title.y, 223, 'no AirPlay line: title higher');
         assert(!ui.device.visible); assert.strictEqual(components.toggle_pause.display.y + 264 * 0.49 / 2, 450);
         assert.deepStrictEqual(['back', 'toggle_pause', 'forward'].map(centre), [490, 640, 790]);
@@ -204,6 +207,7 @@ test('adaptive layouts, artwork failures and stale image callbacks', () => {
         state.phase = 'paused'; ui.render(state, session); assert(shown('toggle_play') && !shown('toggle_pause') && components.toggle_pause.locked);
         state.phase = 'ended'; ui.render(state, session); assert(shown('toggle_replay')); state.phase = 'playing';
         ui.tap.handlers.click(); assert(!ui.controlsUntil && !shown('toggle_pause'), 'tapping again hides them');
+        assert.strictEqual(ui.mediaLayer.filters, null, 'and the video is sharp again');
         state.position = 240; ui.render(state, session); assert.strictEqual(ui.progressFraction, 1, 'timeline clamps past the end');
         state.position = 50;
 
@@ -220,6 +224,7 @@ test('adaptive layouts, artwork failures and stale image callbacks', () => {
         // AirPlay: cover layout, "Now playing from <device>", controls always there.
         Object.assign(state, { airplay: true, format: 'cover', device: 'Victor’s iPhone' });
         ui.render(state, null);
+        assert(!ui.mediaLayer.filters && !ui.lyricsLayer.filters, 'the cover view is never blurred');
         assert.strictEqual(ui.mode, 'cover'); assert(ui.artLayer.visible && ui.placeholder.visible, 'artwork placeholder until art arrives');
         assert(ui.device.visible && ui.deviceText.text === 'Now playing from Victor’s iPhone');
         assert.deepStrictEqual([ui.title.x, ui.title.y, ui.artist.y], [905, 210, 265]);
@@ -263,8 +268,11 @@ test('adaptive layouts, artwork failures and stale image callbacks', () => {
         ui.lyrics({ lines: sung.slice(), at: 0 });
         assert(list.every(l => l.destroyed) && ui.lyricsList.children.length === 4, 'a new song replaces (and frees) the old lines');
         // Tap: controls over the lyrics; tap again: back to the artwork.
+        assert.strictEqual(ui.lyricsLayer.filters, null, 'lyrics sharp without controls');
         ui.tap.handlers.tap();
         assert(ui.title.visible && ui.volumeRow.visible && ui.progress.visible && shown('toggle_pause'));
+        assert(ui.lyricsLayer.filters && ui.lyricsLayer.filters[0] instanceof BlurFilter, 'lyrics blurred under the controls');
+        assert.strictEqual(ui.mediaLayer.filters, null);
         assert.strictEqual(ui.volumeRow.y, 74); assert.strictEqual(ui.progress.y, 616);
         ui.tap.handlers.tap(); assert.strictEqual(calls.pop(), 'lyrics', 'second tap asks to close lyrics');
         ui.lyrics(null); assert.strictEqual(ui.mode, 'cover'); assert(!ui.lyricsLayer.visible && !ui.controlsUntil);
