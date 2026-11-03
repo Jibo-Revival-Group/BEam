@@ -110,7 +110,11 @@ const routes = {
             .then(data => u.sendJson(res, 200, data));
     }),
     'GET /api/battery': guard(battery.status),
-    'POST /api/phone-battery': guard((req, res) => u.readJson(req).then(body => u.sendJson(res, 200, phoneBattery.save(body)))),
+    'POST /api/phone-battery': guard((req, res) => u.readJson(req).then(body => {
+        const reading = phoneBattery.save(body);
+        phoneBattery.forward(reading); // for the personal report; failures don't matter here
+        u.sendJson(res, 200, reading);
+    })),
     'GET /api/telemetry': guard(telemetry.status),
     'GET /api/activity': guard(telemetry.activity),
     'GET /api/camera-stream/status': guard(cameraStream.status),

@@ -9,7 +9,10 @@ assert.strictEqual(phone.sentence(loop, now), "I haven't heard from your phone y
 
 phone.save({ member: 'z1', level: 84.6, charging: true });
 assert.strictEqual(phone.sentence(loop, now), 'Your phone is at 85 percent and charging.');
-assert.strictEqual(phone.sentence(loop, now + 25 * 60000), 'Your phone is at 85 percent and charging, as of 25 minutes ago.');
+assert.strictEqual(phone.sentence(loop, now + 25 * 60000), 'As of 25 minutes ago, your phone was at 85 percent and charging.');
+assert.strictEqual(phone.sentence(loop, now + 150 * 60000), 'As of 2 hours ago, your phone was at 85 percent and charging.');
+assert.strictEqual(phone.sentence(loop, now + 3 * 3600000 + 1000), "I haven't heard from your phone lately.");
+assert.strictEqual(phone.shown('z1', now + 3 * 3600000 + 1000), null, 'no battery screen for a stale reading');
 
 phone.save({ member: 's1', level: 40 });
 const both = phone.sentence(loop, now);

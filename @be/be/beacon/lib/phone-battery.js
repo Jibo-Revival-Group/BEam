@@ -4,6 +4,7 @@
 // @be/phone-battery speaks it when someone asks.
 // shortcut: kept in memory only, so a reboot forgets it until each phone next reports.
 const readings = {};
+const LATELY = 3 * 3600000; // older than this: "I haven't heard from your phone lately"
 
 function fail (message) { const error = new Error(message); error.status = 400; return error; }
 
@@ -20,10 +21,25 @@ function name (member, people) {
     return found ? (found.nickName || found.firstName || found.writtenName || '') : '';
 }
 
+/** Sends a reading to BEefy (with the robot's cloud credentials, like calendars) for the personal report. */
+function forward (reading) {
+    if (!reading.member) { return Promise.resolve(); } // the report says it only to the phone's owner
+    const people = require('./people'), calendars = require('./calendars');
+    return people.list().then(snapshot => {
+        const m = ((snapshot && snapshot.members) || []).find(x => x.id === reading.member);
+        return calendars.callCloud('SetPhoneBattery', {
+            memberId: reading.member,
+            memberName: m ? ([m.firstName, m.lastName].filter(Boolean).join(' ') || m.writtenName || null) : null,
+            level: reading.level,
+            charging: reading.charging
+        }, calendars.robotIdFrom(snapshot));
+    }).catch(() => {});
+}
+
 function ago (ms) {
     const minutes = Math.round(ms / 60000);
     if (minutes < 60) { return minutes === 1 ? 'a minute ago' : minutes + ' minutes ago'; }
-    const hours = Math.round(minutes / 60);
+    const hours = Math.floor(minutes / 60); // under the 3-hour cutoff, so at most "2 hours ago"
     return hours === 1 ? 'an hour ago' : hours + ' hours ago';
 }
 
@@ -40,21 +56,22 @@ function sentence (people, now, speaker) {
     const list = (speaker ? [readings[speaker]] : Object.keys(readings).map(k => readings[k])).sort((a, b) => b.at - a.at);
     if (!list.length) { return "I haven't heard from your phone yet. Open BEep on it while it's on my Wi-Fi."; }
     const parts = list.map(r => {
-        const who = list.length === 1 ? 'Your phone' : (name(r.member, people) ? name(r.member, people) + "'s phone" : 'One phone');
-        let text = who + ' is at ' + r.level + ' percent' + (r.charging ? ' and charging' : '');
+        const who = list.length === 1 ? 'your phone' : (name(r.member, people) ? name(r.member, people) + "'s phone" : 'one phone');
+        const age = now - r.at, charging = r.charging ? ' and charging' : '';
+        if (age >= LATELY) { return "I haven't heard from " + who + ' lately'; }
         // Phones report only when iOS lets BEep run, so say when an older reading is from.
-        if (now - r.at > 10 * 60000) { text += ', as of ' + ago(now - r.at); }
-        return text;
+        if (age >= 2 * 60000) { return 'As of ' + ago(age) + ', ' + who + ' was at ' + r.level + ' percent' + charging; }
+        return who.charAt(0).toUpperCase() + who.slice(1) + ' is at ' + r.level + ' percent' + charging;
     });
     return parts.join('. ') + '.';
 }
 
-/** The reading the battery screen shows: the speaker's phone, else the newest one (null: none yet). */
-function shown (speaker) {
-    if (speaker) { return readings[speaker] || null; }
-    return Object.keys(readings).map(k => readings[k]).sort((a, b) => b.at - a.at)[0] || null;
+/** The reading the battery screen shows: the speaker's phone, else the newest one (null: none recent). */
+function shown (speaker, now) {
+    const reading = speaker ? readings[speaker] : Object.keys(readings).map(k => readings[k]).sort((a, b) => b.at - a.at)[0];
+    return reading && (now || Date.now()) - reading.at < LATELY ? reading : null;
 }
 
 function reset () { Object.keys(readings).forEach(k => delete readings[k]); }
 
-module.exports = { save: save, sentence: sentence, shown: shown, reset: reset };
+module.exports = { save: save, forward: forward, sentence: sentence, shown: shown, reset: reset };
