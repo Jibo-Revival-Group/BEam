@@ -49,6 +49,12 @@ function sentence (people, now, speaker) {
     return parts.join('. ') + '.';
 }
 
+/** The reading the battery screen shows: the speaker's phone, else the newest one (null: none yet). */
+function shown (speaker) {
+    if (speaker) { return readings[speaker] || null; }
+    return Object.keys(readings).map(k => readings[k]).sort((a, b) => b.at - a.at)[0] || null;
+}
+
 function reset () { Object.keys(readings).forEach(k => delete readings[k]); }
 
-module.exports = { save: save, sentence: sentence, reset: reset };
+module.exports = { save: save, sentence: sentence, shown: shown, reset: reset };

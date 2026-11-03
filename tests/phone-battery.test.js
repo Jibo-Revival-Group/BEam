@@ -21,6 +21,10 @@ assert.strictEqual(phone.sentence(loop, now, 'z1'), 'Your phone is at 85 percent
 assert.strictEqual(phone.sentence(loop, now, 'nobody'), "I haven't heard from your phone yet. Open BEep on it while it's on my Wi-Fi.");
 assert.strictEqual(phone.sentence({ members: [{ id: 'k1', firstName: 'Kai' }] }, now, 'k1'), "I haven't heard from your phone yet, Kai. Open BEep on it while it's on my Wi-Fi.");
 
+assert.strictEqual(phone.shown('s1').level, 40);
+assert.strictEqual(phone.shown('nobody'), null);
+assert.ok(phone.shown(null), 'with no speaker, the newest reading');
+
 for (const bad of [{}, { level: -1 }, { level: 101 }, { level: '50' }, null]) {
     assert.throws(() => phone.save(bad), /level must be 0 to 100/);
 }
