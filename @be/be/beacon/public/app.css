@@ -966,7 +966,7 @@ details.advanced[open] > summary::after { transform: rotate(-90deg); }
     align-items: center;
     justify-content: center;
     padding: 20px;
-    z-index: 70;
+    z-index: 1100; /* above .theme-details (1000): Add storefront prompts from Manage Storefronts */
 }
 
 .modal[hidden] { display: none; }
