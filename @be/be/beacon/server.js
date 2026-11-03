@@ -37,6 +37,7 @@ const homeassistant = require('./lib/homeassistant');
 const cameraStream = require('./lib/camera-stream-http');
 const cameraController = require('./lib/camera-stream');
 const battery = require('./lib/battery-http');
+const phoneBattery = require('./lib/phone-battery');
 const telemetry = require('./lib/telemetry-http');
 const sleep = require('./lib/sleep-http');
 const agentSettings = require('./lib/agent-settings');
@@ -109,6 +110,7 @@ const routes = {
             .then(data => u.sendJson(res, 200, data));
     }),
     'GET /api/battery': guard(battery.status),
+    'POST /api/phone-battery': guard((req, res) => u.readJson(req).then(body => u.sendJson(res, 200, phoneBattery.save(body)))),
     'GET /api/telemetry': guard(telemetry.status),
     'GET /api/activity': guard(telemetry.activity),
     'GET /api/camera-stream/status': guard(cameraStream.status),

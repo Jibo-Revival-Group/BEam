@@ -1,0 +1,10 @@
+{
+  "name": "@be/phone-battery",
+  "version": "1.0.0",
+  "description": "Says the battery level BEep last reported for each phone.",
+  "main": "index.js",
+  "config": { "standalone": true },
+  "jibo": { "main": "index.html", "type": "asset-pack", "display-name": "phone battery" },
+  "engines": { "node": ">=6.0" },
+  "syncDependencies": ["jibo", "@be/be-framework"]
+}
