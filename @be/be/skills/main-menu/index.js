@@ -273,6 +273,12 @@ class MainMenu extends be_framework_1.BeSkill {
         this.flowOverrides = null;
     }
     open(result, refresh, previousSkillName, previousSkillOptions) {
+        // The idle shortcut panel launches its favorite through the menu's own redirect rules.
+        if (result && result.intent === 'shortcut') {
+            this.skillChosen = false;
+            if (!this.redirectToSkill(result.destination)) { this.exit(); }
+            return;
+        }
         if (!refresh) {
             if (result && result.intent === 'tap') {
                 jibo.mim.silentMenus = true;

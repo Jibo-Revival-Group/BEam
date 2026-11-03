@@ -2495,6 +2495,7 @@ class Idle extends be_framework_2.BeSkill {
         this.kbModel = new KBModel_1.KBModel();
         this.updateBinding = this.update.bind(this);
         this.onTouchBind = this.onTouch.bind(this);
+        this.shortcuts = new (require('./shortcuts'))((skill, options) => { if (!this.closing) { this.redirect(skill, options); } }, this.log, () => this.shortcutsAllowed());
         this.closing = false;
         this.circadianManager = new CircadianManager_1.CircadianManager(this);
         const attemptErrorRecovery = (options) => {
@@ -2627,7 +2628,7 @@ class Idle extends be_framework_2.BeSkill {
             });
             const forceEyeviewPr = new Promise((resolve, reject) => {
                 jibo.face.views.forceEyeView(resolve, this.onTouchBind, jibo.face.views.IN, jibo.face.views.UP, reject);
-            }).catch(e => {
+            }).then(view => { if (!this.closing) { this.shortcuts.attach(view || jibo.face.views.currentView); } }).catch(e => {
                 this.log.warn(`Error while in 'forceEyeView': `, e);
             });
             yield Promise.race([
@@ -2636,7 +2637,18 @@ class Idle extends be_framework_2.BeSkill {
             ]);
         });
     }
+    // The swipe-down shortcut shade opens only while Jibo is awake on his eye.
+    shortcutsAllowed() {
+        if (this.closing || (jibo.privacyController && jibo.privacyController.enabled)) {
+            return false;
+        }
+        const state = this.circadianManager.getCurrentCircadianState();
+        return state === jibo_common_types_1.CircadianState.ALERT || state === jibo_common_types_1.CircadianState.RELAXED;
+    }
     onTouch() {
+        if (this.shortcuts.consumesTap()) {
+            return;
+        }
         if (jibo.privacyController && jibo.privacyController.enabled) {
             this.redirect('@be/settings', { nlu: { intent: 'privacy' } });
             return;
@@ -2651,6 +2663,7 @@ class Idle extends be_framework_2.BeSkill {
     }
     close(done) {
         this.closing = true;
+        this.shortcuts.detach();
         this.log.info('Stopping');
         this.qrScanning = false;
         if (this.qrTimeout) {

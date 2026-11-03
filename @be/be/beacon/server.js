@@ -141,6 +141,7 @@ const routes = {
     'GET /api/skills/asset': guard((req, res, query) => { u.serveFile(req, res, customSkills.asset(query.id, query.name), { contentType: 'image/png' }); }),
     'GET /api/menu': guard((req, res) => { u.sendJson(res, 200, menuLayout.inventory()); }),
     'POST /api/menu': guard((req, res) => { return u.readJson(req, 128 * 1024).then(body => u.sendJson(res, 200, menuLayout.save(body.tree))); }),
+    'POST /api/menu/favorite': guard((req, res) => { return u.readJson(req, 4096).then(body => u.sendJson(res, 200, menuLayout.setFavorite(body && body.id || null))); }),
     'GET /api/menu/icon': guard((req, res, query) => { u.serveFile(req, res, menuLayout.icon(query.name), { contentType: 'image/png' }); }),
     'PUT /api/menu/icon': guard((req, res) => { return u.readBody(req, 2 * 1024 * 1024).then(buf => menuLayout.uploadIcon(buf)).then(data => u.sendJson(res, 200, data)); }),
 

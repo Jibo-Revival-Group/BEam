@@ -146,9 +146,23 @@
             if (dirty) { positionFolders(); return Promise.resolve(); }
             return api('GET', '/api/menu').then(function (data) {
                 tree = data.tree; icons = data.icons; skills = {}; data.skills.forEach(function (s) { skills[s.id] = s; });
+                favorites(data);
                 dirty = false; $('menu-editor-status').textContent = ''; render();
             }).catch(options.reportError);
         }
+        function favorites(data) {
+            var select = $('menu-favorite'); select.textContent = '';
+            [{ id: '', label: 'None' }].concat(data.skills.slice().sort(function (a, b) { return a.label.localeCompare(b.label); })).forEach(function (s) {
+                var option = el('option', null, s.label); option.value = s.id; select.appendChild(option);
+            });
+            select.value = data.favorite || '';
+        }
+        $('menu-favorite').onchange = function () {
+            var select = this;
+            api('POST', '/api/menu/favorite', { id: select.value || null }).then(function (data) {
+                favorites(data); options.toast(data.favorite ? 'Favorite saved.' : 'Favorite cleared.', 'ok');
+            }).catch(function (err) { options.reportError(err); load(); });
+        };
         function ancestor(node, id) { return node.id === id || !!node.children && node.children.some(function (child) { return ancestor(child, id); }); }
         function relocate(listTree, id, targetId, containerId, after, inside) {
             var source = find(id, listTree), target = targetId && find(targetId, listTree), parent = containerId && containerId !== 'root' ? find(containerId, listTree) : null;

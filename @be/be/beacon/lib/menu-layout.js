@@ -66,11 +66,26 @@ function create(options) {
         skills.forEach(s => { if (!seen[s.id]) { out.unshift({ type: 'skill', id: s.id }); } });
         return out;
     }
+    // The shortcut panel's favorite skill (set in BEacon). Forgotten skills read as none.
+    function favoriteId() {
+        let id = null;
+        try { id = JSON.parse(fs.readFileSync(path.join(root, 'favorite.json'), 'utf8')).id; } catch (e) { return null; }
+        return available().some(s => s.id === id) ? id : null;
+    }
+    function favorite() {
+        const id = favoriteId(), s = id && available().filter(x => x.id === id)[0];
+        return s ? { id: s.id, label: s.label, colors: s.colors.map(c => Number(c.replace('#', '0x'))), iconSrc: s.customId ? s.icon : path.join(menuRoot, s.icon) } : null;
+    }
+    function setFavorite(id) {
+        if (id !== null && (typeof id !== 'string' || !available().some(s => s.id === id))) { throw pkg.fail('Skill is no longer installed; reload the page'); }
+        paths.ensureDir(root); const file = path.join(root, 'favorite.json'), temp = file + '.tmp';
+        fs.writeFileSync(temp, JSON.stringify({ id: id })); fs.renameSync(temp, file); return inventory();
+    }
     function sync() { const tree = normalize(read(), false); write(tree); return inventory(); }
     function inventory() {
         return { tree: normalize(read(), false), skills: available().map(s => Object.assign({}, s, {
             iconUrl: s.customId ? '/api/skills/asset?id=' + encodeURIComponent(s.customId) + '&name=icon.png' : '/api/menu/icon?name=' + encodeURIComponent(s.icon)
-        })), icons: icons() };
+        })), icons: icons(), favorite: favoriteId() };
     }
     function save(tree) { const normalized = normalize(tree, true); write(normalized); return inventory(); }
     function icon(name) {
@@ -122,6 +137,6 @@ function create(options) {
         if (destination === '__back') { stack.pop(); return '__menu'; }
         return destination;
     }
-    return { inventory: inventory, save: save, sync: sync, icon: icon, uploadIcon: uploadIcon, view: configView, choose: choose };
+    return { inventory: inventory, save: save, favorite: favorite, setFavorite: setFavorite, sync: sync, icon: icon, uploadIcon: uploadIcon, view: configView, choose: choose };
 }
 module.exports = Object.assign(create(), { create: create });
