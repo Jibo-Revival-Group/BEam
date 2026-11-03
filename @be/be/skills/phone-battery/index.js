@@ -6,8 +6,11 @@ const people = require('../../beacon/lib/people'), phoneBattery = require('../..
 class PhoneBatterySkill extends BeSkill {
     open() {
         const leave = () => this.exit({ noElementsOfSurprise: true });
+        // Whoever Jibo recognised by voice for this question (as in "Who am I?"), so they hear their own phone.
+        const voice = jibo.lps.identity.getActiveSpeaker();
+        const speaker = voice && voice.idInfo && voice.idInfo.accepted !== false ? voice.idInfo.id : null;
         people.list().catch(() => null)
-            .then(loop => Promise.resolve(jibo.tts.speak(phoneBattery.sentence(loop))))
+            .then(loop => Promise.resolve(jibo.tts.speak(phoneBattery.sentence(loop, Date.now(), speaker))))
             .then(leave, leave);
     }
     close(done) { done(); } // Be refuses skills that don't define open and close

@@ -27,10 +27,17 @@ function ago (ms) {
     return hours === 1 ? 'an hour ago' : hours + ' hours ago';
 }
 
-/** What Jibo says, newest phone first. `people` is BEacon's people.list(). */
-function sentence (people, now) {
+/**
+ * What Jibo says. `people` is BEacon's people.list(); `speaker` is the loop member Jibo recognised
+ * by voice, if any: then only their phone. Otherwise every phone, newest first.
+ */
+function sentence (people, now, speaker) {
     now = now || Date.now();
-    const list = Object.keys(readings).map(k => readings[k]).sort((a, b) => b.at - a.at);
+    if (speaker && !readings[speaker]) {
+        const who = name(speaker, people);
+        return "I haven't heard from your phone yet" + (who ? ', ' + who : '') + ". Open BEep on it while it's on my Wi-Fi.";
+    }
+    const list = (speaker ? [readings[speaker]] : Object.keys(readings).map(k => readings[k])).sort((a, b) => b.at - a.at);
     if (!list.length) { return "I haven't heard from your phone yet. Open BEep on it while it's on my Wi-Fi."; }
     const parts = list.map(r => {
         const who = list.length === 1 ? 'Your phone' : (name(r.member, people) ? name(r.member, people) + "'s phone" : 'One phone');
