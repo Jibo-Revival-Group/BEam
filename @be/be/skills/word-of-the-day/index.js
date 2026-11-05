@@ -286,9 +286,15 @@ class WordOfTheDay extends surprises_1.SurpriseElement {
         this._mainModel.loadRoot().then((root) => { this._mainRoot = root; })
             .catch((err) => { this.log.error('failed to load main root node', err); })
             .then(() => {
-            return jibo.kb.loop.loadLoop()
+            // jibo-kb's loadLoop() never settles when the loop lists a user node that is gone or has no root
+            // (Knowledge damage), and BEam waits for postInit before opening, so cap it. The loop is only
+            // used for Jibo's birthday; 1.5 s matches the runtime's own loop timeout.
+            return new Promise((resolve, reject) => {
+                setTimeout(() => reject(new Error('timed out loading the loop')), 1500);
+                jibo.kb.loop.loadLoop().then(resolve, reject);
+            })
                 .then((loop) => {
-                for (let user of loop) {
+                for (let user of loop || []) {
                     if (user.isJibo) {
                         this._jiboBirthday = user.created;
                         break;
