@@ -110,7 +110,8 @@ function mapMember (looper) {
         photoUrl: photo ? ('/api/people/photo?id=' + encodeURIComponent(id)) : null,
         canEdit: canEditMember(looper),
         canRemove: canRemoveMember(looper),
-        canSetOwner: canSetOwner(looper)
+        canSetOwner: canSetOwner(looper),
+        created: Number(new Date(looper.created || data.created || 0)) || 0
     };
 }
 
@@ -179,6 +180,11 @@ function normalizeGender (value) {
 }
 
 function addMember (fields) {
+    return createMember(fields).then(() => list());
+}
+
+/** Adds a person and resolves with their id (JiboSync adds people from other robots). */
+function createMember (fields) {
     const firstName = normalizeName(fields && fields.firstName);
     if (!firstName) throw fail('firstName is required.', 400);
     const lastName = normalizeName(fields && fields.lastName);
@@ -206,7 +212,7 @@ function addMember (fields) {
             root.addEdges(node, 'user');
             return asPromise((cb) => node.save(cb)).then(() => {
                 return asPromise((cb) => root.save(cb));
-            }).then(() => list());
+            }).then(() => node.id || node._id);
         });
     });
 }
@@ -377,6 +383,19 @@ function ensureOwner () {
     });
 }
 
+/**
+ * Marks face/voice enrollment on the person's own node. The KB's setEnrollmentFace/Voice only tell the
+ * cloud, and 5x1's cloud never writes the flag back, so JiboSync sets it here like BEacon's other edits.
+ */
+function setEnrolled (memberId, flags) {
+    const jibo = ensureRobot();
+    return jibo.kb.onInit().then(() => getUserNode(jibo, memberId)).then((looper) => {
+        const data = looper.data || (looper.data = {});
+        data.enrolled = Object.assign({ face: false, voice: false }, data.enrolled, flags);
+        return asPromise((cb) => looper.save(cb));
+    });
+}
+
 function setPhoneticName (memberId, phoneticName) {
     if (!memberId) throw fail('memberId is required.', 400);
     const value = phoneticName == null ? '' : String(phoneticName);
@@ -450,10 +469,12 @@ module.exports = {
     list,
     findMember,
     addMember,
+    createMember,
     updateMember,
     removeMember,
     setOwner,
     setPhoneticName,
+    setEnrolled,
     resolvePhotoFile,
     setPhoto,
     clearPhoto,

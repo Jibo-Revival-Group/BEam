@@ -42,6 +42,7 @@ const telemetry = require('./lib/telemetry-http');
 const sleep = require('./lib/sleep-http');
 const agentSettings = require('./lib/agent-settings');
 const agentProvider = require('./lib/agent-provider');
+const jibosync = require('./lib/jibosync');
 
 const MAX_UPLOAD = 256 * 1024 * 1024;
 const MAX_IMAGE = 16 * 1024 * 1024;
@@ -89,7 +90,16 @@ function sendPeople (res, snapshotPromise) {
         .then((data) => u.sendJson(res, 200, data));
 }
 
+// JiboSync's robot-to-robot reads share household faces and voices: only answer this Wi-Fi.
+function lanOnly (req) {
+    if (!jibosync.isLanAddress(req.socket && req.socket.remoteAddress)) throw fail('JiboSync only answers robots on this Wi-Fi.', 403);
+}
+
 const routes = {
+    'GET /api/jibosync/info': guard((req, res) => { lanOnly(req); return jibosync.info().then(data => u.sendJson(res, 200, data)); }),
+    'GET /api/jibosync/person': guard((req, res, query) => { lanOnly(req); return jibosync.person(query.id).then(data => u.sendJson(res, 200, data)); }),
+    'GET /api/jibosync/status': guard((req, res) => { u.sendJson(res, 200, jibosync.status()); }),
+    'POST /api/jibosync/sync': guard((req, res) => { req.resume(); jibosync.sync('Sync now'); u.sendJson(res, 202, jibosync.status()); }),
     'GET /api/agent/settings': guard((req, res) => { u.sendJson(res, 200, agentSettings.status()); }),
     'POST /api/agent/settings': guard((req, res) => {
         return u.readJson(req, 8192).then(body => u.sendJson(res, 200, agentSettings.save(body)));

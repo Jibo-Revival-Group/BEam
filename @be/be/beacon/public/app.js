@@ -476,8 +476,49 @@
     }
 
     function loadEtc () {
-        return Promise.all([loadLocation(), loadUnits(), loadCameraStreamSetting(), window.BEaconAgent ? window.BEaconAgent.load() : Promise.resolve()]);
+        return Promise.all([loadLocation(), loadUnits(), loadCameraStreamSetting(), loadJiboSync(), window.BEaconAgent ? window.BEaconAgent.load() : Promise.resolve()]);
     }
+
+    var jiboSyncTimer = null;
+    function renderJiboSync (data) {
+        var list = $('#jibosync-robots');
+        var last = data.last;
+        var robots = (last && last.robots) || [];
+        list.innerHTML = '';
+        robots.forEach(function (robot) {
+            var li = document.createElement('li');
+            var text = robot.robotId + ' (' + robot.address + '): ';
+            if (robot.status === 'synced') { text += 'synced'; }
+            else if (robot.status === 'different version') { text += 'not synced, different version: ' + [robot.versions.os, robot.versions.services, robot.versions.beam].join(', '); }
+            else { text += 'not reachable'; }
+            li.textContent = text;
+            list.appendChild(li);
+        });
+        var status = $('#jibosync-status');
+        if (data.syncing) { status.textContent = 'Syncing…'; }
+        else if (!last) { status.textContent = 'Not synced yet.'; }
+        else {
+            var when = new Date(last.finished || last.at).toLocaleString();
+            var parts = ['Last sync ' + when + '.'];
+            if (!robots.length) { parts.push('No other 5x1 robots found on this Wi-Fi.'); }
+            if (last.imported || last.removed) { parts.push(last.imported + ' updated, ' + last.removed + ' removed.'); }
+            if (last.errors && last.errors.length) { parts.push('Problems: ' + last.errors.join('; ')); }
+            status.textContent = parts.join(' ');
+        }
+        $('#jibosync-now').disabled = !!data.syncing;
+        clearTimeout(jiboSyncTimer);
+        if (data.syncing && state.panel === 'etc') { jiboSyncTimer = setTimeout(function () { loadJiboSync().catch(function () {}); }, 2000); }
+    }
+    function loadJiboSync () {
+        return api('GET', '/api/jibosync/status').then(renderJiboSync);
+    }
+    $('#jibosync-now').addEventListener('click', function () {
+        this.disabled = true;
+        api('POST', '/api/jibosync/sync').then(renderJiboSync).catch(function (error) {
+            $('#jibosync-now').disabled = false;
+            reportError(error);
+        });
+    });
 
     function loadCameraStreamSetting () {
         return api('GET', '/api/camera-stream/settings').then(function (data) {

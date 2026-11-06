@@ -155,6 +155,11 @@ function start (options, callback) {
         instance = srv;
         const hosts = lanAddresses();
         try {
+            require('./lib/jibosync').start();
+        } catch (syncErr) {
+            warn('jibosync:', syncErr && syncErr.message);
+        }
+        try {
             homeassistant.startWatcher();
         } catch (watchErr) {
             warn('home assistant watcher:', watchErr && watchErr.message);
