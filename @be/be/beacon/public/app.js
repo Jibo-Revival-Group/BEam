@@ -853,6 +853,7 @@
         if (img) {
             img.onload = null;
             img.onerror = null;
+            img.removeAttribute('src');  // closes the live stream, so Jibo stops encoding frames
         }
         if (state.screen.objectUrl) {
             URL.revokeObjectURL(state.screen.objectUrl);
@@ -872,6 +873,22 @@
         if (!state.screen.live || state.panel !== 'screen' || state.screen.pulling) { return; }
         state.screen.pulling = true;
         var img = $('#screen-view');
+        if (!state.screen.polling) {
+            // one continuous MJPEG response; a request per frame capped the frame rate
+            img.onload = function () {
+                if (!state.screen.live || state.panel !== 'screen') { return; }
+                $('#screen-stage').classList.add('is-live');
+                $('#screen-hit').hidden = false;
+                setScreenMessage('Live');
+            };
+            img.onerror = function () {
+                state.screen.pulling = false;
+                state.screen.polling = true;  // fall back to one JPEG per request
+                scheduleScreen(0);
+            };
+            img.src = '/api/screen/stream?t=' + Date.now();
+            return;
+        }
         img.onload = function () {
             state.screen.pulling = false;
             if (!state.screen.live || state.panel !== 'screen') { return; }

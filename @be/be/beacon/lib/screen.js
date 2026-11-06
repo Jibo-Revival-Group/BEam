@@ -17,8 +17,9 @@ const OUT_H = 360;
 const JPEG_QUALITY = 42;
 const CAPTURE_TIMEOUT_MS = 3000;
 const FRESH_MS = 30;
-const STREAM_INTERVAL_MS = 32;
+const STREAM_INTERVAL_MS = 33;
 const BLIT_STALE_MS = 250;
+const NEXT_FRAME_MS = 100;
 const BATCH_MAX = 40;
 
 let inflight = null;
@@ -28,6 +29,7 @@ let blitCanvas = null;
 let blitCtx = null;
 let latestBlitAt = 0;
 let hooked = false;
+let blitWaiters = [];
 
 function fail (message, status) {
     const err = new Error(message);
@@ -155,7 +157,13 @@ function ensureHook () {
     const orig = face.render.bind(face);
     face.render = function () {
         const result = orig.apply(face, arguments);
-        try { blitNow(); } catch (err) { /* keep the face rendering */ }
+        // copy only the frames a capture asked for: copying every frame held the face at ~14 fps, even after the stream closed
+        if (blitWaiters.length) {
+            const waiters = blitWaiters;
+            blitWaiters = [];
+            try { blitNow(); } catch (err) { /* keep the face rendering */ }
+            waiters.forEach((done) => done());
+        }
         return result;
     };
     face._beaconScreenHooked = true;
@@ -165,7 +173,22 @@ function ensureHook () {
 
 function encodeBlit (quality) {
     if (!getBlitCanvas()) { throw fail('Screen blit is not ready', 503); }
+    // toDataURL: ~10 ms on the robot; the async toBlob took ~250 ms a frame
     return jpegFromCanvas(blitCanvas, quality);
+}
+
+// Resolves after the face's next render has been copied (or after NEXT_FRAME_MS when it isn't rendering).
+function nextBlit () {
+    return new Promise((resolve) => {
+        let done = false;
+        const finish = () => { if (!done) { done = true; resolve(); } };
+        blitWaiters.push(finish);
+        setTimeout(() => {
+            if (done) { return; }
+            try { blitNow(); } catch (err) { /* fall back below */ }
+            finish();
+        }, NEXT_FRAME_MS);
+    });
 }
 
 function nativeImageToJpeg (image, quality) {
@@ -288,17 +311,19 @@ function blitIsFresh () {
     return !!(blitCanvas && latestBlitAt && (Date.now() - latestBlitAt) < BLIT_STALE_MS);
 }
 
-function doCapture (quality) {
-    ensureHook();
-    if (!blitIsFresh()) { blitNow(); }
-    if (blitIsFresh()) {
-        return Promise.resolve(encodeBlit(quality));
-    }
+function fallbackCapture (quality) {
     const win = getElectronWindow();
     if (win) {
         return captureWindow(win, quality).catch(() => captureComposite(quality));
     }
     return Promise.resolve().then(() => captureComposite(quality));
+}
+
+function doCapture (quality) {
+    const started = Date.now();
+    const ready = ensureHook() && getBlitCanvas() ? nextBlit() : Promise.resolve(blitNow());
+    return ready.then(() => (latestBlitAt >= started - BLIT_STALE_MS && blitCanvas
+        ? encodeBlit(quality) : fallbackCapture(quality)));
 }
 
 function capture (quality) {
@@ -578,6 +603,7 @@ function stream (req, res) {
 
     const tick = () => {
         if (stopped) { return; }
+        const started = Date.now();
         capture(JPEG_QUALITY).then((buf) => {
             if (stopped) { return; }
             try {
@@ -590,7 +616,7 @@ function stream (req, res) {
                 stopped = true;
                 return;
             }
-            setTimeout(tick, STREAM_INTERVAL_MS);
+            setTimeout(tick, Math.max(0, STREAM_INTERVAL_MS - (Date.now() - started)));
         }).catch(() => {
             if (stopped) { return; }
             setTimeout(tick, 600);
