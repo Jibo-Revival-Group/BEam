@@ -70,7 +70,25 @@ class CardDisplay {
         this._onCardSeen = this._onCardSeen.bind(this);
         this._onCardTapped = this._onCardTapped.bind(this);
     }
+    // 5x1: the cards go up as the intro starts ("Here on my screen are...") instead of after it; the flow's
+    // "Do the thing." step then takes over the menu that is already showing (once; later rounds open a new one).
+    showCardMenuEarly() {
+        if (this._early) { return; }
+        const early = this._early = { finished: false, result: undefined, done: null };
+        this._showCardMenu((result) => {
+            early.finished = true;
+            early.result = result;
+            if (early.done) { early.done(result); }
+        });
+    }
     showCardMenu(done) {
+        const early = this._early;
+        if (!early) { this._showCardMenu(done); return; }
+        this._early = null;
+        if (early.finished) { done(early.result); }
+        else { early.done = done; }
+    }
+    _showCardMenu(done) {
         this._onDone = done;
         this._cards = this._cardSelector.cards;
         this.log.info('showCardMenu');
@@ -682,6 +700,7 @@ module.exports = function (blackboard, notepad, result, emitter) {
                 'options': {
                     'exec': done => {
                         jibo.face.views.forceEyeView(() => {
+                            blackboard.cardDisplay.showCardMenuEarly();
                             done(this.inTransition);
                         });
                     },
