@@ -669,6 +669,16 @@
                 phoneticRow.appendChild(phonetic);
                 card.appendChild(phoneticRow);
 
+                var birthdayRow = el('label', 'setting-row people-birthday-row', 'Birthday');
+                var birthday = document.createElement('input');
+                birthday.type = 'date';
+                birthday.className = 'people-birthday';
+                birthday.value = member.birthday || '';
+                birthday.max = new Date().toISOString().slice(0, 10);
+                birthday.setAttribute('data-member-id', member.id);
+                birthdayRow.appendChild(birthday);
+                card.appendChild(birthdayRow);
+
                 var actionsRow = el('div', 'setting-row people-actions-row');
                 var save = el('button', 'btn btn-primary', 'Save');
                 save.setAttribute('data-action', 'save-person');
@@ -1276,6 +1286,7 @@
             var last = document.querySelector('.people-last[data-member-id="' + memberId + '"]');
             var gender = document.querySelector('.people-gender[data-member-id="' + memberId + '"]');
             var phonetic = document.querySelector('.people-phonetic[data-member-id="' + memberId + '"]');
+            var birthday = document.querySelector('.people-birthday[data-member-id="' + memberId + '"]');
             var firstName = first ? first.value.trim() : '';
             if (!firstName) {
                 toast('First name is required.', 'error');
@@ -1286,7 +1297,8 @@
                 firstName: firstName,
                 lastName: last ? last.value.trim() : '',
                 gender: gender ? gender.value : 'unknown',
-                phoneticName: phonetic ? phonetic.value : ''
+                phoneticName: phonetic ? phonetic.value : '',
+                birthday: birthday ? birthday.value : ''
             }).then(function (data) {
                 toast('Person updated.', 'ok');
                 renderPeople(data);

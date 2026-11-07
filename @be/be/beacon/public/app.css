@@ -1118,6 +1118,17 @@ details.advanced[open] > summary::after { transform: rotate(-90deg); }
     margin-top: 8px;
 }
 
+.people-birthday-row { align-items: center; gap: 12px; color: var(--text); }
+.people-birthday {
+    flex: 1;
+    background: var(--pearl);
+    border: 1px solid var(--light-grey);
+    border-radius: var(--radius-input);
+    color: var(--text);
+    padding: 8px 10px;
+    font: inherit;
+}
+
 .people-phonetic {
     flex: 1;
     background: var(--pearl);

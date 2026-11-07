@@ -97,6 +97,7 @@ function mapMember (looper) {
         gender: data.gender || null,
         nickName: data.nickName || data.nickname || null,
         phoneticName: data.phoneticName || null,
+        birthday: birthdayString(data.birthday),
         writtenName: typeof looper.getWrittenName === 'function' ? looper.getWrittenName() : (data.nickName || data.firstName || 'Unknown'),
         isJibo: isRobotMember(looper),
         type: data.type || null,
@@ -217,6 +218,33 @@ function createMember (fields) {
     });
 }
 
+// The loop's data.birthday is epoch ms (what jibo.context sends as birthdate and the stock skills read).
+// It is saved at noon UTC so the day is the same in every time zone.
+function birthdayString (ms) {
+    if (typeof ms !== 'number' || !isFinite(ms)) return null;
+    return new Date(ms).toISOString().slice(0, 10);
+}
+
+function parseBirthday (value) {
+    if (value == null || String(value).trim() === '') return null;
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value).trim());
+    const ms = m ? Date.UTC(+m[1], +m[2] - 1, +m[3], 12) : NaN;
+    if (!m || birthdayString(ms) !== m[0] || ms > Date.now()) throw fail('Birthday must be a past date (YYYY-MM-DD).', 400);
+    return ms;
+}
+
+// setPhoneticName goes through the loop service, which rewrites the member node from its own copy
+// and drops data.birthday, so put the birthday back afterwards.
+function keepBirthday (jibo, memberId, birthday) {
+    return getUserNode(jibo, memberId).then((looper) => {
+        const data = looper.data || (looper.data = {});
+        if (data.birthday === birthday) return null;
+        if (birthday === undefined) delete data.birthday;
+        else data.birthday = birthday;
+        return asPromise((cb) => looper.save(cb));
+    }).catch(() => null);
+}
+
 function updateMember (memberId, fields) {
     if (!memberId) throw fail('memberId is required.', 400);
     const jibo = ensureRobot();
@@ -240,12 +268,17 @@ function updateMember (memberId, fields) {
             if (fields && Object.prototype.hasOwnProperty.call(fields, 'phoneticName')) {
                 data.phoneticName = normalizeName(fields.phoneticName) || '';
             }
+            if (fields && Object.prototype.hasOwnProperty.call(fields, 'birthday')) {
+                const birthday = parseBirthday(fields.birthday);
+                if (birthday === null) delete data.birthday;
+                else data.birthday = birthday;
+            }
             return asPromise((cb) => looper.save(cb)).then(() => {
                 // Mirror phonetic edits through SSM so cloud enrollment stays aligned.
                 if (fields && Object.prototype.hasOwnProperty.call(fields, 'phoneticName')) {
                     return asPromise((cb) => {
                         jibo.kb.loop.setPhoneticName(memberId, data.phoneticName || '', cb);
-                    }).catch(() => null);
+                    }).catch(() => null).then(() => keepBirthday(jibo, memberId, data.birthday));
                 }
                 return null;
             }).then(() => list());
