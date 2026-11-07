@@ -170,7 +170,7 @@
 
             var cards = $('#status-cards');
             cards.innerHTML = '';
-            cards.appendChild(stat('Version', data.host.name + ' ' + (data.host.version || '')));
+            cards.appendChild(stat('Version', 'BEam ' + (data.host.version || '?')));
             cards.appendChild(stat('This Jibo', data.robot ? data.hostname : 'Development (' + data.hostname + ')'));
             cards.appendChild(stat('Uptime', duration(data.uptimeSeconds)));
             cards.appendChild(stat('Theme', data.theme ? data.theme.name : 'None'));

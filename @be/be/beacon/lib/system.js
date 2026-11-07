@@ -96,7 +96,8 @@ function status () {
         name: 'BEacon',
         host: {
             name: pkg.name || '@be/be',
-            version: pkg.version || null
+            // The Jibo-TBD version is the 5x1 release the robot is on (3.1.x); Be's own is the services build.
+            version: themes.tbdVersion() || pkg.version || null
         },
         robot: paths.onRobot(),
         hostname: os.hostname(),
