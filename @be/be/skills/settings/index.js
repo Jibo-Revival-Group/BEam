@@ -1801,8 +1801,77 @@ class WiFi {
         }
         this.currentView.signalIndicator.children[strength].visible = true;
     }
+    // 5x1: New Wi-Fi lists nearby networks (SSM /get_scan_results) and asks for the password on
+    // JiboTube's keyboard; "Scan a QR code" keeps the original QR flow.
     changeWiFi() {
-        this._showInstructions();
+        this._showNetworkList();
+    }
+    _scanNetworks(callback) {
+        const request = new XMLHttpRequest();
+        request.open('POST', 'http://127.0.0.1:8668/get_scan_results', true);
+        request.timeout = 15000;
+        request.onload = () => {
+            let networks = [];
+            try { networks = JSON.parse(request.responseText).networks || []; }
+            catch (err) { this.log.warn('Wi-Fi scan reply unreadable', err); }
+            callback(networks);
+        };
+        request.onerror = request.ontimeout = () => { this.log.warn('Wi-Fi scan failed'); callback([]); };
+        request.send('{}');
+    }
+    _showNetworkList() {
+        this._scanNetworks((networks) => {
+            const icon = (signal) => 'assets/wifi/images/icons/' + (signal >= -55 ? 'signal_hi' : signal >= -70 ? 'signal_md' : 'signal_lo') + '.png';
+            const list = networks.slice(0, 12).map((net, i) => ({
+                id: 'scan' + i,
+                label: net.ssid,
+                iconSrc: icon(net.signal),
+                colors: COLORS.metro,
+                action: { type: 'event', data: { event: 'pickNetwork', index: i } }
+            }));
+            list.push({
+                id: 'qrCode',
+                label: 'Scan a QR code',
+                iconSrc: 'assets/wifi/images/icons/qr.png',
+                colors: [0x25F2FB, 0x107799],
+                action: { type: 'event', data: { event: 'qrCode' } }
+            });
+            const config = { viewConfig: { title: networks.length ? 'New Wi-Fi' : 'No networks found', id: 'wifiNewList',
+                listDefault: { menuButtonType: 'ActionBigButton' }, list: list } };
+            this._bindNetworkList(jibo.face.views.createView('MenuView', config, true), networks);
+        });
+    }
+    // Returning to a view (changeView removeTo) drops its listeners, so they are bound again each time.
+    _bindNetworkList(listView, networks) {
+        this.currentView = listView;
+        listView.swipeDownActions = BACKTIONS;
+        listView.on(jibo.face.views.LOADED, () => { listView.swipeDownActions = BACKTIONS; });
+        listView.on(BACK, () => {
+            this.cleanupTimers();
+            this._closeAllToWiFiMenu();
+        });
+        listView.on('qrCode', () => {
+            this.cleanupTimers();
+            this._showInstructions();
+        });
+        listView.on('pickNetwork', (data) => {
+            const net = networks[data.index];
+            if (!net) { return; }
+            const join = (password) => {
+                this._accessToken = null;
+                this.wifiConfig = { ssid: net.ssid, pswd: password || '', security: password ? 'WPA-PSK' : 'NONE', hidden: 0,
+                    networkType: 0, staticSettings: null };
+                this._connecting();
+            };
+            if (!net.secure) { join(''); return; }
+            let keyboard;
+            try { keyboard = require(require('path').join(__dirname, 'wifi-keyboard')); }
+            catch (err) { this.log.error('Wi-Fi keyboard unavailable', err); this._showInstructions(); return; }
+            const back = () => jibo.face.views.changeView({ removeTo: 'wifiNewList' }, null, null, (view) => this._bindNetworkList(view, networks));
+            this.currentView = keyboard.show({ views: jibo.face.views, PIXI: PIXI, ssid: net.ssid, onJoin: join, onBack: back });
+            this.currentView.on(jibo.face.views.LOADED, () => { this.currentView.swipeDownActions = BACKTIONS; });
+            this.currentView.on(BACK, back);
+        });
     }
     _showInstructions() {
         this.currentView = jibo.face.views.createView('View', 'assets/wifi/views/instructions.json', true);

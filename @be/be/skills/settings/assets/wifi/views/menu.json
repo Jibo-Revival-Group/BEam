@@ -36,7 +36,7 @@
             {
                 "id": "changeNetwork",
                 "label": "New Wi-Fi",
-                "iconSrc": "assets/wifi/images/icons/qr.png",
+                "iconSrc": "assets/wifi/images/icons/signal_hi.png",
                 "colors": ["0x25F2FB", "0x107799"],
                 "action": {
                     "type": "event",
