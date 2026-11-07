@@ -421,6 +421,8 @@ const routes = {
     }),
 
     'POST /api/screen/input': guard((req, res) => {
+        // Whoever asked to pair must not be able to press Yes on Jibo's screen themselves.
+        if (homeassistant.isPairing()) { req.resume(); throw fail('Jibo is asking about a Home Assistant pairing; answer it on the robot.', 409); }
         return u.readJson(req).then((body) => {
             return screen.input(body).then((result) => u.sendJson(res, 200, result));
         });

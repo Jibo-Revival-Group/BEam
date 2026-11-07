@@ -333,6 +333,7 @@ function startWatcher () {
 
 module.exports = {
     pair: pair,
+    isPairing: function () { return pairing; },
     startWatcher: startWatcher,
     configPath: configPath,
     readConfig: readConfig
