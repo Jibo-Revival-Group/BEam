@@ -32,7 +32,8 @@ class Runtime {
         if (!event || !event.on) return;
         event.on(handler); this.unwatch.push(() => event.off ? event.off(handler) : event.removeListener(handler));
     }
-    open() {
+    // resume: the conversation to carry on after a quick action (comeback.js); no greeting, straight to listening.
+    open(resume) {
         this.active = true;
         const jibo = this.jibo;
         if (this.private()) { this.leave(); return; }
@@ -68,6 +69,7 @@ class Runtime {
             this.watch(jibo.jetstream.events.skillSwitch, () => this.close());
             this.watch(jibo.jetstream.events.globalTurnStarted, () => this.leave());
             this.render();
+            if (resume) { this.history = resume; return this.listen(); }
             return this.speak('Sure. What would you like to talk about?').then(() => this.listen());
         }).catch(error => this.fail(error));
     }
@@ -139,7 +141,8 @@ class Runtime {
                     return (spoken ? this.speak(spoken) : Promise.resolve()).then(() => {
                         if (!command) return this.listen();
                         if (!this.active || this.private()) return;
-                        return this.close().then(() => this.act(command));
+                        const history = this.history.slice();
+                        return this.close().then(() => this.act(command, history));
                     });
                 });
             });
@@ -189,6 +192,14 @@ Runtime.storeSkill = (command, skills) => {
     const name = String(command).toLowerCase().replace(/^(open|launch|start|run)\s+(the\s+)?/, '').replace(/[^a-z0-9]+/g, ' ').trim();
     const skill = skills.filter(s => String(s.manifest && s.manifest.name).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim() === name)[0];
     return skill ? skill.packageName : null;
+};
+// The conversation to resume after a quick action, with what Jibo said during it added to the AI's last reply.
+Runtime.resumeHistory = (history, said) => {
+    const copy = history.map(message => Object.assign({}, message)), last = copy[copy.length - 1];
+    const note = '(' + (said ? 'Jibo then said: "' + said + '"' : 'Jibo did it.') + ')';
+    if (last && last.role === 'assistant') last.content += '\n' + note;
+    else copy.push({ role: 'assistant', content: note });
+    return copy;
 };
 Runtime.isStop = isStop; Runtime.speechChunks = speechChunks;
 module.exports = Runtime;
