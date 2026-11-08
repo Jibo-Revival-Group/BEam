@@ -359,13 +359,17 @@ function isLanAddress (address) {
     return /^(10\.|192\.168\.|169\.254\.|127\.)/.test(a) || /^172\.(1[6-9]|2\d|3[01])\./.test(a) || a === '::1' || /^f[cde]/i.test(a);
 }
 
+// JiboSync is hidden for now (code kept for later). Set BEACON_JIBOSYNC=1 to turn it on (the tests do).
+const ENABLED = process.env.BEACON_JIBOSYNC === '1';
+
 module.exports = {
+    ENABLED: ENABLED,
     create: create,
     sameVersions: sameVersions,
     isLanAddress: isLanAddress,
-    start: () => get().start(),
+    start: () => { if (ENABLED) get().start(); },
     sync: (reason) => get().sync(reason),
-    status: () => get().status(),
+    status: () => ENABLED ? get().status() : { enabled: false },
     info: () => get().info(),
     person: (id) => get().person(id)
 };

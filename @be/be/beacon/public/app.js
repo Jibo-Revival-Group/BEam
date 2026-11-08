@@ -481,6 +481,11 @@
 
     var jiboSyncTimer = null;
     function renderJiboSync (data) {
+        // Hidden unless BEACON_JIBOSYNC=1 turns it on (status then has no enabled:false).
+        var on = data.enabled !== false;
+        $('#jibosync-header').hidden = !on;
+        $('#jibosync').hidden = !on;
+        if (!on) { return; }
         var list = $('#jibosync-robots');
         var last = data.last;
         var robots = (last && last.robots) || [];

@@ -73,6 +73,7 @@ function guard (fn) {
                 if (!githubAuth.token()) { req.resume(); throw fail('Sign in to GitHub to use the Store.', 401); }
             }
             if (!voices.ENABLED && /^\/api\/voices\//.test(pathname)) { req.resume(); throw fail('Custom voices are turned off.', 404); }
+            if (!jibosync.ENABLED && /^\/api\/jibosync\/(?!status$)/.test(pathname)) { req.resume(); throw fail('JiboSync is turned off.', 404); }
             const result = fn(req, res, query);
             if (result && typeof result.then === 'function') {
                 result.catch((err) => handleError(res, err));
