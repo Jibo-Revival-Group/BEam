@@ -1,7 +1,7 @@
 'use strict';
 // Free AI uses the public BEefy endpoint. Ollama's loopback address exists
 // only on the BEefyER worker; neither its secret nor endpoint belongs on Jibo.
-const https = require('https'), fs = require('fs'), crypto = require('crypto'), path = require('path'), url = require('url');
+const https = require('https'), os = require('os'), fs = require('fs'), crypto = require('crypto'), path = require('path'), url = require('url');
 const people = require('./people'), settings = require('./agent-settings');
 const ENDPOINT = 'https://api.5x1.com/api/agent/free/chat';
 function fail(message) { return settings.fail(message); }
@@ -32,10 +32,11 @@ function chat(history) {
         try {
             // Allow the backend's 120-second model deadline plus relay/network overhead.
             timer = setTimeout(() => { finish(fail('Free AI took too long to respond. Please try again later.')); if (request) request.destroy(); }, 150000);
-            Promise.resolve().then(() => people.list()).then(snapshot => {
+            // A robot whose loop has no people (OOBE, wiped KB) has no loop robot id; its own name still identifies it.
+            Promise.resolve().then(() => people.list()).catch(() => null).then(snapshot => {
             if (settled) return;
             const validId = id => typeof id === 'string' && !!id.trim() && id.length <= 128 && !/[\x00-\x1f\x7f-\x9f]/.test(id);
-            const robotId = snapshot && snapshot.robot;
+            const robotId = validId(snapshot && snapshot.robot) ? snapshot.robot : os.hostname();
             if (!validId(robotId)) throw fail('Free AI could not identify this robot.');
             const prepared = prepare(history, robotId);
             request = https.request(prepared.options, response => {

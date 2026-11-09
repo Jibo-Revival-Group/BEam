@@ -2,10 +2,11 @@
 // Exercise the actual Free request path with a local, fake transport on Node 6.
 const assert = require('assert'), fs = require('fs'), path = require('path'), EventEmitter = require('events');
 const file = path.resolve(__dirname, '../@be/be/beacon/lib/agent-free.js');
-let snapshot, sent = [];
+let snapshot, sent = [], hostname = 'Bazaar-Alpha-Farro-Felt';
 const dependencies = {
     fs: { readFileSync: () => 'fixture-ca' },
-    './people': { list: () => Promise.resolve(snapshot) },
+    os: { hostname: () => hostname },
+    './people': { list: () => snapshot instanceof Error ? Promise.reject(snapshot) : Promise.resolve(snapshot) },
     https: { request: (options, callback) => {
         const request = new EventEmitter();
         request.destroy = () => {};
@@ -35,10 +36,12 @@ function expectFailure(value) {
 }
 expectId({robot:'actual-robot', members:[{isJibo:true,id:'unnamed-person'}, {isJibo:true,id:'actual-robot'}]}, 'actual-robot')
 .then(() => expectId({robot:'actual-robot', members:[]}, 'actual-robot'))
-.then(() => expectFailure({robot:null, members:[{isJibo:true,id:'unnamed-person'}, {isJibo:false,id:'person'}]}))
-.then(() => expectFailure({robot:null, members:[{isJibo:true,id:'first'}, {isJibo:true,id:'second'}]}))
-.then(() => expectFailure({robot:null, members:[]}))
-.then(() => expectFailure({robot:' ', members:[{isJibo:true,id:'first'}, {isJibo:true,id:'second'}]}))
-.then(() => expectFailure({robot:42, members:[{isJibo:true,id:'unnamed-person'}]}))
-.then(() => expectFailure({robot:null, members:[{isJibo:true,id:' ' }]}))
+// No loop robot (no people yet, e.g. a converted OOBE robot): never guess among members; use the robot's own name.
+.then(() => expectId({robot:null, members:[{isJibo:true,id:'unnamed-person'}, {isJibo:false,id:'person'}]}, 'Bazaar-Alpha-Farro-Felt'))
+.then(() => expectId({robot:null, members:[{isJibo:true,id:'first'}, {isJibo:true,id:'second'}]}, 'Bazaar-Alpha-Farro-Felt'))
+.then(() => expectId({robot:null, members:[]}, 'Bazaar-Alpha-Farro-Felt'))
+.then(() => expectId({robot:' ', members:[{isJibo:true,id:'first'}, {isJibo:true,id:'second'}]}, 'Bazaar-Alpha-Farro-Felt'))
+.then(() => expectId({robot:42, members:[{isJibo:true,id:'unnamed-person'}]}, 'Bazaar-Alpha-Farro-Felt'))
+.then(() => expectId(new Error('loop unreadable'), 'Bazaar-Alpha-Farro-Felt'))
+.then(() => { hostname = ''; return expectFailure({robot:null, members:[]}); })
 .then(() => console.log('Free robot ID selection passed.'), error => { console.error(error); process.exitCode = 1; });
