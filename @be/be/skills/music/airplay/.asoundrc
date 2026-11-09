@@ -3,6 +3,6 @@
 pcm.airplay_beat {
     type file
     slave.pcm "MediaOut"
-    file "|exec /usr/bin/node beat-relay.js"
+    file "|exec python -S beat-relay.py"
     format "raw"
 }

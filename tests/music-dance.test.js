@@ -79,11 +79,13 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     // No tempo yet, or a beatless track: he waits instead of dancing off the beat.
     for (const estimate of [null, { bpm: 100, confidence: 0.05, beat: Date.now() }]) {
         jibo = fakeJibo(); dancer = new Dancer(jibo, () => ({ estimate: () => estimate }));
-        dancer.start(); await wait(60);
+        dancer.start('quiet song'); await wait(60);
         assert.strictEqual(jibo.log.filter(x => typeof x === 'object').length, 0, 'no dancing without a confident tempo');
+        assert.deepStrictEqual(jibo.attention, [], 'still looks around while waiting for a beat');
         await dancer.stop();
+        assert(!jibo.log.includes('cleanup body'), 'nothing to clean up when he never danced');
     }
-    jibo = fakeJibo(); dancer = new Dancer(jibo, () => null); dancer.start(); await wait(30); await dancer.stop();
+    jibo = fakeJibo(); dancer = new Dancer(jibo, () => null); dancer.start('no tracker'); await wait(30); await dancer.stop();
     assert.strictEqual(jibo.log.filter(x => typeof x === 'object').length, 0, 'no tracker yet');
     console.log('Music dancing: tempo fits, beat start, speed limits, waiting and stop passed');
 })().catch(error => { console.error(error); process.exitCode = 1; });

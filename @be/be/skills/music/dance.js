@@ -31,9 +31,7 @@ class Dancer {
     // song: any key for the current song; he dances once per song.
     start(song) {
         if (this.running || song === this.danced) return;
-        this.running = true; this.song = song;
-        const jibo = this.jibo, handle = jibo.expression.pushAttentionMode(jibo.expression.AttentionMode.OFF);
-        this.attention = Promise.resolve(handle).catch(() => null);
+        this.running = true; this.song = song; this.attention = null;
         this.next();
     }
     next() {
@@ -51,6 +49,8 @@ class Dancer {
         this.last = choice.entry;
         this.timer = setTimeout(() => {
             if (!this.running) return;
+            const expression = this.jibo.expression; // attention off only once he really dances, like stock Radio
+            this.attention = Promise.resolve(expression.pushAttentionMode(expression.AttentionMode.OFF)).catch(() => null);
             // The SDK clamps speed to meta.speed; a view of the entry with the slower bound lets it through.
             const entry = Object.create(choice.entry, { meta: { value: Object.assign({}, choice.entry.meta, {
                 speed: [Math.min(choice.entry.meta.speed[0], SLOWEST), Math.max(choice.entry.meta.speed[1], 1)] }) } });
@@ -61,9 +61,9 @@ class Dancer {
     stop() {
         if (!this.running) return Promise.resolve();
         this.running = false; clearTimeout(this.timer);
-        const jibo = this.jibo, dance = this.dance; this.dance = null;
+        const jibo = this.jibo, dance = this.dance, danced = this.attention; this.dance = null;
         return Promise.resolve(dance && dance.playback.stop()).catch(() => {})
-            .then(() => jibo.expression.cleanup({ dofs: jibo.expression.dofs.BODY })).catch(() => {})
+            .then(() => danced && jibo.expression.cleanup({ dofs: jibo.expression.dofs.BODY })).catch(() => {})
             .then(() => this.attention).then(handle => { if (handle) return handle.release(); }).catch(() => {});
     }
 }

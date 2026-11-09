@@ -116,7 +116,7 @@ function create() {
         socket.on('error', error => console.warn('[airplay] metadata socket:', error.message));
         socket.bind(PORT, '127.0.0.1', spawn);
         beats = dgram.createSocket('udp4');
-        beats.on('message', bytes => { // S16LE stereo from airplay/beat-relay.js
+        beats.on('message', bytes => { // S16LE stereo from airplay/beat-relay.py
             if (!tempo) return;
             const mono = new Float32Array(Math.floor(bytes.length / 4));
             for (let i = 0; i < mono.length; i++) mono[i] = (bytes.readInt16LE(i * 4) + bytes.readInt16LE(i * 4 + 2)) / 65536;
