@@ -1,0 +1,8 @@
+# Loaded by shairport-sync only (skills/music/airplay.js starts it with HOME set to this folder).
+# Plays AirPlay as before (MediaOut) and tees a copy to beat-relay.js so Jibo can dance to the beat.
+pcm.airplay_beat {
+    type file
+    slave.pcm "MediaOut"
+    file "|exec /usr/bin/node beat-relay.js"
+    format "raw"
+}

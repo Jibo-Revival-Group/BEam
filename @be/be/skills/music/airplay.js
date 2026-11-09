@@ -11,7 +11,8 @@ function create() {
 
     const BINARY = path.join(__dirname, 'airplay', 'shairport-sync');
     const CONFIG = path.join(__dirname, 'airplay', 'airplay.conf');
-    const PORT = 18702, RATE = 44100;
+    const PORT = 18702, BEAT_PORT = 18703, RATE = 44100;
+    const Tempo = require('./tempo');
     const events = new EventEmitter();
     const state = { active: false, playing: false, device: '', title: '', artist: '', album: '', art: null, artVersion: 0,
         duration: 0, position: 0, at: 0, remote: null, dacp: null };
@@ -91,8 +92,9 @@ function create() {
         if (proc) return;
         const started = Date.now();
         try {
+            // HOME here makes ALSA load airplay/.asoundrc, whose airplay_beat output tees the audio to the tempo tracker.
             proc = child.spawn(BINARY, ['-c', CONFIG, '--metadata-pipename', path.join(locations.ensureDirectory(locations.dataRoot()), 'airplay-metadata')],
-                { stdio: 'ignore' });
+                { stdio: 'ignore', cwd: path.dirname(CONFIG), env: Object.assign({}, process.env, { HOME: path.dirname(CONFIG) }) });
         } catch (error) { proc = null; console.warn('[airplay] could not start:', error.message); return; }
         proc.on('error', error => console.warn('[airplay] receiver error:', error.message));
         proc.on('exit', code => {
@@ -113,7 +115,24 @@ function create() {
         socket.on('message', packet);
         socket.on('error', error => console.warn('[airplay] metadata socket:', error.message));
         socket.bind(PORT, '127.0.0.1', spawn);
+        beats = dgram.createSocket('udp4');
+        beats.on('message', bytes => { // S16LE stereo from airplay/beat-relay.js
+            if (!tempo) return;
+            const mono = new Float32Array(Math.floor(bytes.length / 4));
+            for (let i = 0; i < mono.length; i++) mono[i] = (bytes.readInt16LE(i * 4) + bytes.readInt16LE(i * 4 + 2)) / 65536;
+            tempo.push(mono);
+        });
+        beats.on('error', error => console.warn('[airplay] beat socket:', error.message));
+        beats.bind(BEAT_PORT, '127.0.0.1');
     }
+    // The tempo of what AirPlay is playing, for dancing; a fresh tracker per song.
+    let beats = null, tempo = null;
+    function beatTracker() { return tempo; }
+    events.on('change', () => {
+        const key = state.playing ? state.title + '\n' + state.artist : null;
+        if (key !== tempoKey) { tempoKey = key; tempo = key === null ? null : new Tempo(RATE); }
+    });
+    let tempoKey = null;
 
     // Ask the phone to pause/skip, using the DACP remote it announced for this session. The
     // phone's address is looked up once per session (avahi-browse takes seconds), not per press.
@@ -212,6 +231,6 @@ function create() {
     }
 
     const api = { start: start, state: state, events: events, position: position, control: control, packet: packet, show: show,
-        watchVolume: watchVolume, stop: stop };
+        watchVolume: watchVolume, stop: stop, tempo: beatTracker };
     return api;
 }

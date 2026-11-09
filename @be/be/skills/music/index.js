@@ -3,6 +3,7 @@
 const jibo = require('jibo'), BeSkill = require('@be/be-framework').BeSkill;
 const service = require('./service'), Client = require('./client'), video = require('./video');
 const lifecycle = require('./touch-lifecycle'), UI = require('./ui'), Detector = require('./format'), lyrics = require('./lyrics');
+const Dancer = require('./dance'), Tempo = require('./tempo');
 function launchRequest(result) {
     const entities = result && result.nlu && result.nlu.entities || {};
     const request = { title: typeof entities.query === 'string' ? entities.query.trim().slice(0, 160) : '',
@@ -37,6 +38,7 @@ class MusicSkill extends BeSkill {
             // AirPlay keeps playing on the phone, so touching Jibo doesn't close its player.
             if (!request.airplay) ['touchOn', 'hatchOpen'].forEach(name => this.watch(jibo.system, name));
             this.timer = setInterval(() => this.tick(), 1000);
+            this.dancer = new Dancer(jibo, () => this.state.airplay ? require('./airplay').tempo() : this.tempo || null);
             if (request.airplay) { this.followAirplay(); return; }
             if (!request.title) return;
             try { this.client = new Client(service.settings()); }
@@ -72,7 +74,7 @@ class MusicSkill extends BeSkill {
     startAt(seconds) {
         const generation = this.generation, ticket = this.playTicket = (this.playTicket || 0) + 1;
         const current = () => this.current(generation) && ticket === this.playTicket;
-        const stop = this.session ? this.session.stop('seek') : Promise.resolve(); this.session = null;
+        const stop = this.session ? this.session.stop('seek') : Promise.resolve(); this.session = null; this.untap();
         this.state.phase = 'loading'; this.state.message = 'Getting the song ready…'; this.render();
         if (this.detector) this.detector.reset();
         return stop.then(() => this.client.stream(this.state.song.id, seconds)).then(info => {
@@ -87,6 +89,7 @@ class MusicSkill extends BeSkill {
                 this.state.phase = event.state;
                 this.state.message = { starting: 'Starting music…', buffering: 'Buffering…', paused: 'Paused', ended: 'Song finished' }[event.state] || '';
                 if (event.state !== 'playing') this.detector.reset();
+                if (this.dancer) { if (event.state === 'playing') { this.tap(session); this.dancer.start(); } else this.dancer.stop(); }
                 this.render();
             });
             this.render();
@@ -102,6 +105,7 @@ class MusicSkill extends BeSkill {
             const now = airplay.state;
             if (!now.active) { this.leave(); return; }
             this.state.airplay = true; this.state.format = 'cover'; this.state.phase = now.playing ? 'playing' : 'paused';
+            if (this.dancer) { if (now.playing) this.dancer.start(); else this.dancer.stop(); }
             this.state.device = now.device; // "Now playing from Zane's iPhone"
             this.state.message = now.playing ? 'AirPlay' : 'Paused';
             this.state.song = { title: now.title, artist: now.artist || now.album, duration: now.duration };
@@ -114,6 +118,31 @@ class MusicSkill extends BeSkill {
         };
         airplay.events.on('change', update); this.events.push(() => airplay.events.removeListener('change', update));
         update();
+    }
+    // YouTube Music's tempo, from the element that plays the sound (separate audio, or the video itself). The helper
+    // sends CORS headers, so Web Audio gets the real samples; the sound still goes on to the speaker.
+    tap(session) {
+        const element = session.audio || session.media;
+        if (!element || this.tapped === element) return;
+        this.untap();
+        try {
+            const context = global.beMusicAudio || (global.beMusicAudio = new AudioContext());
+            const source = context.createMediaElementSource(element), processor = context.createScriptProcessor(16384, 2, 1);
+            const tempo = this.tempo = new Tempo(context.sampleRate);
+            processor.onaudioprocess = event => {
+                const input = event.inputBuffer, left = input.getChannelData(0), right = input.numberOfChannels > 1 ? input.getChannelData(1) : left;
+                const mono = new Float32Array(left.length);
+                for (let i = 0; i < mono.length; i++) mono[i] = (left[i] + right[i]) / 2;
+                tempo.push(mono);
+            };
+            source.connect(context.destination); source.connect(processor); processor.connect(context.destination);
+            this.tapped = element;
+            this.untapGraph = () => { processor.onaudioprocess = null; source.disconnect(); processor.disconnect(); };
+        } catch (error) { console.warn('[music] beat tap:', error.message); }
+    }
+    untap() {
+        if (this.untapGraph) { try { this.untapGraph(); } catch (_) {} }
+        this.untapGraph = null; this.tapped = null; this.tempo = null;
     }
     // Where the audio is now, to the fraction of a second (lyrics need better than the 1 s tick).
     livePosition() {
@@ -210,7 +239,8 @@ class MusicSkill extends BeSkill {
             if (!error) { this.view = null; this.ui = null; }
             closing.callbacks.splice(0).forEach(callback => callback(closing.error));
         };
-        Promise.all([attempt(() => video.shutdown()), attempt(() => service.stop()), attempt(() => { if (this.ui) { this.ui.releaseArtwork(); clearTimeout(this.ui.controlsTimer); this.ui.lastState = null; } })]).then(() => {
+        const dancer = this.dancer; this.dancer = null; this.untap();
+        Promise.all([attempt(() => dancer && dancer.stop()), attempt(() => video.shutdown()), attempt(() => service.stop()), attempt(() => { if (this.ui) { this.ui.releaseArtwork(); clearTimeout(this.ui.controlsTimer); this.ui.lastState = null; } })]).then(() => {
             this.session = null; this.canvas = null;
             lifecycle.closeView(jibo.face.views, jibo.face.tween, this.view, require('timers'), 'music', finish);
         }).catch(finish);
