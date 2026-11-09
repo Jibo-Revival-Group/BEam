@@ -207,8 +207,19 @@ function config(buf, name, defaults) {
         if (k === 'backgroundColor' && !/^#[0-9a-f]{6}$/i.test(out[k])) { throw fail('backgroundColor must be #RRGGBB'); }
         if (k === 'menuType' && out[k] !== 'native' && out[k] !== 'dynamic') { throw fail('menuType must be native or dynamic'); }
         if (k === 'buttonColors' && typeof out[k] !== 'boolean') { throw fail('buttonColors must be true or false'); }
+        if (k === 'eyes') { out[k] = eyes(out[k]); }
     });
     return out;
+}
+// Several eyes at once: offsets in screen pixels from the normal eye position; they all move and blink together.
+function eyes(list) {
+    if (!Array.isArray(list) || list.length < 1 || list.length > 8) { throw fail('eyes must be a list of 1 to 8 eye positions'); }
+    return list.map(e => {
+        if (!e || typeof e !== 'object' || Array.isArray(e) || Object.keys(e).some(k => k !== 'x' && k !== 'y')) { throw fail('Each eye must be { "x": number, "y": number }'); }
+        const p = { x: e.x === undefined ? 0 : e.x, y: e.y === undefined ? 0 : e.y };
+        if ([p.x, p.y].some(v => typeof v !== 'number' || !isFinite(v) || Math.abs(v) > 1280)) { throw fail('Eye positions must be numbers from -1280 to 1280'); }
+        return p;
+    });
 }
 function png(buf, name) {
     try {
@@ -290,7 +301,7 @@ function validate(files) {
     if (Object.keys(files).reduce((total, name) => total + files[name].length, 0) > MAX_EXPANDED) { return Promise.reject(fail('Theme exceeds 64 MB expanded')); }
     const m = manifest(files['manifest.json']);
     if (m.type !== 'theme') { throw fail('Custom skill installation is not available yet'); }
-    const face = config(files['face/face.json'], 'face.json', { backgroundColor: '#000000', eyeSize: 100 });
+    const face = config(files['face/face.json'], 'face.json', { backgroundColor: '#000000', eyeSize: 100, eyes: [{ x: 0, y: 0 }] });
     const menu = config(files['menu/menu.json'], 'menu.json', { menuType: 'native', buttonColors: false, backgroundColor: '#000000', buttonSize: 42, iconSize: 70, textSize: 15, iconPlacement: 'x0 y0', textPlacement: 'x0 y-40' });
     const images = {}; let decodedSize = 0;
     const animationAssets = Object.keys(files).filter(n => assetPath(n) && !n.startsWith('icons/'));

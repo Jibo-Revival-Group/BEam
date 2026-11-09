@@ -158,7 +158,11 @@ function hookFace(jibo) {
         const themed = current && current.theme && current.theme.hasFace;
         const custom = themed && (stockEye(dofs.eyeTextureInfixBn_r) || !/\.(png|jpe?g|gif|webp|bmp)$/i.test(dofs.eyeTextureInfixBn_r || ''));
         if (this._beamClosedMesh) { this._beamClosedMesh.visible = !!custom; }
-        if (!result || !custom) { restoreListeningFilters(this); this.scale.set(1, 1); this.eyeMesh.alpha = 1; return result; }
+        if (!result || !custom) {
+            restoreListeningFilters(this); this.scale.set(1, 1); this.eyeMesh.alpha = 1;
+            if (result && themed) { placeEyes(this, current.theme.face.eyes, 1, null); } else { singleEye(this); } // animation eyes on every eye
+            return result;
+        }
         const listening = listeningEye(dofs) ? current.textures['face/eyeListening.png'] : null;
         const open = listening || current.textures['face/eye.png'] || current.textures.stockEye;
         // Texture paths often stay unchanged while only the listening tint changes.
@@ -182,6 +186,7 @@ function hookFace(jibo) {
             const amount = closedAmount(this.eyeMesh.points); this.eyeMesh.alpha = 1 - amount;
             mesh.alpha = amount; mesh.tint = this.eyeMesh.tint;
         } else { this.eyeMesh.alpha = 1; if (this._beamClosedMesh) { this._beamClosedMesh.visible = false; } }
+        placeEyes(this, theme.face.eyes, factor, closed);
         return result;
     };
     const originalBackground = background.display;
@@ -392,6 +397,37 @@ function menuBackground(view) {
         view._stage.addChildAt(bg, 0); view._beamThemeBackground = bg;
     }
 }
+// face.json "eyes": the native eye is drawn at the first position and copies at the rest. Copies reuse the native
+// EyeMesh class and copy its points, texture, tint and blink blend every frame, so all eyes move as one.
+function copyMesh(from, to) {
+    to.texture = from.texture; to.tint = from.tint; to.alpha = from.alpha; to.visible = from.visible;
+    for (let i = 0; i < from.points.length; i++) { to.points[i].copy(from.points[i]); }
+}
+function placeEyes(eye, positions, factor, closedTexture) {
+    const list = positions && positions.length ? positions : [{ x: 0, y: 0 }];
+    const at = p => [p.x / factor, p.y / factor]; // the eye layer is scaled by eyeSize; positions are screen pixels
+    eye.eyeMesh.position.set.apply(eye.eyeMesh.position, at(list[0]));
+    if (eye._beamClosedMesh) { eye._beamClosedMesh.position.set.apply(eye._beamClosedMesh.position, at(list[0])); }
+    const extras = eye._beamExtraEyes || (eye._beamExtraEyes = []);
+    for (let i = 1; i < list.length; i++) {
+        let pair = extras[i - 1];
+        if (!pair) {
+            const Mesh = eye.eyeMesh.constructor;
+            pair = extras[i - 1] = { open: eye.addChild(new Mesh(eye.eyeMesh.texture)), closed: null };
+        }
+        copyMesh(eye.eyeMesh, pair.open); pair.open.position.set.apply(pair.open.position, at(list[i]));
+        if (closedTexture && eye._beamClosedMesh && eye._beamClosedMesh.visible) {
+            if (!pair.closed) { pair.closed = eye.addChild(new eye.eyeMesh.constructor(closedTexture)); }
+            copyMesh(eye._beamClosedMesh, pair.closed); pair.closed.position.set.apply(pair.closed.position, at(list[i]));
+        } else if (pair.closed) { pair.closed.visible = false; }
+    }
+    for (let i = list.length - 1; i < extras.length; i++) { extras[i].open.visible = false; if (extras[i].closed) { extras[i].closed.visible = false; } }
+}
+function singleEye(eye) {
+    eye.eyeMesh.position.set(0, 0);
+    if (eye._beamClosedMesh) { eye._beamClosedMesh.position.set(0, 0); }
+    (eye._beamExtraEyes || []).forEach(pair => { pair.open.visible = false; if (pair.closed) { pair.closed.visible = false; } });
+}
 function refreshFace(jibo) {
     const c = jibo.face.eye; const themed = current && current.theme && current.theme.hasFace;
     restoreListeningFilters(c.eye);
@@ -399,6 +435,7 @@ function refreshFace(jibo) {
     c.background._defaultTexture = nonEyeThemesEnabled() && current.textures['face/background.png'] || current.textures.stockBackground;
     c.eye.reset(); c.background.reset(); c.eye.scale.set(1, 1); c.eye.eyeMesh.alpha = 1;
     if (c.eye._beamClosedMesh) { c.eye._beamClosedMesh.visible = false; }
+    singleEye(c.eye);
     if (c.background._beamSolid) { c.background.removeChild(c.background._beamSolid); c.background._beamSolid.destroy(); c.background._beamSolid = null; }
     c.background.sprite.visible = true;
     if (themed && nonEyeThemesEnabled()) {

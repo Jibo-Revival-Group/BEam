@@ -368,6 +368,27 @@ async function run() {
     c._currentDofValues = dofs(360); c.eye.display(1, c._currentDofValues); c.background.display(1, c._currentDofValues);
     assert.strictEqual(c.eye._beamClosedMesh.alpha, 0.5, 'Recovered eyes still blend during blinking');
     assert.strictEqual(c.background.sprite.width, 1280);
+    // Two eyes: the native eye moves left, a copy sits right; same shape, texture and blink every frame.
+    const pair = Object.assign({}, theme, { face: Object.assign({}, theme.face, { eyeSize: 50, eyes: [{ x: -300, y: 0 }, { x: 300, y: 20 }] }) });
+    await runtime.apply(await runtime.prepare(pair, '/tmp/theme'));
+    for (const h of [720, 360]) {
+        c.eye.display(1, dofs(h));
+        const copy = c.eye._beamExtraEyes[0];
+        assert.strictEqual(c.eye.eyeMesh.position.x, -600, 'Positions are screen pixels, undone by the 50% eye scale');
+        assert.strictEqual(copy.open.position.x, 600); assert.strictEqual(copy.open.position.y, 40);
+        assert.strictEqual(copy.open.texture, c.eye.eyeMesh.texture); assert.strictEqual(copy.open.alpha, h / 720);
+        assert.deepStrictEqual(copy.open.points.map(p => [p.x, p.y]), c.eye.eyeMesh.points.map(p => [p.x, p.y]));
+        assert.strictEqual(copy.closed.alpha, 1 - h / 720, 'The copy blinks with the native eye');
+        assert.strictEqual(c.eye.children.filter(m => m === copy.open).length, 1);
+    }
+    c.eye.display(1, dofs(360)); assert.strictEqual(c.eye._beamExtraEyes.length, 1, 'Copies are made once, not per frame');
+    c.eye.display(1, Object.assign(dofs(0), { eyeTextureInfixBn_r: '/skill/special.png' }));
+    assert.strictEqual(c.eye._beamExtraEyes[0].open.texture.name, 'special-animation', 'Animation eyes appear on every eye');
+    assert.strictEqual(c.eye._beamExtraEyes[0].open.position.x, 300, 'Animation eyes keep stock size, so positions are unscaled');
+    assert.strictEqual(c.eye._beamExtraEyes[0].closed.visible, false);
+    await runtime.apply(await runtime.prepare(theme, '/tmp/theme')); c.eye.display(1, dofs());
+    assert.strictEqual(c.eye._beamExtraEyes[0].open.visible, false, 'A one-eye theme hides the copies');
+    assert.strictEqual(c.eye.eyeMesh.position.x, 0);
     for (const size of [50, 300]) {
         const scaled = Object.assign({}, theme, { face: Object.assign({}, theme.face, { eyeSize: size }) });
         await runtime.apply(await runtime.prepare(scaled, '/tmp/theme')); c.eye.display(1, dofs());

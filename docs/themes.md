@@ -16,7 +16,7 @@ manifest.json
 README.md                 optional store description/details
 banner.png                optional storefront card banner (16:9 recommended)
 face/
-  face.json               optional color and eye scale
+  face.json               optional color, eye scale and eye positions
   eye.png                 optional open eye
   eyeClosed.png           optional closed eye, deformed like the open eye
   eyeListening.png        optional listening eye, displayed in its original colors
@@ -77,6 +77,19 @@ missing closed-eye image uses the open eye. Square eye images give the intended
 1:1 mapping. Background images stretch to fill 1280×720 over the configured
 color. Omitted face files use stock appearance; omitted eye images use the
 stock eye while retaining the supplied scale/background.
+
+### Multiple eyes
+
+`eyes` shows several eyes at once (1 to 8), for example two side by side:
+
+```json
+{ "eyeSize": 60, "eyes": [{ "x": -280, "y": 0 }, { "x": 280, "y": 0 }] }
+```
+
+Each entry is an offset in screen pixels from where the eye normally sits
+(`x` right, `y` down; each from -1280 to 1280, missing values are 0). Every eye
+uses the same images and moves, blinks and changes with animations together.
+Without `eyes` the theme has its usual single eye.
 
 `face/eyeListening.png` replaces the normal eye during the native blue listening
 mode. Its colors bypass the eye tint, lighting and glow filters. Eye movement,

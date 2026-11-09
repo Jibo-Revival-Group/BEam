@@ -50,7 +50,10 @@ async function run() {
     const oversized = fixture.zip(files); oversized.writeUInt32LE(65 * 1024 * 1024, oversized.readUInt32LE(oversized.length - 6) + 24);
     await bad(() => pkg.unzip(oversized));
     await bad(() => pkg.unzip(fixture.zip(Object.assign({}, files, { 'other/manifest.json': files['manifest.json'] }))));
-    for (const face of [{ eyeSize: 0 }, { eyeSize: -1 }, { eyeSize: '100' }, { backgroundColor: 'red' }, { unknown: 1 }]) {
+    const twoEyes = await pkg.validate(Object.assign({}, files, { 'face/face.json': Buffer.from(JSON.stringify({ eyes: [{ x: -300 }, { x: 300, y: 10 }] })) }));
+    assert.deepStrictEqual(twoEyes.face.eyes, [{ x: -300, y: 0 }, { x: 300, y: 10 }]);
+    for (const face of [{ eyeSize: 0 }, { eyeSize: -1 }, { eyeSize: '100' }, { backgroundColor: 'red' }, { unknown: 1 },
+        { eyes: [] }, { eyes: {} }, { eyes: [{ x: '1' }] }, { eyes: [{ x: 0, z: 1 }] }, { eyes: [{ x: 5000 }] }, { eyes: Array(9).fill({}) }]) {
         await bad(() => pkg.validate(Object.assign({}, files, { 'face/face.json': Buffer.from(JSON.stringify(face)) })));
     }
     for (const placement of ['x51 y0', 'x0 y-51', 'x0 x1', 'xNaN y0', 'x0']) {
