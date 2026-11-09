@@ -177,6 +177,24 @@ See [build-and-deploy.md](build-and-deploy.md):
 - `chmod -R a+rX` on deployed paths.
 - Restart Be.
 
+## Microphone and camera
+
+`jibo.media.getUserMedia({ audio: true, video: true })` resolves a standard
+`MediaStream`, for example for a video call:
+
+```js
+jibo.media.getUserMedia({ audio: true, video: true }).then(stream => {
+    const pc = new webkitRTCPeerConnection({ iceServers: [] });
+    pc.addStream(stream); // Chrome 53: addStream, not addTrack
+});
+```
+
+- Audio is the live microphone, in real time. Jibo keeps listening for "Hey Jibo" alongside it.
+- Video is Jibo's right camera, 640x360 at about 7–8 frames per second, without lens correction.
+- Ask for `audio` or `video` alone if you only need one.
+- Stop with `stream.getTracks().forEach(t => t.stop())`; the camera turns off when the video track stops.
+- Privacy mode refuses the camera, and turning it on ends a running video track.
+
 ## Which example to copy?
 
 | Goal | Start from |

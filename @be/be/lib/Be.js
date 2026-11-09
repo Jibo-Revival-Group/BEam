@@ -282,6 +282,7 @@ class Be {
             }
             this.log.info(`loading - boot jibo.init - ${Date.now() - jiboInitStart} MS`);
             this._bootMark('jibo.init done');
+            jibo.media.getUserMedia = constraints => require('./user-media')(jibo, window, constraints);
             window.Module = null;
             this.log.debug('loading log config');
             log_1.loadLogConfig(err => {
