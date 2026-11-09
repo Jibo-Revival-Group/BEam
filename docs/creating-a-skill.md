@@ -190,7 +190,7 @@ jibo.media.getUserMedia({ audio: true, video: true }).then(stream => {
 ```
 
 - Audio is the live microphone, in real time. Jibo keeps listening for "Hey Jibo" alongside it.
-- Video is Jibo's right camera, 640x360 at about 7–8 frames per second, without lens correction.
+- Video is Jibo's right camera, 640x360 at about 6–7 frames per second (measured through WebRTC), without lens correction. That is the most Chrome 53 on Jibo can push through a canvas while the face animates.
 - Ask for `audio` or `video` alone if you only need one.
 - Stop with `stream.getTracks().forEach(t => t.stop())`; the camera turns off when the video track stops.
 - Privacy mode refuses the camera, and turning it on ends a running video track.
