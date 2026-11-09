@@ -2,7 +2,7 @@
 // Dancing to the music (YouTube Music and AirPlay): stock dance loops played at a speed that makes one loop span
 // 1/2/4/8/16 beats of the song, each round starting on a beat. Loops may be slowed to SLOWEST but never sped up past
 // what their animators allowed (meta.speed), which keeps the motors within the motions Jibo was designed for.
-// Like stock Radio's dancing: body DOFs only, attention off while dancing, no 360 spins.
+// Like stock Radio's dancing: one dance per song (then back to normal), body DOFs only, attention off, no 360 spins.
 const FPS = 30, SLOWEST = 0.75, ROUND_MS = 8000, MIN_CONFIDENCE = 0.2;
 
 // Fastest-to-slowest fit of one loop to the tempo: { beats, speed } with speed closest to the animators' 1.
@@ -28,9 +28,10 @@ class Dancer {
         }
         return this.dances;
     }
-    start() {
-        if (this.running) return;
-        this.running = true;
+    // song: any key for the current song; he dances once per song.
+    start(song) {
+        if (this.running || song === this.danced) return;
+        this.running = true; this.song = song;
         const jibo = this.jibo, handle = jibo.expression.pushAttentionMode(jibo.expression.AttentionMode.OFF);
         this.attention = Promise.resolve(handle).catch(() => null);
         this.next();
@@ -54,7 +55,7 @@ class Dancer {
             const entry = Object.create(choice.entry, { meta: { value: Object.assign({}, choice.entry.meta, {
                 speed: [Math.min(choice.entry.meta.speed[0], SLOWEST), Math.max(choice.entry.meta.speed[1], 1)] }) } });
             const dance = this.dance = entry.play({ loops: loops, speed: choice.fit.speed, cache: this.jibo.loader.activeCache, dofs: this.jibo.expression.dofs.BODY });
-            Promise.resolve(dance.result).catch(() => {}).then(() => { if (this.dance === dance) { this.dance = null; this.next(); } });
+            Promise.resolve(dance.result).catch(() => {}).then(() => { if (this.dance === dance) { this.dance = null; this.danced = this.song; this.stop(); } });
         }, wait);
     }
     stop() {

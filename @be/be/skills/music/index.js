@@ -89,7 +89,7 @@ class MusicSkill extends BeSkill {
                 this.state.phase = event.state;
                 this.state.message = { starting: 'Starting music…', buffering: 'Buffering…', paused: 'Paused', ended: 'Song finished' }[event.state] || '';
                 if (event.state !== 'playing') this.detector.reset();
-                if (this.dancer) { if (event.state === 'playing') { this.tap(session); this.dancer.start(); } else this.dancer.stop(); }
+                if (this.dancer) { if (event.state === 'playing') { this.tap(session); this.dancer.start(this.state.song && this.state.song.id); } else this.dancer.stop(); }
                 this.render();
             });
             this.render();
@@ -105,7 +105,7 @@ class MusicSkill extends BeSkill {
             const now = airplay.state;
             if (!now.active) { this.leave(); return; }
             this.state.airplay = true; this.state.format = 'cover'; this.state.phase = now.playing ? 'playing' : 'paused';
-            if (this.dancer) { if (now.playing) this.dancer.start(); else this.dancer.stop(); }
+            if (this.dancer) { if (now.playing) this.dancer.start(now.title + '\n' + now.artist); else this.dancer.stop(); }
             this.state.device = now.device; // "Now playing from Zane's iPhone"
             this.state.message = now.playing ? 'AirPlay' : 'Paused';
             this.state.song = { title: now.title, artist: now.artist || now.album, duration: now.duration };

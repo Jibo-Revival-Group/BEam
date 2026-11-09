@@ -43,30 +43,38 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     let jibo = fakeJibo(), beatAt = Date.now() + 40;
     const tempo = { estimate: () => ({ bpm: 120, confidence: 0.6, beat: beatAt }) };
     let dancer = new Dancer(jibo, () => tempo, () => 0.99);
-    dancer.start(); await wait(1300);
+    dancer.start('song A'); await wait(1300);
     const dances = jibo.log.filter(x => typeof x === 'object');
-    assert(dances.length >= 2, 'dances keep coming');
+    // Like stock Radio: one dance per song, then back to normal (attention restored).
+    assert.strictEqual(dances.length, 1, 'one dance per song, not nonstop');
+    assert.strictEqual(dancer.running, false);
     assert(dances.every(d => d.config.dofs === 'body' && d.config.cache === 'cache'));
     assert(dances.every(d => !/^Slideshow/.test(d.name)), 'slideshow loops are not dances');
     assert(dances.every(d => d.speed === d.config.speed), 'the speed reaches the animation (no SDK clamp)');
     assert(dances.every(d => d.config.speed <= 1.1 + 1e-9), 'never faster than the animators allowed');
     const first = dances[0];
     assert(Math.abs(((first.at - beatAt) % 500 + 500) % 500) < 25 || Math.abs(((first.at - beatAt) % 500 + 500) % 500 - 500) < 25, 'starts on a beat');
-    assert(dances.every(d => d.name === 'Pigeon_01'), 'only Pigeon fits 120 here, and he keeps dancing it');
-    assert.deepStrictEqual(jibo.attention, ['off'], 'attention off while dancing');
-    await dancer.stop();
-    assert.deepStrictEqual(jibo.attention, ['off', 'released']);
+    assert(dances.every(d => d.name === 'Pigeon_01'), 'only Pigeon fits 120 here');
+    assert.deepStrictEqual(jibo.attention, ['off', 'released'], 'attention off while dancing, back after');
     assert(jibo.log.includes('cleanup body'));
-    const count = jibo.log.filter(x => typeof x === 'object').length; await wait(100);
+    dancer.start('song A'); await wait(200);
+    assert.strictEqual(jibo.log.filter(x => typeof x === 'object').length, 1, 'resuming the same song: no second dance');
+    dancer.start('song B'); await wait(1300);
+    assert.strictEqual(jibo.log.filter(x => typeof x === 'object').length, 2, 'the next song gets its dance');
+
+    // Paused mid-dance: stops at once, nothing plays after.
+    jibo = fakeJibo(); dancer = new Dancer(jibo, () => tempo);
+    dancer.start('song C'); await wait(1000); await dancer.stop();
+    const count = jibo.log.filter(x => typeof x === 'object').length; await wait(1100);
     assert.strictEqual(jibo.log.filter(x => typeof x === 'object').length, count, 'nothing plays after stop');
 
     // With several loops fitting (92 BPM), never the same one twice in a row.
     jibo = fakeJibo(); beatAt = Date.now();
     dancer = new Dancer(jibo, () => ({ estimate: () => ({ bpm: 92, confidence: 0.6, beat: beatAt }) }), Math.random);
-    dancer.start(); await wait(3500); await dancer.stop();
+    for (let song = 0; song < 4; song++) { dancer.start(song); await wait(900); }
     const varied = jibo.log.filter(x => typeof x === 'object');
     assert(varied.length >= 3 && new Set(varied.map(d => d.name)).size >= 2);
-    for (let i = 1; i < varied.length; i++) assert.notStrictEqual(varied[i].name, varied[i - 1].name, 'no loop twice in a row');
+    for (let i = 1; i < varied.length; i++) assert.notStrictEqual(varied[i].name, varied[i - 1].name, 'no dance twice in a row');
 
     // No tempo yet, or a beatless track: he waits instead of dancing off the beat.
     for (const estimate of [null, { bpm: 100, confidence: 0.05, beat: Date.now() }]) {
