@@ -195,6 +195,64 @@ jibo.media.getUserMedia({ audio: true, video: true }).then(stream => {
 - Stop with `stream.getTracks().forEach(t => t.stop())`; the camera turns off when the video track stops.
 - Privacy mode refuses the camera, and turning it on ends a running video track.
 
+### Smooth 720p video for calls
+
+`jibo.media.getCameraStream(onData)` gives Jibo's camera at 1280x720, about 25
+frames per second, straight from his hardware encoder as a VP8 WebM byte
+stream (about 1.5 Mbit/s). Jibo doesn't decode or re-encode it, so send the bytes
+over a data channel on the call and play them with MediaSource on the other
+end. Measured through a call to a desktop browser: 24.6 fps, under 0.3 s
+behind live. Keep the mic as a normal audio track from `getUserMedia`.
+
+On Jibo (the answering side):
+
+```js
+jibo.media.getUserMedia({ audio: true }).then(mic => pc.addStream(mic));
+pc.ondatachannel = e => {
+    const channel = e.channel;
+    channel.onopen = () => jibo.media.getCameraStream(bytes => {
+        for (let i = 0; i < bytes.length; i += 16000) {
+            channel.send(new Uint8Array(bytes.slice(i, i + 16000)).buffer); // keep messages small for Chrome 53
+        }
+    }).then(camera => { channel.onclose = camera.stop; });
+};
+```
+
+On the other side (the calling side), create the channel before the offer and
+play what arrives:
+
+```js
+const channel = pc.createDataChannel('camera');
+channel.binaryType = 'arraybuffer';
+const source = new MediaSource();
+video.src = URL.createObjectURL(source);
+source.addEventListener('sourceopen', () => {
+    const buffer = source.addSourceBuffer('video/webm; codecs="vp8"');
+    buffer.mode = 'sequence';
+    const queue = [];
+    const pump = () => { if (!buffer.updating && queue.length) buffer.appendBuffer(queue.shift()); };
+    buffer.addEventListener('updateend', () => {
+        const end = video.buffered.length && video.buffered.end(video.buffered.length - 1);
+        if (end - video.currentTime > 0.5) video.currentTime = end - 0.1; // stay live
+        pump();
+    });
+    channel.onmessage = e => { queue.push(e.data); pump(); };
+});
+```
+
+- One camera stream at a time: a second call, or the Home Assistant camera
+  stream, is refused with "Camera is in use".
+- `stop()` (or privacy mode) ends it; start a new one for each call so the
+  other side receives the WebM header first.
+- Jibo's Chrome 53 can't parse a modern browser's offer as is. Before handing
+  the offer to Jibo, remove `a=extmap-allow-mixed` lines and rewrite the data
+  channel to the old form (`m=application 9 DTLS/SCTP 5000` with
+  `a=sctpmap:5000 webrtc-datachannel 1024`, dropping `a=sctp-port` and
+  `a=max-message-size`). Convert Jibo's answer back to the modern form
+  (`UDP/DTLS/SCTP webrtc-datachannel` with `a=sctp-port:5000`). Keep CRLF line
+  endings, and use real IP candidates: Chrome 53 can't resolve `.local` ones.
+- AirPlay listens on port 5002 because the camera encoder always uses 5000.
+
 ## Which example to copy?
 
 | Goal | Start from |
