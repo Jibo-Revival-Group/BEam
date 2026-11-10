@@ -1,0 +1,10 @@
+{
+  "name": "@be/daisy-bell",
+  "version": "1.0.0",
+  "description": "Jibo sings the chorus of Daisy Bell, as the IBM 7094 did in 1961.",
+  "main": "index.js",
+  "config": { "standalone": true },
+  "jibo": { "main": "index.html", "type": "asset-pack", "display-name": "daisy bell" },
+  "engines": { "node": ">=6.0" },
+  "syncDependencies": ["jibo", "@be/be-framework"]
+}
