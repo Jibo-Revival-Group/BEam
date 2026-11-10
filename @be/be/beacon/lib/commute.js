@@ -1,9 +1,10 @@
 'use strict';
 
 /**
- * Commute addresses: the home address (Etc tab) and each person's job (People tab).
- * The cloud geocodes them with TomTom and keeps them per robot, like calendar feeds;
- * the home address also updates Jibo's local home location (town and coordinates).
+ * Commute addresses (Personal Reports tab): each person's home and work or school.
+ * The cloud geocodes them with TomTom and keeps them per robot, like calendar feeds.
+ * The household home (cloud member "home") is what commutes use for people without
+ * their own home, and it also sets Jibo's local home location (town and coordinates).
  */
 
 const calendars = require('./calendars');
@@ -28,7 +29,7 @@ function list () {
     });
 }
 
-// Adds snapshot.commuteAvailable and member.workAddress to a People snapshot; never fails the page.
+// Adds snapshot.commuteAvailable, member.workAddress and member.homeAddress to a People snapshot; never fails the page.
 function attach (snapshot) {
     if (!snapshot) { return Promise.resolve(snapshot); }
     return Promise.resolve().then(function () {
@@ -38,7 +39,9 @@ function attach (snapshot) {
         (result.addresses || []).forEach(function (item) { byId[String(item.memberId)] = item.address; });
         snapshot.commuteAvailable = result.available === true;
         (snapshot.members || []).forEach(function (member) {
-            if (!member.isJibo) { member.workAddress = byId[String(member.id)] || null; }
+            if (member.isJibo) { return; }
+            member.workAddress = byId[String(member.id)] || null;
+            member.homeAddress = byId[homeKey(member.id)] || null;
         });
         return snapshot;
     }).catch(function () {
@@ -46,6 +49,9 @@ function attach (snapshot) {
         return snapshot;
     });
 }
+
+// The cloud keeps a person's own home under "home:<member id>" (BEefy CommuteAddressRecord.HomeOf).
+function homeKey (memberId) { return 'home:' + String(memberId); }
 
 function homeAddress () {
     return list().then(function (result) {
@@ -82,6 +88,35 @@ function setWork (memberId, address) {
     }).then(function () { return people.list(); });
 }
 
+// A person's home; it also becomes the household home (and Jibo's location) for the owner,
+// or when the household has none yet, so one person's dorm doesn't move Jibo's weather.
+function setPersonHome (memberId, address) {
+    const text = addressText(address);
+    if (!memberId) { return Promise.reject(fail('memberId is required.', 400)); }
+    return people.findMember(memberId).then(function (found) {
+        const member = found.member;
+        if (member.isJibo) { throw fail('The robot does not have a home address of its own.', 400); }
+        const robot = calendars.robotIdFrom(found.snapshot);
+        return calendars.callCloud('GetCommuteAddresses', {}, robot).then(function (result) {
+            const hasHousehold = (result.addresses || []).some(function (item) { return item.memberId === 'home'; });
+            return calendars.callCloud('SetCommuteAddress', {
+                memberId: homeKey(memberId),
+                address: text,
+                memberName: [member.firstName, member.lastName].filter(Boolean).join(' ') || member.writtenName || null
+            }, robot).then(function (saved) {
+                return member.type === 'owner' || !hasHousehold ? setHome(saved.address) : null;
+            });
+        });
+    }).then(function () { return people.list(); });
+}
+
+function clearPersonHome (memberId) {
+    if (!memberId) { return Promise.reject(fail('memberId is required.', 400)); }
+    return people.list().then(function (snapshot) {
+        return calendars.callCloud('ClearCommuteAddress', { memberId: homeKey(memberId) }, calendars.robotIdFrom(snapshot));
+    }).then(function () { return people.list(); });
+}
+
 function clearWork (memberId) {
     if (!memberId) { return Promise.reject(fail('memberId is required.', 400)); }
     return people.list().then(function (snapshot) {
@@ -89,4 +124,7 @@ function clearWork (memberId) {
     }).then(function () { return people.list(); });
 }
 
-module.exports = { attach: attach, homeAddress: homeAddress, setHome: setHome, setWork: setWork, clearWork: clearWork };
+module.exports = {
+    attach: attach, homeAddress: homeAddress, setHome: setHome, setWork: setWork, clearWork: clearWork,
+    setPersonHome: setPersonHome, clearPersonHome: clearPersonHome
+};

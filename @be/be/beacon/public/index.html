@@ -83,6 +83,42 @@
     <input id="people-photo-file" type="file" accept="image/*" hidden>
 </section>
 
+<section class="panel" id="panel-reports">
+    <div class="setting-block">
+        <label class="setting-title" for="reports-person">Person</label>
+        <select id="reports-person" class="reports-person"></select>
+        <p class="hint" id="reports-hint">Choose who these settings are for. Jibo uses them in that person&rsquo;s personal report.</p>
+    </div>
+    <div id="reports-person-settings"></div>
+    <p class="section-header">Jibo&rsquo;s location</p>
+    <p class="hint">
+        Jibo&rsquo;s town and weather follow the owner&rsquo;s home address above. You can also set them from your network.
+    </p>
+    <div class="setting-row">
+        <span class="icon icon-location" aria-hidden="true"></span>
+        <div class="setting-body">
+            <div class="setting-title">Current home</div>
+            <div class="setting-sub" id="location-current-summary">No location set</div>
+        </div>
+    </div>
+    <div class="setting-block">
+        <dl class="kv" id="location-current"></dl>
+        <div class="form-row form-row-centered">
+            <button class="btn btn-primary btn-cta" data-action="detect-location">Find my location</button>
+        </div>
+    </div>
+    <div class="setting-block location-detected" id="location-detected-card" hidden>
+        <div class="location-card-head">
+            <div class="setting-title">Suggested location</div>
+            <button class="btn btn-primary" id="location-apply" data-action="apply-location" disabled>
+                Use this location
+            </button>
+        </div>
+        <dl class="kv" id="location-detected"></dl>
+        <p class="hint location-note" id="location-note"></p>
+    </div>
+</section>
+
 <section class="panel" id="panel-store">
     <div class="store-topbar">
         <h2>Store</h2>
@@ -201,46 +237,6 @@
         </div>
     </div>
 
-    <p class="section-header">Location</p>
-    <p class="hint">
-        Set where Jibo thinks home is, so weather and local info match your area.
-    </p>
-    <div class="setting-row">
-        <span class="icon icon-location" aria-hidden="true"></span>
-        <div class="setting-body">
-            <div class="setting-title">Current home</div>
-            <div class="setting-sub" id="location-current-summary">No location set</div>
-        </div>
-    </div>
-    <div class="setting-block">
-        <dl class="kv" id="location-current"></dl>
-        <div class="form-row form-row-centered">
-            <button class="btn btn-primary btn-cta" data-action="detect-location">Find my location</button>
-        </div>
-        <div class="location-city">
-            <label class="location-city-label" for="location-city-input">
-                Home address
-            </label>
-            <div class="location-city-row">
-                <input id="location-city-input" type="text" placeholder="Street, town (e.g. 1 Main St, Boston)"
-                    autocomplete="street-address" spellcheck="false">
-                <button class="btn btn-primary" data-action="save-location-city">Save</button>
-            </div>
-            <p class="hint" id="location-city-hint">
-                Used for commute times, and sets Jibo's town and weather location.
-            </p>
-        </div>
-    </div>
-    <div class="setting-block location-detected" id="location-detected-card" hidden>
-        <div class="location-card-head">
-            <div class="setting-title">Suggested location</div>
-            <button class="btn btn-primary" id="location-apply" data-action="apply-location" disabled>
-                Use this location
-            </button>
-        </div>
-        <dl class="kv" id="location-detected"></dl>
-        <p class="hint location-note" id="location-note"></p>
-    </div>
 </section>
 
 <section class="panel" id="panel-server">
@@ -287,6 +283,10 @@
     <button class="tab" data-panel="people">
         <span class="icon icon-sm icon-people" aria-hidden="true"></span>
         <span>People</span>
+    </button>
+    <button class="tab" data-panel="reports">
+        <span class="icon icon-sm icon-reports" aria-hidden="true"></span>
+        <span>Reports</span>
     </button>
     <button class="tab" data-panel="store">
         <span class="icon icon-sm icon-store" aria-hidden="true"></span><span>Store</span>

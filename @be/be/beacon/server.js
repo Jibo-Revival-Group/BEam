@@ -30,6 +30,7 @@ const units = require('./lib/units');
 const people = require('./lib/people');
 const calendars = require('./lib/calendars');
 const commute = require('./lib/commute');
+const newsTopics = require('./lib/news-topics');
 const screen = require('./lib/screen');
 const setup = require('./lib/setup');
 const orchestra = require('./lib/orchestra');
@@ -88,6 +89,7 @@ function sendPeople (res, snapshotPromise) {
     return Promise.resolve(snapshotPromise)
         .then((data) => calendars.attachStatus(data))
         .then((data) => commute.attach(data))
+        .then((data) => newsTopics.attach(data))
         .then((data) => u.sendJson(res, 200, data));
 }
 
@@ -278,6 +280,18 @@ const routes = {
 
     'DELETE /api/people/work': guard((req, res, query) => {
         return sendPeople(res, commute.clearWork(query && query.id));
+    }),
+
+    'PUT /api/people/home': guard((req, res) => {
+        return u.readJson(req).then((body) => sendPeople(res, commute.setPersonHome(body && body.id, body && body.address)));
+    }),
+
+    'DELETE /api/people/home': guard((req, res, query) => {
+        return sendPeople(res, commute.clearPersonHome(query && query.id));
+    }),
+
+    'PUT /api/people/news': guard((req, res) => {
+        return u.readJson(req).then((body) => sendPeople(res, newsTopics.set(body && body.id, body && body.disabledTopics)));
     }),
 
     'POST /api/location/detect': guard((req, res) => {

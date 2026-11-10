@@ -29,7 +29,7 @@ class Node {
     appendChild(child) { this.children.push(child); return child; }
     setAttribute(name, value) { this.attrs[name] = value; }
 }
-const nodes = { '#people-sync': new Node('p'), '#people-list': new Node('div') };
+const nodes = { '#people-sync': new Node('p'), '#people-list': new Node('div'), '#reports-person': new Node('select'), '#reports-person-settings': new Node('div') };
 const document = { createElement: tag => new Node(tag), createTextNode: text => { const n = new Node('#text'); n.textContent = text; return n; } };
 const el = (tag, css, text) => { const n = new Node(tag); n.className = css; if (text !== undefined) n.textContent = text; return n; };
 const app = fs.readFileSync(path.join(beacon, 'public/app.js'), 'utf8');
@@ -41,13 +41,20 @@ function assertEditable(data, calendarVisible) {
     assert(elements.some(n => n.className === 'people-first'), 'Local name editor remains available');
     assert(elements.some(n => n.attrs['data-action'] === 'save-person'));
     assert(elements.some(n => n.attrs['data-action'] === 'remove-person'));
-    assert.strictEqual(elements.some(n => n.className === 'people-calendar'), calendarVisible);
+    assert(!elements.some(n => n.className === 'people-calendar'), 'Calendar and addresses moved to the Personal Reports tab');
+    // Personal Reports tab: the person picked at the top (the only person here), then their settings.
+    assert.deepStrictEqual(nodes['#reports-person'].children.map(o => [o.value, o.selected]), [['person', true]]);
+    const reports = all(nodes['#reports-person-settings']);
+    assert.strictEqual(reports.some(n => n.className === 'people-calendar'), calendarVisible);
     if (calendarVisible) {
-        assert(elements.some(n => n.className === 'people-calendar-url'), 'Calendar feed URL is editable');
-        assert(elements.some(n => n.attrs['data-action'] === 'save-calendar'), 'Save calendar stays available');
-        assert(elements.some(n => n.attrs['data-action'] === 'test-calendar'), 'Test calendar stays available');
+        assert(reports.some(n => n.className === 'people-calendar-url'), 'Calendar feed URL is editable');
+        assert(reports.some(n => n.attrs['data-action'] === 'save-calendar'), 'Save calendar stays available');
+        assert(reports.some(n => n.attrs['data-action'] === 'test-calendar'), 'Test calendar stays available');
+        assert(reports.some(n => n.attrs['data-action'] === 'save-work'), 'Work or school address');
+        assert(reports.some(n => n.attrs['data-action'] === 'save-home'), 'Home address');
+        assert(reports.some(n => n.attrs['data-action'] === 'save-news') === !!data.newsTopics, 'News topics when the cloud lists them');
     }
-    if (data.calendarAvailable !== true) assert(nodes['#people-list'].textContent.includes('Calendar connection unavailable.'), 'Cloud outage is explained without hiding the feed field');
+    if (data.calendarAvailable !== true) assert(nodes['#reports-person-settings'].textContent.includes('Calendar connection unavailable.'), 'Cloud outage is explained without hiding the feed field');
     assert(!nodes['#people-sync'].textContent.includes('cloud credentials'));
     assert(!nodes['#people-list'].textContent.includes('cloud credentials'));
 }
@@ -68,6 +75,20 @@ async function run() {
         (message, kind) => { assert.notStrictEqual(kind, 'error', message); }, () => {});
     await saveCalendar({ getAttribute: () => 'person' });
     assert.deepStrictEqual(saves, [{ method: 'PUT', route: '/api/people/calendar', body: { id: 'person', icalUrl: feedUrl, isEnabled: true } }]);
+    // News topics: every topic starts on; the ones a person turned off show unchecked.
+    const withTopics = Object.assign(snapshot(), { calendarAvailable: true, newsTopics: ['general', 'sports', 'health'] });
+    withTopics.members[0].disabledNewsTopics = ['sports'];
+    assertEditable(withTopics, true);
+    const topicBoxes = all(nodes['#reports-person-settings']).filter(n => n.className === 'news-topic');
+    assert.deepStrictEqual(topicBoxes.map(n => [n.value, n.checked]), [['general', true], ['sports', false], ['health', true]]);
+    assert(nodes['#reports-person-settings'].textContent.includes('Top Stories'), 'topics show their names');
+    const saveNews = new Function('document', 'api', 'toast', 'renderPeople',
+        'return ({' + app.slice(app.indexOf("        'save-news': function"), app.indexOf("        'clear-calendar': function")) + '})["save-news"];')(
+        { querySelectorAll: () => [{ value: 'general', checked: false }, { value: 'sports', checked: true }, { value: 'health', checked: false }] },
+        (method, route, body) => { saves.push({ method, route, body }); return Promise.resolve(snapshot()); },
+        (message, kind) => { assert.notStrictEqual(kind, 'error', message); }, () => {});
+    await saveNews({ getAttribute: () => 'person' });
+    assert.deepStrictEqual(saves[1], { method: 'PUT', route: '/api/people/news', body: { id: 'person', disabledTopics: ['general', 'health'] } });
     for (credentials of [null, 'invalid JSON', '{}']) {
         const result = await calendars.attachStatus(snapshot());
         assert.strictEqual(result.calendarAvailable, false); assertEditable(result, true);

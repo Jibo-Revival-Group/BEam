@@ -344,11 +344,6 @@
         var summary = $('#location-current-summary');
         if (summary) { summary.textContent = locationSummary(state.location.current); }
 
-        var cityInput = $('#location-city-input');
-        if (cityInput && document.activeElement !== cityInput) {
-            cityInput.value = state.location.homeAddress || '';
-        }
-
         var card = $('#location-detected-card');
         var apply = $('#location-apply');
         var hasDetected = !!state.location.detected;
@@ -364,7 +359,6 @@
     function loadLocation () {
         return api('GET', '/api/location').then(function (data) {
             state.location.current = data.location || null;
-            state.location.homeAddress = data.homeAddress || null;
             renderLocation();
             return data;
         });
@@ -405,32 +399,6 @@
             }).catch(function (err) {
                 renderLocation();
                 reportError(err);
-            });
-    }
-
-    function saveLocationCity () {
-        var input = $('#location-city-input');
-        var address = input ? String(input.value || '').trim() : '';
-        if (!address) {
-            toast('Enter your home address.', 'error');
-            return null;
-        }
-        var button = $('[data-action="save-location-city"]');
-        if (button) { button.disabled = true; }
-        toast('Looking up the address…');
-        return api('PUT', '/api/location/address', { address: address })
-            .then(function (data) {
-                state.location.current = data.location || state.location.current;
-                state.location.homeAddress = data.address || address;
-                if (input) { input.blur(); }
-                renderLocation();
-                toast('Home address saved.', 'ok');
-                return data;
-            }).catch(function (err) {
-                reportError(err);
-            }).then(function (data) {
-                if (button) { button.disabled = false; }
-                return data;
             });
     }
 
@@ -476,7 +444,7 @@
     }
 
     function loadEtc () {
-        return Promise.all([loadLocation(), loadUnits(), loadCameraStreamSetting(), loadJiboSync(), window.BEaconAgent ? window.BEaconAgent.load() : Promise.resolve()]);
+        return Promise.all([loadUnits(), loadCameraStreamSetting(), loadJiboSync(), window.BEaconAgent ? window.BEaconAgent.load() : Promise.resolve()]);
     }
 
     var jiboSyncTimer = null;
@@ -551,6 +519,7 @@
     });
 
     function renderPeople (data) {
+        renderReports(data);
         var sync = $('#people-sync');
         var list = $('#people-list');
         if (!data) {
@@ -716,8 +685,6 @@
                     actionsRow.appendChild(remove);
                 }
                 card.appendChild(actionsRow);
-                card.appendChild(renderPersonCalendar(member, data));
-                card.appendChild(renderPersonWork(member, data));
             }
 
             list.appendChild(card);
@@ -787,9 +754,9 @@
 
     function renderPersonWork (member, data) {
         var block = el('div', 'people-calendar');
-        block.appendChild(el('p', 'setting-title', 'Work address'));
+        block.appendChild(el('p', 'setting-title', 'Work or school address'));
         block.appendChild(el('p', 'hint', data && data.commuteAvailable
-            ? 'Where this person works, for live commute times in their personal report.'
+            ? 'Where this person works or goes to school, for live commute times in their personal report.'
             : 'Commute times aren\'t available right now.'));
         var row = el('div', 'setting-row');
         var input = document.createElement('input');
@@ -814,6 +781,108 @@
         }
         block.appendChild(actions);
         return block;
+    }
+
+    function renderPersonHome (member, data) {
+        var block = el('div', 'people-calendar');
+        block.appendChild(el('p', 'setting-title', 'Home address'));
+        block.appendChild(el('p', 'hint', data && data.commuteAvailable
+            ? 'Where this person lives; their commute starts here. The owner\'s home also sets Jibo\'s town and weather.'
+            : 'Commute times aren\'t available right now.'));
+        var row = el('div', 'setting-row');
+        var input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'people-calendar-url people-home-address';
+        input.placeholder = 'Street, town (e.g. 1 Main St, Boston)';
+        input.value = member.homeAddress || '';
+        input.setAttribute('data-member-id', member.id);
+        input.setAttribute('autocomplete', 'street-address');
+        row.appendChild(input);
+        block.appendChild(row);
+        var actions = el('div', 'setting-row people-actions-row');
+        var save = el('button', 'btn btn-primary', 'Save address');
+        save.setAttribute('data-action', 'save-home');
+        save.setAttribute('data-member-id', member.id);
+        actions.appendChild(save);
+        if (member.homeAddress) {
+            var clear = el('button', 'btn', 'Clear');
+            clear.setAttribute('data-action', 'clear-home');
+            clear.setAttribute('data-member-id', member.id);
+            actions.appendChild(clear);
+        }
+        block.appendChild(actions);
+        return block;
+    }
+
+    var NEWS_TOPIC_NAMES = {
+        general: 'Top Stories', world: 'World', nation: 'U.S.', business: 'Business', technology: 'Technology',
+        entertainment: 'Entertainment', science: 'Science', sports: 'Sports', health: 'Health'
+    };
+
+    function renderPersonNews (member, data) {
+        var block = el('div', 'people-calendar');
+        block.appendChild(el('p', 'setting-title', 'News topics'));
+        if (!data || !data.newsTopics) {
+            block.appendChild(el('p', 'hint', 'News topics aren\'t available right now.'));
+            return block;
+        }
+        block.appendChild(el('p', 'hint',
+            'Topics Jibo reads when this person asks for the news. With more than five on, he picks five each time.'));
+        var list = el('div', 'news-topics');
+        data.newsTopics.forEach(function (topic) {
+            var label = el('label', 'unit-choice');
+            var box = document.createElement('input');
+            box.type = 'checkbox';
+            box.className = 'news-topic';
+            box.value = topic;
+            box.checked = (member.disabledNewsTopics || []).indexOf(topic) === -1;
+            box.setAttribute('data-member-id', member.id);
+            label.appendChild(box);
+            label.appendChild(document.createTextNode(NEWS_TOPIC_NAMES[topic] || topic));
+            list.appendChild(label);
+        });
+        block.appendChild(list);
+        var actions = el('div', 'setting-row people-actions-row');
+        var save = el('button', 'btn btn-primary', 'Save topics');
+        save.setAttribute('data-action', 'save-news');
+        save.setAttribute('data-member-id', member.id);
+        actions.appendChild(save);
+        block.appendChild(actions);
+        return block;
+    }
+
+    // Personal Reports tab: one person at a time, chosen at the top (the owner first).
+    var reportsPersonId = null, reportsData = null;
+    function renderReports (data) {
+        var select = $('#reports-person');
+        var box = $('#reports-person-settings');
+        if (!select || !box) { return; }
+        reportsData = data;
+        var members = ((data && data.members) || []).filter(function (member) { return !member.isJibo; });
+        if (!members.some(function (member) { return member.id === reportsPersonId; })) {
+            var owner = members.filter(function (member) { return member.type === 'owner'; })[0];
+            reportsPersonId = (owner || members[0] || {}).id || null;
+        }
+        select.innerHTML = '';
+        members.forEach(function (member) {
+            var option = document.createElement('option');
+            option.value = member.id;
+            option.textContent = member.writtenName || member.firstName || member.id;
+            option.selected = member.id === reportsPersonId;
+            select.appendChild(option);
+        });
+        box.innerHTML = '';
+        var person = members.filter(function (member) { return member.id === reportsPersonId; })[0];
+        if (!person) {
+            box.appendChild(el('p', 'hint', data ? 'Add someone in the People tab first.' : 'Loop roster unavailable.'));
+            return;
+        }
+        var card = el('div', 'card people-card');
+        card.appendChild(renderPersonCalendar(person, data));
+        card.appendChild(renderPersonWork(person, data));
+        card.appendChild(renderPersonHome(person, data));
+        card.appendChild(renderPersonNews(person, data));
+        box.appendChild(card);
     }
 
     function loadPeople () {
@@ -1184,6 +1253,10 @@
             title: 'People',
             actions: [{ action: 'refresh-people', label: 'Refresh' }]
         },
+        reports: {
+            title: 'Personal Reports',
+            actions: [{ action: 'refresh-reports', label: 'Refresh' }]
+        },
         store: { title: 'Store', actions: [{ action: 'refresh-store', label: 'Refresh' }] },
         etc: {
             title: 'More',
@@ -1201,6 +1274,7 @@
         screen: loadScreen,
         photos: loadPhotos,
         people: loadPeople,
+        reports: function () { return Promise.all([loadPeople(), loadLocation()]); },
         store: themeUI.loadStore,
         menu: menuUI.load,
         etc: loadEtc,
@@ -1254,14 +1328,14 @@
         'refresh-photos': loadPhotos,
         'refresh-people': loadPeople,
         'refresh-store': function () { return themeUI.refreshStore(); },
-        'refresh-location': loadEtc,
+        'refresh-location': loadLocation,
+        'refresh-reports': function () { return loaders.reports(); },
         'refresh-etc': loadEtc,
         'refresh-server': loadServer,
         'save-hub': saveHub,
         'save-endpoint': saveEndpoint,
         'detect-location': detectLocation,
         'apply-location': applyLocation,
-        'save-location-city': saveLocationCity,
         'save-units': saveUnits,
         'add-person': function () {
             var first = $('#people-new-first');
@@ -1388,6 +1462,40 @@
                 renderPeople(data);
             });
         },
+        'save-home': function (button) {
+            var memberId = button && button.getAttribute('data-member-id');
+            var input = document.querySelector('.people-home-address[data-member-id="' + memberId + '"]');
+            var address = input ? input.value.trim() : '';
+            if (!memberId || !address) { toast('Enter a home address.', 'error'); return; }
+            toast('Looking up the address…');
+            return api('PUT', '/api/people/home', { id: memberId, address: address }).then(function (data) {
+                toast('Home address saved.', 'ok');
+                renderPeople(data);
+                return loadLocation();
+            });
+        },
+        'clear-home': function (button) {
+            var memberId = button && button.getAttribute('data-member-id');
+            if (!memberId || !confirm('Remove this home address?')) { return; }
+            return api('DELETE', '/api/people/home?id=' + encodeURIComponent(memberId)).then(function (data) {
+                toast('Home address removed.', 'ok');
+                renderPeople(data);
+            });
+        },
+        'save-news': function (button) {
+            var memberId = button && button.getAttribute('data-member-id');
+            if (!memberId) { return; }
+            var boxes = document.querySelectorAll('.news-topic[data-member-id="' + memberId + '"]');
+            var disabled = [];
+            for (var i = 0; i < boxes.length; i++) {
+                if (!boxes[i].checked) { disabled.push(boxes[i].value); }
+            }
+            if (boxes.length && disabled.length === boxes.length) { toast('Leave at least one topic on.', 'error'); return; }
+            return api('PUT', '/api/people/news', { id: memberId, disabledTopics: disabled }).then(function (data) {
+                toast('News topics saved.', 'ok');
+                renderPeople(data);
+            });
+        },
         'clear-calendar': function (button) {
             var memberId = button && button.getAttribute('data-member-id');
             if (!memberId) { return; }
@@ -1480,16 +1588,10 @@
 
     bindScreenInput();
 
-    var cityInput = $('#location-city-input');
-    if (cityInput) {
-        cityInput.addEventListener('keydown', function (event) {
-            var key = event.key || event.keyCode;
-            if (key === 'Enter' || key === 13) {
-                event.preventDefault();
-                saveLocationCity();
-            }
-        });
-    }
+    $('#reports-person').addEventListener('change', function (event) {
+        reportsPersonId = event.target.value;
+        renderReports(reportsData);
+    });
 
     document.addEventListener('visibilitychange', function () {
         if (state.panel !== 'screen') { return; }
