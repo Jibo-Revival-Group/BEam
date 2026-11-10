@@ -444,7 +444,7 @@
     }
 
     function loadEtc () {
-        return Promise.all([loadUnits(), loadCameraStreamSetting(), loadAutoUpdate(), loadJiboSync(), window.BEaconAgent ? window.BEaconAgent.load() : Promise.resolve()]);
+        return Promise.all([loadCameraStreamSetting(), loadAutoUpdate(), loadJiboSync(), window.BEaconAgent ? window.BEaconAgent.load() : Promise.resolve()]);
     }
 
     var jiboSyncTimer = null;
@@ -1296,7 +1296,7 @@
         screen: loadScreen,
         photos: loadPhotos,
         people: loadPeople,
-        reports: function () { return Promise.all([loadPeople(), loadLocation()]); },
+        reports: function () { return Promise.all([loadPeople(), loadLocation(), loadUnits()]); },
         store: themeUI.loadStore,
         menu: menuUI.load,
         etc: loadEtc,

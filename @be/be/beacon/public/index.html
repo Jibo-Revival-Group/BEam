@@ -117,6 +117,24 @@
         <dl class="kv" id="location-detected"></dl>
         <p class="hint location-note" id="location-note"></p>
     </div>
+    <p class="section-header">Weather</p>
+    <div class="setting-row">
+        <span class="icon icon-weather" aria-hidden="true"></span>
+        <div class="setting-body">
+            <div class="setting-title">Temperature units</div>
+            <div class="setting-sub">Change the unit Jibo uses when saying the weather.</div>
+        </div>
+    </div>
+    <div class="setting-block">
+        <div class="store-switch settings-switch" id="units-choices" role="radiogroup" aria-label="Temperature units">
+            <span class="store-switch-slider" aria-hidden="true"></span>
+            <button class="store-switch-tab" type="button" role="radio" data-value="fahrenheit" aria-checked="true">Fahrenheit (&deg;F)</button>
+            <button class="store-switch-tab" type="button" role="radio" data-value="celsius" aria-checked="false">Celsius (&deg;C)</button>
+        </div>
+        <div class="form-row form-row-centered">
+            <button class="btn btn-primary btn-cta" data-action="save-units">Save</button>
+        </div>
+    </div>
 </section>
 
 <section class="panel" id="panel-store">
@@ -226,24 +244,6 @@
         </label>
         <p class="hint">Allow Home Assistant to start camera streaming. Turning this off stops any active stream.</p>
         <p class="hint" id="camera-stream-setting-status" role="status"></p>
-    </div>
-    <p class="section-header">Weather</p>
-    <div class="setting-row">
-        <span class="icon icon-weather" aria-hidden="true"></span>
-        <div class="setting-body">
-            <div class="setting-title">Temperature units</div>
-            <div class="setting-sub">Change the unit Jibo uses when saying the weather.</div>
-        </div>
-    </div>
-    <div class="setting-block">
-        <div class="store-switch settings-switch" id="units-choices" role="radiogroup" aria-label="Temperature units">
-            <span class="store-switch-slider" aria-hidden="true"></span>
-            <button class="store-switch-tab" type="button" role="radio" data-value="fahrenheit" aria-checked="true">Fahrenheit (&deg;F)</button>
-            <button class="store-switch-tab" type="button" role="radio" data-value="celsius" aria-checked="false">Celsius (&deg;C)</button>
-        </div>
-        <div class="form-row form-row-centered">
-            <button class="btn btn-primary btn-cta" data-action="save-units">Save</button>
-        </div>
     </div>
 
 </section>
