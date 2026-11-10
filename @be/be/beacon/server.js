@@ -122,6 +122,10 @@ const routes = {
         return u.readJson(req, 4096).then(body => cameraController.configure(body && body.enabled))
             .then(data => u.sendJson(res, 200, data));
     }),
+    'GET /api/auto-update': guard((req, res) => { u.sendJson(res, 200, { enabled: require('./lib/auto-update').get() }); }),
+    'POST /api/auto-update': guard((req, res) => {
+        return u.readJson(req, 4096).then(body => u.sendJson(res, 200, { enabled: require('./lib/auto-update').set(body && body.enabled) }));
+    }),
     'GET /api/battery': guard(battery.status),
     'POST /api/phone-battery': guard((req, res) => u.readJson(req).then(body => {
         const reading = phoneBattery.save(body);

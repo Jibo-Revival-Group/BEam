@@ -126,7 +126,10 @@ function start (options, callback) {
         const githubAuth = require('./lib/github-auth');
         const refreshStore = () => {
             if (!githubAuth.token()) { return; }
-            themes.refresh(null, true).catch(err => warn('background store refresh:', err && err.message));
+            themes.refresh(null, true).catch(err => warn('background store refresh:', err && err.message))
+                .then(() => require('./lib/auto-update').run())
+                .then(updated => { if (updated && updated.length) { log('updated automatically:', updated.join(', ')); } })
+                .catch(err => warn('automatic updates:', err && err.message));
         };
         setTimeout(refreshStore, 2 * 60 * 1000);
         setInterval(refreshStore, themes.REFRESH_MS);

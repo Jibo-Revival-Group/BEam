@@ -444,7 +444,7 @@
     }
 
     function loadEtc () {
-        return Promise.all([loadUnits(), loadCameraStreamSetting(), loadJiboSync(), window.BEaconAgent ? window.BEaconAgent.load() : Promise.resolve()]);
+        return Promise.all([loadUnits(), loadCameraStreamSetting(), loadAutoUpdate(), loadJiboSync(), window.BEaconAgent ? window.BEaconAgent.load() : Promise.resolve()]);
     }
 
     var jiboSyncTimer = null;
@@ -491,6 +491,28 @@
             $('#jibosync-now').disabled = false;
             reportError(error);
         });
+    });
+
+    function loadAutoUpdate () {
+        return api('GET', '/api/auto-update').then(function (data) {
+            var input = $('#auto-update-enabled');
+            input.checked = data.enabled === true;
+            input.disabled = false;
+        });
+    }
+
+    $('#auto-update-enabled').addEventListener('change', function () {
+        var input = this;
+        var previous = !input.checked;
+        input.disabled = true;
+        api('POST', '/api/auto-update', { enabled: input.checked }).then(function (data) {
+            input.checked = data.enabled === true;
+            $('#auto-update-status').textContent = 'Saved.';
+        }).catch(function (error) {
+            input.checked = previous;
+            $('#auto-update-status').textContent = error.message;
+            reportError(error);
+        }).then(function () { input.disabled = false; });
     });
 
     function loadCameraStreamSetting () {
