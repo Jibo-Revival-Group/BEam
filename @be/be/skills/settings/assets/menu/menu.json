@@ -92,6 +92,18 @@
                 }
             },
             {
+                "id": "moreSettings",
+                "label": "More Settings",
+                "iconSrc": "assets/menu/icons/more.png",
+                "action": {
+                    "type": "event",
+                    "data": {
+                        "event": "press",
+                        "intent": "moreSettings"
+                    }
+                }
+            },
+            {
                 "id": "shutdown",
                 "label": "Shut down",
                 "iconSrc": "assets/menu/icons/shutdown.png",

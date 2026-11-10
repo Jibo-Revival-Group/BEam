@@ -899,6 +899,44 @@ class StorageSkill extends SubSkill_1.default {
         super.destroy();
     }
 }
+// Settings › More Settings: where to find BEacon (robot's own address) plus a QR code for the portal.
+class MoreSettingsSkill extends SubSkill_1.default {
+    constructor(skill, intent, onClose) {
+        super(skill, intent, onClose);
+        this.view = jibo.face.views.createView('View', 'assets/more/moreView.json');
+        this.view.on(jibo.face.views.LOADED, (view) => {
+            view.getComponentById('address').text = MoreSettingsSkill.address() || 'this robot\'s IP address';
+        });
+        this.view.once(jibo.face.views.CLOSED, this.destroyThenClose);
+        jibo.face.views.addView(this.view);
+        this.timeout = setTimeout(() => this.stopAndDestroy(this.onClose), STORAGE_TIMEOUT);
+    }
+    static address() {
+        const ifaces = require('os').networkInterfaces();
+        const names = Object.keys(ifaces).sort((a, b) => (b === 'wlan0') - (a === 'wlan0'));
+        for (const name of names) {
+            const found = (ifaces[name] || []).filter((addr) => addr.family === 'IPv4' && !addr.internal)[0];
+            if (found) { return found.address; }
+        }
+        return null;
+    }
+    stopAndDestroy(done) {
+        if (this.view) { this.view.removeListener(jibo.face.views.CLOSED, this.destroyThenClose); }
+        jibo.face.views.changeView({ removeAll: true, leaveEmpty: true }, () => {
+            this.destroy();
+            done();
+        }, () => {
+            this.destroy();
+            done('more settings view close failed');
+        });
+    }
+    destroy() {
+        clearTimeout(this.timeout);
+        this.timeout = null;
+        this.view = null;
+        super.destroy();
+    }
+}
 class Settings extends be_framework_1.BeSkill {
     constructor(assetPack) {
         super(assetPack);
@@ -908,6 +946,7 @@ class Settings extends be_framework_1.BeSkill {
             privacy: { Class: PrivacySkill },
             error: { Class: ErrorSkill_1.default, uninterruptible: true, refreshable: true },
             menu: { Class: MenuSkill_1.default },
+            moreSettings: { Class: MoreSettingsSkill },
             shutDown: { Class: ShutdownSkill_1.default },
             shutdownAnimation: { Class: ShutdownAnimationSkill_1.default, uninterruptible: true },
             storage: { Class: StorageSkill },

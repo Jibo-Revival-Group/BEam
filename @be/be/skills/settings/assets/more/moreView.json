@@ -1,0 +1,12 @@
+{
+  "viewConfig": {"type": "View", "id": "moreSettingsView"},
+  "componentConfigs": [
+    {"id": "title", "type": "Label", "text": "More Settings", "style": {"fontSize": "80", "fontFamily": "Proxima Nova Soft", "fontWeight": "bold", "fill": "#FFFFFF"}, "position": {"x": "640", "y": "40"}, "targetAnchor": {"x": "0.5", "y": "0"}},
+    {"id": "goTo", "type": "Label", "text": "Go to", "style": {"fontSize": "45", "fontFamily": "Proxima Nova Light", "fill": "#BBC6CA"}, "position": {"x": "90", "y": "230"}},
+    {"id": "portal", "type": "Label", "text": "https://portal.5x1.com", "style": {"fontSize": "52", "fontFamily": "Proxima Nova Soft", "fontWeight": "bold", "fill": "#FFFFFF"}, "position": {"x": "90", "y": "290"}},
+    {"id": "typeIn", "type": "Label", "text": "and type in", "style": {"fontSize": "45", "fontFamily": "Proxima Nova Light", "fill": "#BBC6CA"}, "position": {"x": "90", "y": "390"}},
+    {"id": "address", "type": "Label", "text": "", "style": {"fontSize": "52", "fontFamily": "Proxima Nova Soft", "fontWeight": "bold", "fill": "#FFFFFF"}, "position": {"x": "90", "y": "450"}},
+    {"id": "app", "type": "Label", "text": "Or use the BEep app on your phone instead.", "style": {"fontSize": "40", "fontFamily": "Proxima Nova Light", "fill": "#BBC6CA"}, "position": {"x": "90", "y": "580"}},
+    {"id": "qr", "type": "Clip", "assets": [{"id": "portalQr", "src": "assets/more/portalQr.png", "type": "texture"}], "position": {"x": "830", "y": "200"}}
+  ]
+}
