@@ -728,7 +728,7 @@
 
     function renderPersonCalendar (member, data) {
         var block = el('div', 'people-calendar');
-        block.appendChild(el('p', 'setting-title', 'Personal calendar'));
+        block.appendChild(el('p', 'setting-title', 'iCal URL'));
         block.appendChild(el('p', 'hint',
             'Private iCal URL for this person\'s personal report. A Google secret ICS address is a normal https link. The saved link is not shown again.'));
         block.appendChild(el('p', 'hint people-calendar-status', calendarStatusText(member, data)));
@@ -843,7 +843,7 @@
 
     function renderPersonNews (member, data) {
         var block = el('div', 'people-calendar');
-        block.appendChild(el('p', 'setting-title', 'News topics'));
+        block.appendChild(el('p', 'setting-title', 'Topics'));
         if (!data || !data.newsTopics) {
             block.appendChild(el('p', 'hint', 'News topics aren\'t available right now.'));
             return block;
@@ -899,12 +899,12 @@
             box.appendChild(el('p', 'hint', data ? 'Add someone in the People tab first.' : 'Loop roster unavailable.'));
             return;
         }
-        var card = el('div', 'card people-card');
-        card.appendChild(renderPersonCalendar(person, data));
-        card.appendChild(renderPersonWork(person, data));
-        card.appendChild(renderPersonHome(person, data));
-        card.appendChild(renderPersonNews(person, data));
-        box.appendChild(card);
+        [['Calendar', [renderPersonCalendar]], ['Commute', [renderPersonHome, renderPersonWork]], ['News', [renderPersonNews]]].forEach(function (section) {
+            box.appendChild(el('p', 'section-header', section[0]));
+            var card = el('div', 'card people-card');
+            section[1].forEach(function (render) { card.appendChild(render(person, data)); });
+            box.appendChild(card);
+        });
     }
 
     function loadPeople () {

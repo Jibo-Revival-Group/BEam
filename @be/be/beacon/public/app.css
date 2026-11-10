@@ -1078,6 +1078,12 @@ details.advanced[open] > summary::after { transform: rotate(-90deg); }
     border-top: 1px solid var(--light-grey);
 }
 
+.people-calendar:first-child {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: 0;
+}
+
 .people-calendar-url {
     flex: 1;
     min-width: 0;

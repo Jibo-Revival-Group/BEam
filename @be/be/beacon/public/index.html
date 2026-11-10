@@ -89,19 +89,16 @@
         <select id="reports-person" class="reports-person"></select>
         <p class="hint" id="reports-hint">Choose who these settings are for. Jibo uses them in that person&rsquo;s personal report.</p>
     </div>
-    <div id="reports-person-settings"></div>
-    <p class="section-header">Jibo&rsquo;s location</p>
-    <p class="hint">
-        Jibo&rsquo;s town and weather follow the owner&rsquo;s home address above. You can also set them from your network.
-    </p>
+    <p class="section-header">Weather</p>
     <div class="setting-row">
         <span class="icon icon-location" aria-hidden="true"></span>
         <div class="setting-body">
-            <div class="setting-title">Current home</div>
+            <div class="setting-title">Location</div>
             <div class="setting-sub" id="location-current-summary">No location set</div>
         </div>
     </div>
     <div class="setting-block">
+        <p class="hint">For everyone. Jibo&rsquo;s town and weather follow the owner&rsquo;s home address under Commute. You can also set them from your network.</p>
         <dl class="kv" id="location-current"></dl>
         <div class="form-row form-row-centered">
             <button class="btn btn-primary btn-cta" data-action="detect-location">Find my location</button>
@@ -117,12 +114,11 @@
         <dl class="kv" id="location-detected"></dl>
         <p class="hint location-note" id="location-note"></p>
     </div>
-    <p class="section-header">Weather</p>
     <div class="setting-row">
         <span class="icon icon-weather" aria-hidden="true"></span>
         <div class="setting-body">
-            <div class="setting-title">Temperature units</div>
-            <div class="setting-sub">Change the unit Jibo uses when saying the weather.</div>
+            <div class="setting-title">Units</div>
+            <div class="setting-sub">The unit Jibo uses when saying the weather.</div>
         </div>
     </div>
     <div class="setting-block">
@@ -135,6 +131,7 @@
             <button class="btn btn-primary btn-cta" data-action="save-units">Save</button>
         </div>
     </div>
+    <div id="reports-person-settings"></div>
 </section>
 
 <section class="panel" id="panel-store">
