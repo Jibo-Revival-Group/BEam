@@ -90,6 +90,39 @@ theme and skill titles. The Skills page displays the requested malware and
 official-store review notice; custom sources/uploads are not claimed to be
 reviewed by the official store.
 
+## Background scripts
+
+A skill can keep a small script running while it is closed, for example to wait
+for an incoming call and then show its own screen. Name it in the skill's
+`package.json`:
+
+```json
+"jibo": { "type": "asset-pack", "main": "index.html", "background": "background.js" }
+```
+
+BEam starts the script when Jibo boots, or right away when the skill is
+installed or updated. It has no screen. It exports `start(api)` and may export
+`stop()`, which runs when the skill is removed or updated:
+
+```js
+exports.start = function (api) {
+    // ...when a call comes in:
+    api.open({ caller: 'Zoe' });
+};
+exports.stop = function () { /* close sockets, clear timers */ };
+```
+
+- `api.open(data)` opens the skill over whatever is on screen. The skill's
+  `open(result)` gets `result.nlu.intent === 'background'` and
+  `result.nlu.entities === data`. Returns `false` if the skill is already open.
+- `api.isOpen()` tells whether the skill's screen is showing; `api.isIdle()`
+  whether nothing else is open, for skills that should wait their turn.
+- `api.skillId`, `api.rootPath` and `api.log.info/warn/error` (tagged with the skill id).
+
+The path must stay inside the skill. A script that throws on start is logged
+and skipped; it does not affect Jibo or other skills. Incompatible skills do
+not start.
+
 ## Persistence and failures
 
 Robot data lives outside the BEam distribution:

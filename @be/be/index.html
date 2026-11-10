@@ -54,6 +54,9 @@
             catch (err) { console.warn('[Be] airplay.start failed:', err && err.message); }
           }, 0);
           be.init(()=>{
+             // Custom skills' background scripts (e.g. waiting for a call) run once Be is up.
+             try { require('./background-skills').start(be); }
+             catch (err) { console.warn('[Be] background skills failed:', err && err.message); }
              // @if DEBUG
              be.log.info("Finished running Be init");
              // @endif

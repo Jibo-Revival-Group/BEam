@@ -75,6 +75,7 @@ function create(options) {
                 state.skills = state.skills.filter(s => s.id !== skill.id).concat(installed); save(state);
                 if (opts.onChange) { opts.onChange(); }
                 else { require('./menu-layout').sync(); }
+                if (!opts.onChange) { try { require('../../background-skills').restart(installed.packageName); } catch (err) { console.warn('[background] restart failed:', err.message); } }
             } catch (err) {
                 state.skills = previous;
                 try { save(state); } catch (ignored) { /* preserve the original error */ }
@@ -105,6 +106,7 @@ function create(options) {
         const state = read(), item = state.skills.filter(s => s.id === id)[0];
         if (!item) { throw packages.fail('Skill not found'); }
         if (!opts.onChange) { require('../../skill-registry').removeCustom(item.packageName); }
+        if (!opts.onChange) { require('../../background-skills').stop(item.packageName); }
         state.skills = state.skills.filter(s => s.id !== id); save(state);
         if (opts.onChange) { opts.onChange(); } else { require('./menu-layout').sync(); }
         return inventory();
