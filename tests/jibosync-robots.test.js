@@ -1,5 +1,6 @@
 'use strict';
-// JiboSync between two simulated robots over real HTTP: robot A (new, placeholder owner) pulls robot B's household.
+// JiboSync between two simulated robots over real HTTP: robot A (new, placeholder owner) adds robot B to its cluster
+// and pulls B's household and report settings; a robot whose loop is cleared doesn't empty the other.
 // Node 6: /root/node6/node-v6.17.1-linux-x64/bin/node tests/jibosync-robots.test.js
 const assert = require('assert');
 const fs = require('fs');
@@ -14,7 +15,7 @@ let nextId = 1;
 
 // One simulated robot: people (KB), face/voice store (BEnch helper), jibo services, BEacon peer endpoints.
 function robot (name, members, enrolled) {
-    const r = { name: name, members: members, faces: {}, voices: {}, photos: {}, calls: [] };
+    const r = { name: name, members: members, faces: {}, voices: {}, photos: {}, calls: [], settings: {}, cloudDown: false };
     Object.keys(enrolled || {}).forEach((id) => {
         if (enrolled[id].face) r.faces[id] = { examples: 5, last: enrolled[id].face, blob: 'face of ' + id };
         if (enrolled[id].voice) r.voices[id] = { stamp: enrolled[id].voice, blob: 'voice of ' + id };
@@ -82,6 +83,11 @@ function robot (name, members, enrolled) {
         });
     });
     r.versions = { os: 'Release-13.0.0-20190225', services: 'Release-13.0.5', beam: '13.0.10' };
+    // Report settings as BEefy keeps them per robot (BEacon's calendars/commute/news-topics modules).
+    r.settingsDep = {
+        read: () => (r.cloudDown ? Promise.reject(new Error('cloud down')) : Promise.resolve(JSON.parse(JSON.stringify(r.settings)))),
+        write: (id, field, v) => { r.calls.push('setting ' + field + ' ' + id); r.settings[id] = r.settings[id] || {}; r.settings[id][field] = v; return Promise.resolve(); }
+    };
     return r;
 }
 
@@ -92,12 +98,23 @@ function start (r, peers) {
         r.sync = jibosync.create({
             people: r.people, jibo: () => r.jibo, helperPort: helperPort, udpPort: 0, robotId: r.name, now: () => clock,
             statePath: path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'jibosync-state-')), 'jibosync.json'),
-            versions: () => r.versions, discover: () => Promise.resolve(peers())
+            versions: () => r.versions, discover: () => Promise.resolve(peers()), settings: r.settingsDep
         });
+        // BEacon's peer routes (server.js): reads need this robot's cluster id.
         r.beacon = http.createServer((req, res) => {
             const u = url.parse(req.url, true);
-            const p = u.pathname === '/api/jibosync/info' ? r.sync.info() : r.sync.person(u.query.id);
-            p.then((d) => { res.writeHead(200); res.end(JSON.stringify(d)); }, (e) => { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); });
+            let body = '';
+            req.on('data', (d) => { body += d; });
+            req.on('end', () => {
+                const cluster = req.headers[jibosync.CLUSTER_HEADER];
+                const p = Promise.resolve().then(() => {
+                    if (u.pathname === '/api/jibosync/join') return r.sync.join(JSON.parse(body));
+                    if (u.pathname === '/api/jibosync/leave') return r.sync.leave();
+                    r.sync.requireCluster(cluster);
+                    return u.pathname === '/api/jibosync/info' ? r.sync.info() : r.sync.person(u.query.id);
+                });
+                p.then((d) => { res.writeHead(200); res.end(JSON.stringify(d)); }, (e) => { res.writeHead(e.status || 500); res.end(JSON.stringify({ error: e.message })); });
+            });
         });
         return listen(r.beacon).then((port) => { r.port = port; });
     });
@@ -111,9 +128,21 @@ const B = robot('B', [
     { id: 'mom-b', firstName: 'Mom', lastName: 'V', type: 'member', status: 'accepted', created: clock - 90 * DAY }
 ], { 'zane-b': { face: clock - 10 * DAY, voice: clock - 9 * DAY } });
 B.photos['zane-b'] = 'jpeg bytes';
+B.settings['zane-b'] = { calendar: { url: 'https://calendar.example/zane.ics', enabled: true }, work: '1 Main St, Boston, MA', news: ['sports'] };
 const peerB = () => [{ robotId: 'B', address: '127.0.0.1', port: B.port }];
+const peerA = () => [{ robotId: 'A', address: '127.0.0.1', port: A.port }];
+const get = (r, p, cluster) => new Promise((resolve) => http.get({ host: '127.0.0.1', port: r.port, path: p, headers: cluster ? { [jibosync.CLUSTER_HEADER]: cluster } : {} },
+    (res) => { res.resume(); resolve(res.statusCode); }));
 
-Promise.all([start(A, peerB), start(B, () => [])]).then(() => A.sync.sync('test')).then((last) => {
+Promise.all([start(A, peerB), start(B, peerA)]).then(() => A.sync.sync('before a cluster')).then((last) => {
+    // Not in a cluster: B is listed to add, nothing syncs, and B's people can't be read.
+    assert.deepStrictEqual(last.robots.map((x) => [x.robotId, x.status]), [['B', 'not in cluster']]);
+    assert.ok(A.members.some((m) => m.id === 'ph') && !A.members.some((m) => m.firstName === 'Zane'), 'nothing synced');
+    return get(B, '/api/jibosync/info').then((code) => { assert.strictEqual(code, 403, 'B refuses reads from outside its cluster'); });
+}).then(() => A.sync.add('B')).then(() => {
+    assert.ok(A.sync._state().cluster && B.sync._state().cluster.id === A.sync._state().cluster.id, 'Add sends A\'s new cluster id to B');
+    return get(B, '/api/jibosync/info', 'f'.repeat(32)).then((code) => assert.strictEqual(code, 403, 'a different cluster id is refused'));
+}).then(() => A.sync.sync('test')).then((last) => {
     assert.deepStrictEqual(last.errors, [], 'a build that worked counts, whatever the reply');
     assert.deepStrictEqual(last.robots.map((x) => [x.robotId, x.status]), [['B', 'synced']]);
     const zane = A.members.filter((m) => m.firstName === 'Zane')[0];
@@ -130,6 +159,9 @@ Promise.all([start(A, peerB), start(B, () => [])]).then(() => A.sync.sync('test'
     assert.ok(A.calls.indexOf('owner ' + zane.id) < A.calls.indexOf('remove ph'), 'the placeholder hands over ownership before it is removed');
     assert.ok(A.calls.indexOf('voice model ' + zane.id) < A.calls.indexOf('voice done ' + zane.id), 'recordings are kept once the model is built');
     assert.strictEqual(last.imported, 2);
+    assert.deepStrictEqual(A.settings[zane.id], { calendar: { url: 'https://calendar.example/zane.ics', enabled: true }, work: '1 Main St, Boston, MA', news: ['sports'] },
+        "Zane's calendar, work address and news topics came along");
+    assert.strictEqual(last.settings, 3);
 
     // Nothing changed: the next sync does nothing.
     A.calls = [];
@@ -137,6 +169,24 @@ Promise.all([start(A, peerB), start(B, () => [])]).then(() => A.sync.sync('test'
     return A.sync.sync('again');
 }).then((last) => {
     assert.deepStrictEqual([last.imported, last.removed, A.calls], [0, 0, []]);
+
+    // Zane changes jobs on A: A's newer address wins on B.
+    const zaneA = A.members.filter((m) => m.firstName === 'Zane')[0].id;
+    A.settings[zaneA].work = '2 Park Ave, Boston, MA';
+    clock += 60000;
+    return A.sync.check().then(() => { clock += 60000; return B.sync.sync('A changed'); });
+}).then((last) => {
+    assert.deepStrictEqual(last.errors, []);
+    assert.strictEqual(B.settings['zane-b'].work, '2 Park Ave, Boston, MA', 'the newest change wins');
+    assert.strictEqual(B.settings['zane-b'].calendar.url, 'https://calendar.example/zane.ics', 'nothing else changed');
+    // B's cloud is unreachable: its settings aren't read as "all empty", so A clears nothing.
+    B.cloudDown = true;
+    clock += 60000;
+    return A.sync.sync('B cloud down');
+}).then((last) => {
+    B.cloudDown = false;
+    const zaneA = A.members.filter((m) => m.firstName === 'Zane')[0].id;
+    assert.deepStrictEqual([last.errors, A.settings[zaneA].work], [[], '2 Park Ave, Boston, MA'], 'A keeps its own newer address');
 
     // Mom enrolls her face and voice on B: A picks them up into its own Mom.
     B.faces['mom-b'] = { examples: 5, last: clock, blob: 'face of mom-b' };
@@ -168,6 +218,26 @@ Promise.all([start(A, peerB), start(B, () => [])]).then(() => A.sync.sync('test'
         ['voice removed ' + momId, 'voice removed ' + momId, 'pending removed ' + momId, 'voice gone ' + momId], 'a stubborn removal is retried, then cleaned up');
     assert.strictEqual(last.removed, 1);
 
+    // B's loop is cleared (everyone removed at once): B passes on no removals, A keeps its people,
+    // and B gets them back from A.
+    const before = A.members.map((m) => m.firstName).sort();
+    const saved = B.members.filter((m) => !m.isJibo);
+    B.members = B.members.filter((m) => m.isJibo);
+    clock += 1000;
+    return B.sync.check().then(() => {
+        assert.deepStrictEqual(Object.keys(B.sync._state().tombstones).filter((k) => k !== 'mom v'), [], 'clearing the loop is not a removal');
+        clock += 60000;
+        return A.sync.sync('B cleared');
+    }).then((last) => {
+        assert.deepStrictEqual(A.members.map((m) => m.firstName).sort(), before, 'A keeps everyone');
+        assert.strictEqual(last.removed, 0);
+        clock += 60000;
+        return B.sync.sync('refill');
+    }).then(() => {
+        assert.ok(B.members.some((m) => m.firstName === 'Zane'), 'B gets its people back from A');
+        assert.ok(saved.length);
+    });
+}).then(() => {
     // A different version on B: A lists it but syncs nothing.
     B.versions = { os: 'Release-13.0.0-20190225', services: 'Release-13.0.6', beam: '13.0.10' };
     B.members.push({ id: 'new-b', firstName: 'New', lastName: 'Person', type: 'member', status: 'accepted', created: clock });
@@ -176,6 +246,10 @@ Promise.all([start(A, peerB), start(B, () => [])]).then(() => A.sync.sync('test'
     assert.deepStrictEqual(last.robots.map((x) => [x.robotId, x.status]), [['B', 'different version']]);
     assert.ok(!A.members.some((m) => m.firstName === 'New'));
     assert.strictEqual(last.imported, 0);
+    // B leaves the cluster: A lists it as a robot to add again.
+    return B.sync.leave();
+}).then(() => A.sync.sync('B left')).then((last) => {
+    assert.deepStrictEqual(last.robots.map((x) => [x.robotId, x.status]), [['B', 'not in cluster']]);
     [A, B].forEach((r) => { r.helper.close(); r.beacon.close(); });
-    console.log('jibosync two robots ok');
+    console.log('jibosync two robots ok: cluster, people, report settings, empty loop');
 }).catch((err) => { console.error(err); process.exit(1); });

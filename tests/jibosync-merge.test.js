@@ -52,8 +52,9 @@ assert.deepStrictEqual(r.imports.map((i) => [i.peer, i.remoteId, i.face, i.voice
 assert.ok(r.imports.every((i) => i.localId === null && i.key === 'ann lee'));
 
 // Removed on another robot after this robot's copy was last enrolled: removed here too, and not imported back.
-r = merge.plan({ people: [person('l', 'Ann', 'Lee', { voice: voice(NOW - 9 * DAY) })] },
-    [{ people: [], tombstones: { 'ann lee': NOW - DAY } }], NOW);
+const bob = (id) => person(id, 'Bob', 'Lee', {});
+r = merge.plan({ people: [person('l', 'Ann', 'Lee', { voice: voice(NOW - 9 * DAY) }), bob('lb')] },
+    [{ people: [bob('xb')], tombstones: { 'ann lee': NOW - DAY } }], NOW);
 assert.deepStrictEqual(r.removes, ['l']);
 assert.strictEqual(r.tombstones['ann lee'], NOW - DAY, 'tombstones are passed on');
 r = merge.plan({ people: [], tombstones: { 'ann lee': NOW - DAY } }, [{ people: [person('x', 'Ann', 'Lee', { voice: voice(NOW - 9 * DAY) })] }], NOW);
@@ -64,5 +65,14 @@ assert.strictEqual(r.imports.length, 1);
 // Tombstones expire after 30 days.
 r = merge.plan({ people: [], tombstones: { 'ann lee': NOW - 31 * DAY } }, [], NOW);
 assert.deepStrictEqual(r.tombstones, {});
+
+// An empty loop never wipes the others: a robot with nobody passes on no removals...
+r = merge.plan({ people: [person('l', 'Ann', 'Lee', {}), bob('lb')] }, [{ people: [], tombstones: { 'ann lee': NOW - DAY, 'bob lee': NOW - DAY } }], NOW);
+assert.deepStrictEqual([r.removes, r.tombstones], [[], {}], 'an empty robot passes on no removals');
+// ...and removals never take away everyone a robot has.
+r = merge.plan({ people: [person('l', 'Ann', 'Lee', {}), bob('lb')] }, [{ people: [person('c', 'Cy', 'Lee', {})], tombstones: { 'ann lee': NOW - DAY, 'bob lee': NOW - DAY } }], NOW);
+assert.deepStrictEqual(r.removes, [], 'removing everyone here is refused');
+r = merge.plan({ people: [person('l', 'Ann', 'Lee', {}), bob('lb')] }, [{ people: [person('c', 'Cy', 'Lee', {})], tombstones: { 'ann lee': NOW - DAY } }], NOW);
+assert.deepStrictEqual(r.removes, ['l'], 'removing some people still works');
 
 console.log('jibosync merge ok');

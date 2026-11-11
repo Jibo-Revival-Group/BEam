@@ -74,7 +74,6 @@ function guard (fn) {
                 if (!githubAuth.token()) { req.resume(); throw fail('Sign in to GitHub to use the Store.', 401); }
             }
             if (!voices.ENABLED && /^\/api\/voices\//.test(pathname)) { req.resume(); throw fail('Custom voices are turned off.', 404); }
-            if (!jibosync.ENABLED && /^\/api\/jibosync\/(?!status$)/.test(pathname)) { req.resume(); throw fail('JiboSync is turned off.', 404); }
             const result = fn(req, res, query);
             if (result && typeof result.then === 'function') {
                 result.catch((err) => handleError(res, err));
@@ -93,16 +92,21 @@ function sendPeople (res, snapshotPromise) {
         .then((data) => u.sendJson(res, 200, data));
 }
 
-// JiboSync's robot-to-robot reads share household faces and voices: only answer this Wi-Fi.
+// JiboSync's robot-to-robot calls share household faces and voices: only answer this Wi-Fi
+// (reads also need this robot's cluster id, checked in lib/jibosync.js).
 function lanOnly (req) {
     if (!jibosync.isLanAddress(req.socket && req.socket.remoteAddress)) throw fail('JiboSync only answers robots on this Wi-Fi.', 403);
 }
 
 const routes = {
-    'GET /api/jibosync/info': guard((req, res) => { lanOnly(req); return jibosync.info().then(data => u.sendJson(res, 200, data)); }),
-    'GET /api/jibosync/person': guard((req, res, query) => { lanOnly(req); return jibosync.person(query.id).then(data => u.sendJson(res, 200, data)); }),
+    'GET /api/jibosync/info': guard((req, res) => { lanOnly(req); return jibosync.info(req.headers[jibosync.CLUSTER_HEADER]).then(data => u.sendJson(res, 200, data)); }),
+    'GET /api/jibosync/person': guard((req, res, query) => { lanOnly(req); return jibosync.person(req.headers[jibosync.CLUSTER_HEADER], query.id).then(data => u.sendJson(res, 200, data)); }),
     'GET /api/jibosync/status': guard((req, res) => { u.sendJson(res, 200, jibosync.status()); }),
     'POST /api/jibosync/sync': guard((req, res) => { req.resume(); jibosync.sync('Sync now'); u.sendJson(res, 202, jibosync.status()); }),
+    'POST /api/jibosync/add': guard((req, res) => u.readJson(req).then(body => jibosync.add(body && body.robotId)).then(data => u.sendJson(res, 200, data))),
+    'POST /api/jibosync/remove': guard((req, res) => u.readJson(req).then(body => jibosync.removeRobot(body && body.robotId)).then(data => u.sendJson(res, 200, data))),
+    'POST /api/jibosync/join': guard((req, res) => { lanOnly(req); return u.readJson(req).then(body => u.sendJson(res, 200, jibosync.join(body))); }),
+    'POST /api/jibosync/leave': guard((req, res) => { lanOnly(req); req.resume(); u.sendJson(res, 200, jibosync.leave()); }),
     'GET /api/agent/settings': guard((req, res) => { u.sendJson(res, 200, agentSettings.status()); }),
     'POST /api/agent/settings': guard((req, res) => {
         return u.readJson(req, 8192).then(body => u.sendJson(res, 200, agentSettings.save(body)));

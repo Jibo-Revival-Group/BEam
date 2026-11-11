@@ -448,12 +448,10 @@
     }
 
     var jiboSyncTimer = null;
+    function jiboSyncAction (path, robotId) {
+        return api('POST', path, robotId ? { robotId: robotId } : {}).then(renderJiboSync).catch(reportError);
+    }
     function renderJiboSync (data) {
-        // Hidden unless BEACON_JIBOSYNC=1 turns it on (status then has no enabled:false).
-        var on = data.enabled !== false;
-        $('#jibosync-header').hidden = !on;
-        $('#jibosync').hidden = !on;
-        if (!on) { return; }
         var list = $('#jibosync-robots');
         var last = data.last;
         var robots = (last && last.robots) || [];
@@ -461,24 +459,36 @@
         robots.forEach(function (robot) {
             var li = document.createElement('li');
             var text = robot.robotId + ' (' + robot.address + '): ';
-            if (robot.status === 'synced') { text += 'synced'; }
-            else if (robot.status === 'different version') { text += 'not synced, different version: ' + [robot.versions.os, robot.versions.services, robot.versions.beam].join(', '); }
-            else { text += 'not reachable'; }
-            li.textContent = text;
+            var button = null;
+            if (robot.status === 'not in cluster') { text += 'not in this cluster'; button = ['Add', '/api/jibosync/add']; }
+            else {
+                if (robot.status === 'synced') { text += 'synced'; }
+                else if (robot.status === 'different version') { text += 'in this cluster, not synced: different version (' + [robot.versions.os, robot.versions.services, robot.versions.beam].join(', ') + ')'; }
+                else { text += 'in this cluster, not reachable'; }
+                button = ['Remove', '/api/jibosync/remove'];
+            }
+            li.appendChild(document.createTextNode(text + ' '));
+            var btn = document.createElement('button');
+            btn.type = 'button'; btn.className = 'btn'; btn.textContent = button[0];
+            btn.addEventListener('click', function () { btn.disabled = true; jiboSyncAction(button[1], robot.robotId); });
+            li.appendChild(btn);
             list.appendChild(li);
         });
         var status = $('#jibosync-status');
-        if (data.syncing) { status.textContent = 'Syncing…'; }
-        else if (!last) { status.textContent = 'Not synced yet.'; }
+        if (data.syncing) { status.textContent = data.inCluster ? 'Syncing…' : 'Looking for robots…'; }
+        else if (!last) { status.textContent = data.inCluster ? 'Not synced yet.' : 'This robot is not in a cluster. Find robots, then add one to start a cluster.'; }
         else {
             var when = new Date(last.finished || last.at).toLocaleString();
-            var parts = ['Last sync ' + when + '.'];
+            var parts = [(data.inCluster ? 'Last sync ' : 'Last looked ') + when + '.'];
             if (!robots.length) { parts.push('No other 5x1 robots found on this Wi-Fi.'); }
-            if (last.imported || last.removed) { parts.push(last.imported + ' updated, ' + last.removed + ' removed.'); }
+            if (!data.inCluster && robots.length) { parts.push('Add a robot to start a cluster.'); }
+            if (last.imported || last.removed || last.settings) { parts.push(last.imported + ' people updated, ' + last.removed + ' removed, ' + (last.settings || 0) + ' report settings updated.'); }
             if (last.errors && last.errors.length) { parts.push('Problems: ' + last.errors.join('; ')); }
             status.textContent = parts.join(' ');
         }
+        $('#jibosync-now').textContent = data.inCluster ? 'Sync now' : 'Find robots';
         $('#jibosync-now').disabled = !!data.syncing;
+        $('#jibosync-leave').hidden = !data.inCluster;
         clearTimeout(jiboSyncTimer);
         if (data.syncing && state.panel === 'etc') { jiboSyncTimer = setTimeout(function () { loadJiboSync().catch(function () {}); }, 2000); }
     }
@@ -491,6 +501,10 @@
             $('#jibosync-now').disabled = false;
             reportError(error);
         });
+    });
+    $('#jibosync-leave').addEventListener('click', function () {
+        if (!window.confirm('Leave this cluster? This robot keeps its people but stops syncing.')) { return; }
+        jiboSyncAction('/api/jibosync/leave');
     });
 
     function loadAutoUpdate () {

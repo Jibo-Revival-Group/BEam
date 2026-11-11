@@ -9,6 +9,8 @@
  *  - From other robots: face and voice each come from whichever robot enrolled it most recently,
  *    so the merged person is as complete as any copy. Photo and phonetic name fill gaps only.
  *  - A person removed on any robot (a tombstone) is removed everywhere unless enrolled or added again later.
+ *  - An empty loop never wipes the others: a robot with no people passes on no removals, and removals
+ *    never take away every person a robot has.
  */
 
 const TOMBSTONE_DAYS = 30;
@@ -45,15 +47,17 @@ function mergeTombstones (lists, now) {
  */
 function plan (local, peers, now) {
     now = now || Date.now();
-    const tombstones = mergeTombstones([local.tombstones].concat(peers.map((p) => p.tombstones)), now);
-    const result = { removes: [], setOwner: null, imports: [], tombstones: tombstones };
     const real = (list) => (list || []).filter((p) => !isPlaceholder(p) && personKey(p));
-    const gone = (key, people) => tombstones[key] && people.every((p) => activity(p) < tombstones[key]);
+    const tombstones = mergeTombstones([local.tombstones].concat(peers.filter((p) => real(p.people).length).map((p) => p.tombstones)), now);
+    const result = { removes: [], setOwner: null, imports: [], tombstones: tombstones };
+    let gone = (key, people) => tombstones[key] && people.every((p) => activity(p) < tombstones[key]);
 
-    // This robot: one copy per name; tombstoned names go.
+    // This robot: one copy per name; tombstoned names go, unless that would leave it with nobody.
     const keep = {};
     const groups = {};
     real(local.people).forEach((p) => { (groups[personKey(p)] = groups[personKey(p)] || []).push(p); });
+    const keys = Object.keys(groups);
+    if (keys.length && keys.every((key) => gone(key, groups[key]))) gone = () => false;
     Object.keys(groups).forEach((key) => {
         const copies = groups[key].slice().sort(better);
         if (gone(key, copies)) { copies.forEach((p) => { if (!p.owner) result.removes.push(p.id); }); return; }

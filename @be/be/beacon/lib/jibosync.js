@@ -1,13 +1,17 @@
 'use strict';
 /**
  * JiboSync (BEacon › Etc): share the people Jibo knows — names, photos, phonetic names, faces and
- * voices — with the other 5x1 robots on this Wi-Fi that run exactly the same os, services and BEam.
+ * voices — and each person's report settings (calendar, home and work/school address, news topics)
+ * with the other 5x1 robots in this robot's cluster that run exactly the same os, services and BEam.
  *
+ * A cluster is a random id. "Add" in BEacon sends it to a robot found on this Wi-Fi (POST
+ * /api/jibosync/join); robots only answer reads that carry their cluster id (x-jibosync-cluster).
  * Every robot only changes itself: it finds the others (UDP broadcast on 8124), reads their people
  * (GET /api/jibosync/info), plans a merge (jibosync-merge.js) and pulls what it needs
  * (GET /api/jibosync/person). Face and voice files are root-only, so BEnch's jibo-sync-helper
- * (127.0.0.1:8494) reads and installs them. Runs on "Sync now", every 4 hours, and a minute after
- * people change here (other robots are told to sync too).
+ * (127.0.0.1:8494) reads and installs them. Report settings take the newest change per person and
+ * setting. Runs on "Sync now", every 4 hours, and a minute after people or settings change here
+ * (other robots are told to sync too).
  */
 const fs = require('fs');
 const http = require('http');
@@ -22,19 +26,22 @@ const HELPER_PORT = 8494;
 const EVERY_MS = 4 * 3600 * 1000;
 const CHECK_MS = 60 * 1000;
 const DISCOVER_MS = 2500;
+const CLUSTER_HEADER = 'x-jibosync-cluster';
+const FIELDS = ['calendar', 'work', 'home', 'news'];
 
-function fail (message, status) {
+function fail (message, status, httpStatus) {
     const err = new Error(message);
     err.status = status || 500;
+    err.httpStatus = httpStatus || null;
     return err;
 }
 
 function requestJson (opts, body) {
     return new Promise((resolve, reject) => {
         const data = body === undefined ? null : Buffer.from(JSON.stringify(body));
+        const headers = Object.assign({}, opts.headers, data ? { 'Content-Type': 'application/json', 'Content-Length': data.length } : {});
         const req = http.request({
-            host: opts.host, port: opts.port, path: opts.path, method: opts.method || 'GET',
-            headers: data ? { 'Content-Type': 'application/json', 'Content-Length': data.length } : {}
+            host: opts.host, port: opts.port, path: opts.path, method: opts.method || 'GET', headers: headers
         }, (res) => {
             const chunks = [];
             res.on('data', (d) => chunks.push(d));
@@ -42,7 +49,7 @@ function requestJson (opts, body) {
                 let json = null;
                 try { json = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch (err) { /* not JSON */ }
                 if (res.statusCode >= 200 && res.statusCode < 300 && json) return resolve(json);
-                reject(fail((json && json.error) || ('HTTP ' + res.statusCode + ' from ' + opts.host + opts.path), 502));
+                reject(fail((json && json.error) || ('HTTP ' + res.statusCode + ' from ' + opts.host + opts.path), 502, res.statusCode));
             });
         });
         req.setTimeout(opts.timeout || 60000, () => req.abort());
@@ -72,6 +79,43 @@ function defaultVersions () {
     return { os: osVersion, services: find('services'), beam: find('@be/be') };
 }
 
+const isEmpty = (v) => v === null || v === undefined || (Array.isArray(v) && !v.length);
+const same = (a, b) => JSON.stringify(isEmpty(a) ? null : a) === JSON.stringify(isEmpty(b) ? null : b);
+
+/** Report settings through BEacon's own modules; read() fails (never "everything empty") when the cloud can't answer. */
+function defaultSettings (people) {
+    const calendars = require('./calendars');
+    const commute = require('./commute');
+    const newsTopics = require('./news-topics');
+    return {
+        read: () => people.list().then((snap) => {
+            const robot = calendars.robotIdFrom(snap);
+            return Promise.all([
+                calendars.callCloud('GetCalendarFeeds', { includeUrls: true }, robot),
+                calendars.callCloud('GetCommuteAddresses', {}, robot),
+                calendars.callCloud('GetNewsTopics', {}, robot)
+            ]);
+        }).then((r) => {
+            const out = {};
+            const at = (id) => (out[id] = out[id] || {});
+            (r[0].members || []).forEach((f) => { if (f.icalUrl) at(f.memberId).calendar = { url: f.icalUrl, enabled: f.isEnabled !== false }; });
+            (r[1].addresses || []).forEach((a) => {
+                const home = /^home:(.+)$/.exec(a.memberId);
+                if (home) at(home[1]).home = a.address;
+                else if (a.memberId !== 'home') at(a.memberId).work = a.address;
+            });
+            (r[2].people || []).forEach((n) => { at(n.memberId).news = (n.disabledTopics || []).slice().sort(); });
+            return out;
+        }),
+        write: (id, field, v) => {
+            if (field === 'calendar') return v ? calendars.save(id, v.url, v.enabled) : calendars.clear(id);
+            if (field === 'work') return v ? commute.setWork(id, v) : commute.clearWork(id);
+            if (field === 'home') return v ? commute.setPersonHome(id, v) : commute.clearPersonHome(id);
+            return newsTopics.set(id, v || []);
+        }
+    };
+}
+
 function sameVersions (a, b) {
     return !!(a && b && a.os && a.os === b.os && a.services === b.services && a.beam === b.beam);
 }
@@ -88,6 +132,7 @@ function create (deps) {
     const statePath = deps.statePath || path.join(require('./paths').dataDir(), 'jibosync.json');
     const versions = deps.versions || (() => { cachedVersions = cachedVersions || defaultVersions(); return cachedVersions; });
     let cachedVersions = null;
+    const settings = deps.settings || defaultSettings(people);
     let state = loadState();
     let running = null;
     let socket = null;
@@ -95,9 +140,8 @@ function create (deps) {
     let changeTimer = null;
 
     function loadState () {
-        try { return Object.assign({ tombstones: {}, keys: null, signature: null, synced: null, last: null }, JSON.parse(fs.readFileSync(statePath, 'utf8'))); } catch (err) {
-            return { tombstones: {}, keys: null, signature: null, synced: null, last: null };
-        }
+        const blank = { tombstones: {}, keys: null, signature: null, synced: null, last: null, cluster: null, settings: {} };
+        try { return Object.assign(blank, JSON.parse(fs.readFileSync(statePath, 'utf8'))); } catch (err) { return blank; }
     }
     function saveState () {
         const tmp = statePath + '.tmp';
@@ -119,10 +163,11 @@ function create (deps) {
     }
 
     // Removed here = gone from the snapshot: remember the name so other robots remove them too.
+    // A loop cleared to nobody is not a removal: passing it on would wipe every robot in the cluster.
     function noteChanges (list) {
         const keys = {};
         list.forEach((p) => { if (!merge.isPlaceholder(p)) keys[merge.personKey(p)] = true; });
-        if (state.keys) Object.keys(state.keys).forEach((k) => { if (!keys[k] && k) state.tombstones[k] = now(); });
+        if (state.keys && Object.keys(keys).some((k) => k)) Object.keys(state.keys).forEach((k) => { if (!keys[k] && k) state.tombstones[k] = now(); });
         Object.keys(keys).forEach((k) => {
             if (state.tombstones[k] && list.some((p) => merge.personKey(p) === k && Math.max(p.created || 0, p.face ? p.face.last : 0, p.voice ? p.voice.stamp : 0) > state.tombstones[k])) {
                 delete state.tombstones[k];
@@ -132,12 +177,109 @@ function create (deps) {
         state.signature = crypto.createHash('sha1').update(JSON.stringify(list.map((p) => [p.id, merge.personKey(p), p.face, p.voice, p.phoneticName, p.hasPhoto, p.owner]))).digest('hex');
     }
 
-    function info () {
-        return snapshot().then((list) => {
-            noteChanges(list);
-            saveState();
-            return { jibosync: PROTOCOL, robotId: robotId, versions: versions(), people: list, tombstones: state.tombstones };
+    /**
+     * Each person's report settings with when they last changed here: { key: { field: { value, at } } }.
+     * A value seen for the first time counts as old (at 0); a change counts as now. raw = settings.read().
+     */
+    function noteSettings (list, raw) {
+        if (!raw) return { settings: null, changed: false };
+        const next = {};
+        let changed = false;
+        list.forEach((p) => {
+            const key = merge.personKey(p);
+            if (merge.isPlaceholder(p) || !key) return;
+            const cur = raw[p.id] || {};
+            const old = (state.settings || {})[key] || {};
+            next[key] = {};
+            FIELDS.forEach((f) => {
+                const v = isEmpty(cur[f]) ? null : cur[f];
+                if (old[f] && same(old[f].value, v)) { next[key][f] = old[f]; return; }
+                next[key][f] = { value: v, at: old[f] ? now() : 0 };
+                if (old[f]) changed = true;
+            });
         });
+        state.settings = next;
+        return { settings: next, changed: changed };
+    }
+
+    function readSettings () { return Promise.resolve().then(() => settings.read()).catch(() => null); }
+
+    function info () {
+        return Promise.all([snapshot(), readSettings()]).then((r) => {
+            noteChanges(r[0]);
+            const s = noteSettings(r[0], r[1]).settings;
+            saveState();
+            return { jibosync: PROTOCOL, robotId: robotId, versions: versions(), people: r[0], tombstones: state.tombstones, settings: s };
+        });
+    }
+
+    /** Peers' newest report settings win, per person and setting; ties keep a value over an empty one. */
+    function applySettings (peers, done) {
+        return Promise.all([snapshot(), Promise.resolve().then(() => settings.read())]).then((r) => {
+            const mine = noteSettings(r[0], r[1]).settings;
+            const writes = [];
+            r[0].forEach((p) => {
+                const key = merge.personKey(p);
+                if (!mine[key]) return;
+                FIELDS.forEach((f) => {
+                    let win = mine[key][f];
+                    peers.forEach((peer) => {
+                        const c = peer.settings && peer.settings[key] && peer.settings[key][f];
+                        if (c && (c.at > win.at || (c.at === win.at && isEmpty(win.value) && !isEmpty(c.value)))) win = c;
+                    });
+                    if (!same(win.value, mine[key][f].value)) writes.push({ id: p.id, key: key, field: f, win: win });
+                });
+            });
+            let chain = Promise.resolve();
+            writes.forEach((w) => {
+                chain = chain.then(() => settings.write(w.id, w.field, isEmpty(w.win.value) ? null : w.win.value))
+                    .then(() => { state.settings[w.key][w.field] = { value: w.win.value, at: w.win.at }; done.settings++; },
+                        (err) => done.errors.push(w.key + ' ' + w.field + ': ' + errorText(err)));
+            });
+            return chain;
+        }, (err) => { done.errors.push('report settings: ' + errorText(err)); });
+    }
+
+    // --- cluster: robots only sync with robots holding the same random id.
+    function clusterId () { return state.cluster ? state.cluster.id : null; }
+    function requireCluster (given) {
+        if (!clusterId() || given !== clusterId()) throw fail('This robot is not in your JiboSync cluster.', 403);
+    }
+    function peerJson (peer, p, method, body) {
+        return requestJson({ host: peer.address, port: peer.port, path: p, method: method, timeout: method ? 20000 : 120000, headers: { [CLUSTER_HEADER]: clusterId() || '' } }, body);
+    }
+    function findPeer (id) {
+        const known = ((state.last && state.last.robots) || []).filter((r) => r.robotId === id)[0];
+        return known && known.port ? Promise.resolve(known) : discover().then((found) => {
+            const peer = found.filter((r) => r.robotId === id)[0];
+            if (!peer) throw fail(id + ' is not on this Wi-Fi.', 404);
+            return peer;
+        });
+    }
+    /** "Add": start a cluster if needed and send its id to the robot. */
+    function add (id) {
+        return findPeer(id).then((peer) => {
+            if (!clusterId()) { state.cluster = { id: crypto.randomBytes(16).toString('hex') }; saveState(); }
+            return peerJson(peer, '/api/jibosync/join', 'POST', { cluster: clusterId(), from: robotId });
+        }).then(() => { sync('added ' + id); return status(); });
+    }
+    /** Another robot added this one. */
+    function join (body) {
+        const id = body && body.cluster;
+        if (!/^[0-9a-f]{32}$/.test(String(id))) throw fail('A cluster id is required.', 400);
+        state.cluster = { id: id };
+        saveState();
+        scheduleSync('joined a cluster', 3000);
+        return status();
+    }
+    function leave () {
+        state.cluster = null;
+        saveState();
+        return status();
+    }
+    /** "Remove": the robot leaves this cluster (it keeps its people). */
+    function removeRobot (id) {
+        return findPeer(id).then((peer) => peerJson(peer, '/api/jibosync/leave', 'POST', {})).then(() => { sync('removed ' + id); return status(); });
     }
 
     /** One person's full data for another robot. */
@@ -211,7 +353,7 @@ function create (deps) {
 
     // --- applying a plan
     function apply (plan, peers) {
-        const done = { imported: 0, removed: 0, errors: [] };
+        const done = { imported: 0, removed: 0, settings: 0, errors: [] };
         const byKey = {};
         const items = [];
         const extras = [];
@@ -220,7 +362,7 @@ function create (deps) {
             chain = chain.then(() => {
                 const peer = peers[it.peer];
                 const needData = it.face || it.voice || it.photo;
-                const data = needData ? requestJson({ host: peer.address, port: peer.port, path: '/api/jibosync/person?id=' + encodeURIComponent(it.remoteId), timeout: 120000 }) : Promise.resolve(null);
+                const data = needData ? peerJson(peer, '/api/jibosync/person?id=' + encodeURIComponent(it.remoteId)) : Promise.resolve(null);
                 return data.then((remote) => {
                     const id = it.localId || byKey[it.key];
                     const created = id ? Promise.resolve(id) : people.createMember(it.fields).then((newId) => { byKey[it.key] = newId; return newId; });
@@ -277,29 +419,32 @@ function create (deps) {
     function sync (reason) {
         if (running) return running;
         const started = now();
-        running = discover().then((found) => Promise.all(found.map((peer) =>
-            requestJson({ host: peer.address, port: peer.port, path: '/api/jibosync/info', timeout: 20000 })
-                .then((data) => Object.assign({}, peer, { info: data }), (err) => Object.assign({}, peer, { error: err.message })))))
+        running = discover().then((found) => Promise.all(found.map((peer) => (!clusterId() ? Promise.resolve(Object.assign({}, peer, { outside: true }))
+            : peerJson(peer, '/api/jibosync/info', 'GET')
+                .then((data) => Object.assign({}, peer, { info: data }), (err) => Object.assign({}, peer, { error: err.message, outside: err.httpStatus === 403 }))))))
             .then((found) => info().then((local) => {
                 const usable = [];
                 const report = found.map((peer) => {
-                    if (peer.error) return { robotId: peer.robotId, address: peer.address, status: 'unreachable', detail: peer.error };
+                    const where = { robotId: peer.robotId, address: peer.address, port: peer.port };
+                    if (peer.outside) return Object.assign(where, { status: 'not in cluster' });
+                    if (peer.error) return Object.assign(where, { status: 'unreachable', detail: peer.error });
                     if (!sameVersions(local.versions, peer.info.versions)) {
-                        return { robotId: peer.robotId, address: peer.address, status: 'different version', detail: 'needs os ' + local.versions.os + ', services ' + local.versions.services + ', BEam ' + local.versions.beam, versions: peer.info.versions };
+                        return Object.assign(where, { status: 'different version', detail: 'needs os ' + local.versions.os + ', services ' + local.versions.services + ', BEam ' + local.versions.beam, versions: peer.info.versions });
                     }
-                    usable.push({ robotId: peer.robotId, address: peer.address, port: peer.port, people: peer.info.people, tombstones: peer.info.tombstones });
-                    return { robotId: peer.robotId, address: peer.address, status: 'synced', people: (peer.info.people || []).length };
+                    usable.push({ robotId: peer.robotId, address: peer.address, port: peer.port, people: peer.info.people, tombstones: peer.info.tombstones, settings: peer.info.settings });
+                    return Object.assign(where, { status: 'synced', people: (peer.info.people || []).length });
                 });
+                if (!usable.length) return { report: report, done: { imported: 0, removed: 0, settings: 0, errors: [] } };
                 const plan = merge.plan({ people: local.people, tombstones: state.tombstones }, usable, now());
                 state.tombstones = plan.tombstones;
-                return apply(plan, usable).then((done) => ({ report: report, done: done }));
+                return apply(plan, usable).then((done) => applySettings(usable, done).then(() => ({ report: report, done: done })));
             }))
             .then((r) => snapshot().then((list) => {
                 // Our own removals of tombstoned names are already tombstoned; nothing new to record.
                 noteChanges(list);
                 state.synced = state.signature;
                 state.last = { at: started, finished: now(), reason: reason || 'manual', ok: !r.done.errors.length, robots: r.report,
-                    imported: r.done.imported, removed: r.done.removed, errors: r.done.errors.slice(0, 20) };
+                    imported: r.done.imported, removed: r.done.removed, settings: r.done.settings, errors: r.done.errors.slice(0, 20) };
                 saveState();
                 return state.last;
             }))
@@ -317,13 +462,14 @@ function create (deps) {
         changeTimer = setTimeout(() => { changeTimer = null; sync(reason); }, delay);
     }
 
-    /** Once a minute: people changed here → tell the other robots and sync; otherwise every 4 hours. */
+    /** Once a minute in a cluster: people or report settings changed here → tell the other robots and sync; otherwise every 4 hours. */
     function check () {
-        if (running) return Promise.resolve();
-        return snapshot().then((list) => {
-            noteChanges(list);
+        if (running || !clusterId()) return Promise.resolve();
+        return Promise.all([snapshot(), readSettings()]).then((r) => {
+            noteChanges(r[0]);
+            const settingsChanged = noteSettings(r[0], r[1]).changed;
             saveState();
-            if (state.synced && state.signature !== state.synced) {
+            if (state.synced && (state.signature !== state.synced || settingsChanged)) {
                 broadcastAddresses().forEach((a) => send('changed', a));
                 return sync('people changed');
             }
@@ -344,10 +490,11 @@ function create (deps) {
     }
 
     function status () {
-        return { syncing: !!running, last: state.last, versions: versions(), robotId: robotId };
+        return { syncing: !!running, last: state.last, versions: versions(), robotId: robotId, inCluster: !!clusterId() };
     }
 
-    return { start: start, sync: sync, check: check, status: status, info: info, person: person, onMessage: onMessage, _state: () => state };
+    return { start: start, sync: sync, check: check, status: status, info: info, person: person, onMessage: onMessage,
+        add: add, join: join, leave: leave, removeRobot: removeRobot, requireCluster: requireCluster, _state: () => state };
 }
 
 let instance = null;
@@ -359,17 +506,18 @@ function isLanAddress (address) {
     return /^(10\.|192\.168\.|169\.254\.|127\.)/.test(a) || /^172\.(1[6-9]|2\d|3[01])\./.test(a) || a === '::1' || /^f[cde]/i.test(a);
 }
 
-// JiboSync is hidden for now (code kept for later). Set BEACON_JIBOSYNC=1 to turn it on (the tests do).
-const ENABLED = process.env.BEACON_JIBOSYNC === '1';
-
 module.exports = {
-    ENABLED: ENABLED,
+    CLUSTER_HEADER: CLUSTER_HEADER,
     create: create,
     sameVersions: sameVersions,
     isLanAddress: isLanAddress,
-    start: () => { if (ENABLED) get().start(); },
+    start: () => get().start(),
     sync: (reason) => get().sync(reason),
-    status: () => ENABLED ? get().status() : { enabled: false },
-    info: () => get().info(),
-    person: (id) => get().person(id)
+    status: () => get().status(),
+    info: (cluster) => { get().requireCluster(cluster); return get().info(); },
+    person: (cluster, id) => { get().requireCluster(cluster); return get().person(id); },
+    add: (id) => get().add(id),
+    join: (body) => get().join(body),
+    leave: () => get().leave(),
+    removeRobot: (id) => get().removeRobot(id)
 };
