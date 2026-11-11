@@ -13,11 +13,6 @@
     var state = {
         panel: 'status',
         photos: null,
-        location: {
-            current: null,
-            detected: null,
-            source: null
-        },
         units: {
             temperature: 'fahrenheit'
         },
@@ -298,109 +293,6 @@
 
     var menuUI = window.BEaconMenuEditor.create({ api: api, toast: toast, reportError: reportError });
     var themeUI = window.BEaconThemes.create({ api: api, toast: toast, reportError: reportError, prompt: prompt2 });
-
-    /* ------------------------------------------------------------ location */
-
-    function locationValue (value) {
-        return value === undefined || value === null || value === '' ? '—' : String(value);
-    }
-
-    function locationSummary (location) {
-        if (!location) { return 'No location set'; }
-        var parts = [];
-        if (location.city) { parts.push(location.city); }
-        if (location.state || location.stateAbbr) { parts.push(location.state || location.stateAbbr); }
-        if (location.country || location.countryCode) {
-            parts.push(location.country || location.countryCode);
-        }
-        return parts.length ? parts.join(', ') : 'Location set';
-    }
-
-    function renderLocationList (selector, location) {
-        var list = $(selector);
-        list.innerHTML = '';
-        if (!location) {
-            list.appendChild(el('dd', null, 'No location set'));
-            return;
-        }
-
-        var timezone = location.timezone || {};
-        var rows = [
-            ['City', location.city],
-            ['State / region', location.state || location.stateAbbr],
-            ['Country', location.country || location.countryCode],
-            ['Timezone', timezone.id]
-        ];
-        rows.forEach(function (row) {
-            list.appendChild(el('dt', null, row[0]));
-            list.appendChild(el('dd', null, locationValue(row[1])));
-        });
-    }
-
-    function renderLocation () {
-        renderLocationList('#location-current', state.location.current);
-        renderLocationList('#location-detected', state.location.detected);
-
-        var summary = $('#location-current-summary');
-        if (summary) { summary.textContent = locationSummary(state.location.current); }
-
-        var card = $('#location-detected-card');
-        var apply = $('#location-apply');
-        var hasDetected = !!state.location.detected;
-        card.hidden = !hasDetected;
-        apply.disabled = !hasDetected;
-        var note = '';
-        if (hasDetected) {
-            note = 'This is based on your network and may not be exact.';
-        }
-        $('#location-note').textContent = note;
-    }
-
-    function loadLocation () {
-        return api('GET', '/api/location').then(function (data) {
-            state.location.current = data.location || null;
-            renderLocation();
-            return data;
-        });
-    }
-
-    function detectLocation () {
-        var button = $('[data-action="detect-location"]');
-        if (button) { button.disabled = true; }
-        toast('Looking up your area…');
-        return api('POST', '/api/location/detect').then(function (data) {
-            state.location.detected = data.location || null;
-            state.location.source = 'ip';
-            renderLocation();
-            toast('Location found. Review it before saving.', 'ok');
-            return data;
-        }).catch(function (err) {
-            renderLocation();
-            reportError(err);
-        }).then(function (data) {
-            if (button) { button.disabled = false; }
-            return data;
-        });
-    }
-
-    function applyLocation () {
-        if (!state.location.detected) { return null; }
-        if (!confirm('Use this as Jibo\'s home location?')) { return null; }
-        var button = $('#location-apply');
-        button.disabled = true;
-        return api('POST', '/api/location', { location: state.location.detected })
-            .then(function (data) {
-                state.location.current = data.location || state.location.detected;
-                state.location.detected = null;
-                state.location.source = null;
-                renderLocation();
-                toast('Location saved.', 'ok');
-                return data;
-            }).catch(function (err) {
-                renderLocation();
-                reportError(err);
-            });
-    }
 
     /* --------------------------------------------------------------- units */
 
@@ -1310,7 +1202,7 @@
         screen: loadScreen,
         photos: loadPhotos,
         people: loadPeople,
-        reports: function () { return Promise.all([loadPeople(), loadLocation(), loadUnits()]); },
+        reports: function () { return Promise.all([loadPeople(), loadUnits()]); },
         store: themeUI.loadStore,
         menu: menuUI.load,
         etc: loadEtc,
@@ -1364,14 +1256,11 @@
         'refresh-photos': loadPhotos,
         'refresh-people': loadPeople,
         'refresh-store': function () { return themeUI.refreshStore(); },
-        'refresh-location': loadLocation,
         'refresh-reports': function () { return loaders.reports(); },
         'refresh-etc': loadEtc,
         'refresh-server': loadServer,
         'save-hub': saveHub,
         'save-endpoint': saveEndpoint,
-        'detect-location': detectLocation,
-        'apply-location': applyLocation,
         'save-units': saveUnits,
         'add-person': function () {
             var first = $('#people-new-first');
@@ -1507,7 +1396,6 @@
             return api('PUT', '/api/people/home', { id: memberId, address: address }).then(function (data) {
                 toast('Home address saved.', 'ok');
                 renderPeople(data);
-                return loadLocation();
             });
         },
         'clear-home': function (button) {

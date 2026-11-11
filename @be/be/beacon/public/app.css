@@ -42,7 +42,6 @@
 .icon-reports { --icon-image: url("icons/material/article.svg"); }
 .icon-settings { --icon-image: url("icons/material/settings.svg"); }
 .icon-weather { --icon-image: url("icons/material/wb_sunny.svg"); }
-.icon-location { --icon-image: url("icons/material/location_on.svg"); }
 .icon-arrow-right { --icon-image: url("icons/material/chevron_right.svg"); }
 .icon-check { --icon-image: url("icons/material/check.svg"); }
 .icon-screen { --icon-image: url("icons/material/desktop_windows.svg"); }
@@ -790,16 +789,6 @@ details.advanced[open] > summary::after { transform: rotate(-90deg); }
 
 /* ---------------------------------------------------------------- etc */
 
-.location-card-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding-top: 16px;
-}
-.location-card-head > * + * { margin-left: 12px; }
-
-.location-note { padding: 12px 0 0; }
-
 .reports-person {
     display: block;
     width: 100%;
@@ -1211,8 +1200,6 @@ input[type="checkbox"], input[type="radio"] { width: 18px; height: 18px; flex: n
 button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible, a:focus-visible { outline: 3px solid var(--accent-dark); outline-offset: 3px; }
 .people-card .setting-row { border: 0; padding: 0; border-radius: 0; }
 .people-actions-row, .photo-actions, .modal-actions { flex-wrap: wrap; row-gap: 8px; }
-.location-card-head { padding-top: 0; flex-wrap: wrap; gap: 12px; }
-.location-card-head > * + * { margin-left: 0; }
 .theme-details { padding: 40px 24px; }
 .theme-details-card { border: 1px solid var(--line); border-radius: 22px; padding: 28px; box-shadow: 0 16px 60px rgba(0,0,0,.2); }
 .theme-details-card > .btn:first-child { float: right; margin: 0 0 16px 16px; }
