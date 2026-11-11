@@ -3,7 +3,7 @@
 // Shortcut shade: drag down from the top third of the eye screen and a card follows your
 // finger, like Android's notification shade, filling at most the top half. Behind it the
 // eye stays, blurred and dimmed. The card has a status line (volume, clock, IP, battery)
-// and Wi-Fi, Settings and a favorite skill chosen in BEacon. Drag it back up, tap below
+// and Wi-Fi, Bluetooth (an on/off toggle), Settings and a favorite skill chosen in BEacon. Drag it back up, tap below
 // it, or leave it 20 s untouched to put it away. Drawn in PIXI on the eye view itself.
 const path = require('path');
 const jibo = require('jibo');
@@ -16,7 +16,7 @@ const HEIGHT = 360;            // open shade: the top half of the screen
 const GRAB = H / 3;            // drags must start in the top third
 const CARD = { x: 40, w: 1200, top: -40, radius: 40 };
 const STATUS_Y = 52, BUTTON_Y = 175, BUTTON_R = 52, ICON = 84, SLIDER = { x: 190, w: 900, y: 175 };
-const GRAY = 0x3A3A4A, CYAN = 0x25F2FB;
+const GRAY = 0x3A3A4A, CYAN = 0x25F2FB, BLUE = 0x0082FC;
 const IDLE_CLOSE = 20000, VOLUME_IDLE = 4000, DRAG_SLOP = 12;
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
@@ -94,20 +94,25 @@ class Shortcuts {
         const buttons = this.buttons = new PIXI.Container(); card.addChild(buttons);
         const items = [
             { icon: settingsIcon('menu/icons/wifi.png'), color: GRAY, go: () => this.go('@be/settings', { nlu: { intent: 'wifiStatus', entities: {} } }) },
+            { icon: path.join(SKILLS, 'bluetooth/rune.png'), color: GRAY, label: 'Bluetooth', bluetooth: true, go: () => this.toggleBluetooth() },
             { icon: path.join(SKILLS, 'main-menu/resources/icons/settings.png'), color: GRAY, label: 'Settings', go: () => this.go('@be/settings', { nlu: { intent: 'menu', entities: {} } }) }
         ];
         if (favorite) items.push({ icon: favorite.iconSrc, color: favorite.colors[0], label: short(favorite.label, 12), go: () => this.go('@be/main-menu', { intent: 'shortcut', destination: favorite.id }) });
-        const xs = items.length === 3 ? [440, 640, 840] : [540, 740];
         this.hits = items.map((item, i) => {
-            const x = xs[i], g = new PIXI.Graphics();
-            g.beginFill(item.color); g.drawCircle(x, BUTTON_Y, BUTTON_R); g.endFill();
-            g.beginFill(0xFFFFFF, 0.08); g.drawCircle(x, BUTTON_Y - 6, BUTTON_R - 6); g.endFill();
+            const x = W / 2 + (i - (items.length - 1) / 2) * 200, g = item.circle = new PIXI.Graphics();
+            item.paint = color => {
+                g.clear();
+                g.beginFill(color); g.drawCircle(x, BUTTON_Y, BUTTON_R); g.endFill();
+                g.beginFill(0xFFFFFF, 0.08); g.drawCircle(x, BUTTON_Y - 6, BUTTON_R - 6); g.endFill();
+            };
+            item.paint(item.color);
             buttons.addChild(g);
             sprite(buttons, item.icon, ICON, x, BUTTON_Y);
             item.caption = text(buttons, 28, '#D5D5E0', 0.5, x, BUTTON_Y + 88, true); item.caption.text = item.label || '';
             return { x: x, r: BUTTON_R + 24, go: item.go };
         });
         this.wifiItem = items[0];
+        this.bluetoothItem = items[1];
         // Volume slider, shown in place of the buttons after tapping the volume.
         const box = this.sliderBox = new PIXI.Container(); box.visible = false; card.addChild(box);
         this.slider = new PIXI.Graphics(); box.addChild(this.slider);
@@ -138,6 +143,7 @@ class Shortcuts {
         this.drag = { startY: p.y, startOffset: this.offset, moved: false, lastY: p.y, lastT: Date.now(), v: 0 };
         if (this.offset === 0) {
             jibo.wifi.getCurrentNetwork((e, n) => { this.network = e ? null : n || null; this.render(); });
+            this.readBluetooth();
         }
         if (open && this.mode === 'volume' && Math.abs(p.y - SLIDER.y) < 70 && p.x > SLIDER.x - 60 && p.x < SLIDER.x + SLIDER.w + 60) {
             this.drag.slider = true; this.slide(p.x);
@@ -176,6 +182,16 @@ class Shortcuts {
         this.dragVolume = volumeAt(x, v.MIN_VOLUME, v.MAX_VOLUME); this.drawSlider(this.dragVolume);
     }
     go(skill, options) { this.animateTo(0, () => this.launch(skill, options)); }
+    // Bluetooth: blue when on. A tap switches it right here (turning on takes a few seconds).
+    readBluetooth() {
+        require('../../beacon/lib/bluetooth').status().then(s => { this.bluetooth = s.enabled; this.render(); }, () => { this.bluetooth = null; this.render(); });
+    }
+    toggleBluetooth() {
+        if (this.bluetoothBusy || this.bluetooth === null || this.bluetooth === undefined) return;
+        this.bluetoothBusy = true; this.render();
+        const done = () => { this.bluetoothBusy = false; this.readBluetooth(); };
+        require('../../beacon/lib/bluetooth').setEnabled(!this.bluetooth).then(done, error => { this.log.warn('Bluetooth switch failed', error); done(); });
+    }
 
     // The card slides down from above; blur and dimming follow how far it is out.
     place(offset) {
@@ -228,6 +244,11 @@ class Shortcuts {
         this.ip.text = net && net.ip_address && net.ip_address !== 'disconnected' ? net.ip_address : '';
         this.ip.x = this.batteryIcon.x - 46 - 20;
         if (this.wifiItem) this.wifiItem.caption.text = net && net.ssid ? short(net.ssid, 12) : 'Wi-Fi';
+        const bt = this.bluetoothItem;
+        if (bt) {
+            bt.paint(this.bluetooth ? BLUE : GRAY);
+            bt.caption.text = this.bluetoothBusy ? (this.bluetooth ? 'Turning off…' : 'Turning on…') : this.bluetooth === null ? 'Unavailable' : 'Bluetooth';
+        }
         if (this.mode === 'volume' && !(this.drag && this.drag.slider)) this.drawSlider(volume);
     }
 }

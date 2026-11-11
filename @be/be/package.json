@@ -28,6 +28,7 @@
     "lazySkills": [
       "@be/agent",
       "@be/phone-battery",
+      "@be/bluetooth",
       "@be/daisy-bell",
       "@be/circuit-saver",
       "@be/main-menu",

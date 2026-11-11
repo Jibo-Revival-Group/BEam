@@ -1,0 +1,21 @@
+{
+  "name": "@be/bluetooth",
+  "version": "1.0.0",
+  "description": "Bluetooth mode: Jibo is a Bluetooth speaker while a phone is connected.",
+  "main": "index.js",
+  "config": {
+    "standalone": true
+  },
+  "jibo": {
+    "main": "index.html",
+    "type": "asset-pack",
+    "display-name": "bluetooth"
+  },
+  "engines": {
+    "node": ">=6.0"
+  },
+  "syncDependencies": [
+    "jibo",
+    "@be/be-framework"
+  ]
+}

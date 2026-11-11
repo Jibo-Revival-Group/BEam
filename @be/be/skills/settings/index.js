@@ -937,12 +937,84 @@ class MoreSettingsSkill extends SubSkill_1.default {
         super.destroy();
     }
 }
+// 5x1: Bluetooth speaker on/off (BEnch jibo-bluetooth), confirmed on Privacy's own screen with other words.
+class BluetoothSettingsSkill extends SubSkill_1.default {
+    constructor(skill, intent, onClose) {
+        super(skill, intent, onClose);
+        this.view = null;
+        this.bluetooth = require('../../beacon/lib/bluetooth');
+        this.onPressed = this.onPressed.bind(this);
+        this.bluetooth.status().then((s) => this.show(s), () => this.show(null));
+    }
+    show(s) {
+        if (this.destroyed) {
+            return;
+        }
+        const config = JSON.parse(require('fs').readFileSync(require('path').join(__dirname, 'assets/privacy/privacyOnConfirm.json'), 'utf8'));
+        const byId = (id) => config.componentConfigs.filter(c => c.id === id)[0];
+        config.viewConfig.id = 'bluetoothConfirm';
+        this.enabled = !!(s && s.enabled);
+        if (!s) {
+            byId('title').text = 'Bluetooth unavailable';
+            byId('text').text = 'Bluetooth isn\u2019t working on this robot right now.';
+        }
+        else if (this.enabled) {
+            byId('title').text = 'Turn off Bluetooth?';
+            byId('text').text = 'Jibo will stop being a Bluetooth speaker' + (s.connected ? '\nand disconnect from ' + s.device + '.' : '.');
+        }
+        else {
+            byId('title').text = 'Turn on Bluetooth?';
+            byId('text').text = 'Jibo becomes a Bluetooth speaker. Pair your phone\nwith \u201c' + s.name + '\u201d to play music on him.';
+        }
+        const view = jibo.face.views.createView('View', config, false);
+        if (s) {
+            view.on('pressed', this.onPressed);
+        }
+        jibo.face.views.changeView({ addView: view }, null, null, (v) => {
+            this.view = v;
+            v.once(jibo.face.views.CLOSED, this.destroyThenClose);
+        });
+    }
+    onPressed() {
+        if (!this.view || this.isApplying) {
+            return;
+        }
+        this.isApplying = true;
+        this.bluetooth.setEnabled(!this.enabled).catch((error) => this.log && this.log.warn('Bluetooth switch failed', error)).then(() => {
+            if (this.view) {
+                jibo.face.views.changeView({ remove: true }, () => { }, () => { });
+            }
+        });
+    }
+    stopAndDestroy(done) {
+        if (this.view) {
+            this.view.removeListener('pressed', this.onPressed);
+            this.view.removeListener(jibo.face.views.CLOSED, this.destroyThenClose);
+        }
+        jibo.face.views.changeView({ removeAll: true, leaveEmpty: true }, () => {
+            this.destroy();
+            done();
+        }, () => {
+            this.destroy();
+            done('bluetooth confirmation view close failed');
+        });
+    }
+    destroy() {
+        this.destroyed = true;
+        if (this.view) {
+            this.view.removeListener('pressed', this.onPressed);
+        }
+        this.view = null;
+        super.destroy();
+    }
+}
 class Settings extends be_framework_1.BeSkill {
     constructor(assetPack) {
         super(assetPack);
         this.SUB_SKILLZ = {
             about: { Class: AboutSkill_1.default },
             battery: { Class: BatterySkill_1.default },
+            bluetooth: { Class: BluetoothSettingsSkill },
             privacy: { Class: PrivacySkill },
             error: { Class: ErrorSkill_1.default, uninterruptible: true, refreshable: true },
             menu: { Class: MenuSkill_1.default },

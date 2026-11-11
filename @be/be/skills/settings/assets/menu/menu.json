@@ -44,6 +44,18 @@
                 }
             },
             {
+                "id": "bluetooth",
+                "label": "Bluetooth",
+                "iconSrc": "assets/menu/icons/bluetooth.png",
+                "action": {
+                    "type": "event",
+                    "data": {
+                        "event": "press",
+                        "intent": "bluetooth"
+                    }
+                }
+            },
+            {
                 "id": "battery",
                 "label": "Battery",
                 "iconSrc": "assets/menu/icons/battery.png",

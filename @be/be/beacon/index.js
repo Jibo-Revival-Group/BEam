@@ -163,6 +163,11 @@ function start (options, callback) {
             warn('jibosync:', syncErr && syncErr.message);
         }
         try {
+            require('./lib/bluetooth').watch(() => global.be);
+        } catch (btErr) {
+            warn('bluetooth:', btErr && btErr.message);
+        }
+        try {
             homeassistant.startWatcher();
         } catch (watchErr) {
             warn('home assistant watcher:', watchErr && watchErr.message);
