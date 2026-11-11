@@ -59,4 +59,26 @@ let closed = false;
 skill.close(() => { closed = true; });
 assert.ok(closed && audios[3].paused && listening() === 0, 'close (another skill took over) stops it');
 assert.strictEqual(skill.exited, 3, 'close does not call exit again');
-console.log('daisy-bell ok');
+// A song BEefy sends is downloaded (the page can't load api.5x1.com's certificate) and played from the file.
+const server = require('http').createServer((req, res) => res.end(req.url === '/songs/new-song.mp3' ? 'mp3 bytes' : ''));
+server.listen(0, '127.0.0.1', () => {
+    const base = 'http://127.0.0.1:' + server.address().port + '/songs/';
+    skill.open({ nlu: { entities: { url: base + 'new-song.mp3' } } });
+    assert.strictEqual(audios.length, 4, 'waits for the download');
+    setTimeout(() => {
+        assert.strictEqual(audios.length, 5);
+        const file = audios[4].src.replace('file://', '');
+        assert.strictEqual(require('fs').readFileSync(file, 'utf8'), 'mp3 bytes', 'plays the downloaded song');
+        skill.close(() => {});
+
+        skill.open({ nlu: { entities: { url: base + 'slow.mp3' } } });
+        skill.close(() => {});
+        skill.open({ nlu: { entities: { url: 'http://127.0.0.1:1/missing.mp3' } } });
+        setTimeout(() => {
+            assert.strictEqual(audios.length, 5, 'nothing plays after close or a failed download');
+            assert.strictEqual(skill.exited, 4, 'a failed download leaves');
+            server.close();
+            console.log('daisy-bell ok');
+        }, 300);
+    }, 300);
+});
