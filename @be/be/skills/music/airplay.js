@@ -88,7 +88,21 @@ function create() {
         if (entry.count === total) { delete chunks[key]; item(word(buffer, 16), word(buffer, 20), Buffer.concat(entry.parts)); }
     }
 
+    // The tee's reader (airplay/beat-relay.py). It must be up before the receiver plays: ALSA blocks on a FIFO
+    // nobody reads. python directly, never through a shell (Jibo's skill user can't run /bin/sh).
+    const FIFO = '/tmp/jibo-airplay-beat';
+    let relay = null;
+    function spawnRelay() {
+        if (relay) return;
+        try {
+            relay = child.spawn('python', ['-S', path.join(__dirname, 'airplay', 'beat-relay.py'), FIFO], { stdio: 'ignore' });
+        } catch (error) { relay = null; console.warn('[airplay] beat relay could not start:', error.message); return; }
+        relay.on('error', error => console.warn('[airplay] beat relay error:', error.message));
+        relay.on('exit', code => { relay = null; console.warn('[airplay] beat relay exited (' + code + ')'); setTimeout(spawnRelay, 1000); });
+    }
+
     function spawn() {
+        spawnRelay();
         if (proc) return;
         const started = Date.now();
         try {

@@ -1,14 +1,25 @@
-# Run by ALSA (airplay/.asoundrc, pcm.airplay_beat): AirPlay's PCM (S16LE stereo 44.1 kHz) arrives on stdin and goes
-# to the Music skill's tempo tracker over UDP 127.0.0.1:18703. Python, not node: ALSA blocks AirPlay's audio until
-# this reads, and the pipe holds only ~0.37 s; python -S starts in ~0.07 s on Jibo, node in ~0.5 s (an audible stall).
-# UDP never blocks: with nobody listening it is dropped, and stdin is always drained.
-import os, socket
+# Started (and restarted) by skills/music/airplay.js. AirPlay's PCM (S16LE stereo 44.1 kHz) comes from ALSA's tee
+# (airplay/.asoundrc, pcm.airplay_beat writes this FIFO) and goes to the Music skill's tempo tracker over UDP
+# 127.0.0.1:18703. ALSA writes a FIFO, not "|command": that runs through /bin/sh, which Jibo's skill user can't
+# execute, and the dead pipe then killed the receiver with SIGPIPE at the first song. Always drained: ALSA's open
+# and writes block on a FIFO nobody reads. UDP never blocks; with nobody listening it is dropped.
+import ctypes, errno, os, socket, sys
+ctypes.CDLL(None).prctl(1, 15)  # PR_SET_PDEATHSIG, SIGTERM: exit with the Be renderer that started us
+FIFO = sys.argv[1]
+try:
+    os.mkfifo(FIFO, 0o600)
+except OSError as error:
+    if error.errno != errno.EEXIST:
+        raise
 out = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 while True:
-    data = os.read(0, 8192)
-    if not data:
-        break
-    try:
-        out.sendto(data, ('127.0.0.1', 18703))
-    except socket.error:
-        pass
+    fd = os.open(FIFO, os.O_RDONLY)  # waits for the next song; EOF when it ends
+    while True:
+        data = os.read(fd, 8192)
+        if not data:
+            break
+        try:
+            out.sendto(data, ('127.0.0.1', 18703))
+        except socket.error:
+            pass
+    os.close(fd)
