@@ -733,6 +733,7 @@ details.advanced[open] > summary::after { transform: rotate(-90deg); }
 @media (prefers-reduced-motion: reduce) { .store-switch-slider, .store-switch-tab { transition: none; } }
 .theme-details { position: fixed; inset: 0; top: 0; left: 0; right: 0; bottom: 0; z-index: 1000; background: rgba(0,0,0,.5); padding: 24px; overflow-y: auto; }
 .theme-details[hidden] { display: none; }
+#jibosync-leave[hidden] { display: none; }
 .theme-details-card { max-width: 800px; margin: auto; padding: 24px; background: var(--bg-card); border-radius: 16px; }
 .theme-readme { line-height: 1.6; overflow-wrap: break-word; }
 .theme-readme pre { padding: 12px; background: var(--pearl); overflow-x: auto; white-space: pre-wrap; }
