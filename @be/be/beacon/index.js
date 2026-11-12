@@ -121,6 +121,20 @@ function start (options, callback) {
         } catch (err) {
             warn('could not check the loop owner:', err && err.message);
         }
+        // At boot the KB may not have loaded the loop yet (null): try again every 30 s for 10 minutes.
+        const robotMember = (tries) => {
+            try {
+                require('./lib/people').ensureRobotMember(require('os').hostname())
+                    .then((added) => {
+                        if (added) warn('loop had no robot member with its id: added it');
+                        else if (added === null && tries > 1) setTimeout(() => robotMember(tries - 1), 30000);
+                    })
+                    .catch((err) => warn('could not check the loop robot member:', err && err.message));
+            } catch (err) {
+                warn('could not check the loop robot member:', err && err.message);
+            }
+        };
+        robotMember(20);
         // Keep Store listings current with no BEacon tab open. refresh(.., true) skips storefronts tried in the last 30 minutes;
         // like the Store itself, it needs GitHub sign-in (unauthenticated GitHub API limits are too low).
         const githubAuth = require('./lib/github-auth');

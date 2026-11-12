@@ -417,6 +417,33 @@ function ensureOwner () {
 }
 
 /**
+ * The cloud learns which robot a voice turn is from by the one loop member with an accountId: the robot
+ * member (type robot, accountId = robot id). Loops made on the robot (OOBE PM) have none, so commute,
+ * calendar etc. never find the robot's settings. Add it, or give an existing robot member the id.
+ */
+function ensureRobotMember (robotId) {
+    const jibo = ensureRobot();
+    return jibo.kb.onInit().then(() => loadRootAndLoop(jibo)).then((results) => {
+        const root = results[0];
+        const robots = (results[1] || []).filter(isRobotMember);
+        if (!root) return null; // the KB hasn't loaded the loop yet (early boot)
+        if (!robotId || robots.some((looper) => looper.data && looper.data.accountId)) return false;
+        if (robots.length) {
+            robots[0].data.accountId = robotId;
+            return asPromise((cb) => robots[0].save(cb)).then(() => true);
+        }
+        const node = jibo.kb.loop.createNode('user');
+        node.type = 'user';
+        node.data = { firstName: 'Jibo', type: 'robot', status: 'accepted', accountId: robotId };
+        root.addEdges(node, 'user');
+        root.addEdges(node, 'robot');
+        return asPromise((cb) => node.save(cb))
+            .then(() => asPromise((cb) => root.save(cb)))
+            .then(() => true);
+    });
+}
+
+/**
  * Marks face/voice enrollment on the person's own node. The KB's setEnrollmentFace/Voice only tell the
  * cloud, and 5x1's cloud never writes the flag back, so JiboSync sets it here like BEacon's other edits.
  */
@@ -498,6 +525,7 @@ function clearPhoto (memberId) {
 
 module.exports = {
     ensureOwner,
+    ensureRobotMember,
     PLACEHOLDER_OWNER,
     list,
     findMember,
