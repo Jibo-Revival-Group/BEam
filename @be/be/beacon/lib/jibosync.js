@@ -286,7 +286,7 @@ function create (deps) {
     function person (id) {
         return Promise.all([people.findMember(id), helper('GET', '/export?id=' + encodeURIComponent(id))]).then((r) => {
             const m = r[0].member;
-            return Promise.resolve().then(() => people.resolvePhotoFile(id)).then((file) => fs.readFileSync(file).toString('base64'), () => null).then((photo) => ({
+            return Promise.resolve().then(() => people.readPhoto(id)).then((buf) => buf.toString('base64'), () => null).then((photo) => ({
                 id: id, firstName: m.firstName, lastName: m.lastName, gender: m.gender, phoneticName: m.phoneticName || null,
                 photo: photo, face: r[1].face, voice: r[1].voice
             }));

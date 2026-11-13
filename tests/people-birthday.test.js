@@ -4,13 +4,14 @@
 const assert = require('assert');
 const Module = require('module');
 
-const zane = { id: 'zane', data: { firstName: 'Zane', type: 'member' }, saved: 0, save(cb) { this.saved++; cb(null); } };
+const zane = { id: 'zane', data: { firstName: 'Zane', type: 'member', gender: 'male' }, saved: 0, save(cb) { this.saved++; cb(null); } };
 const fakeJibo = { kb: { onInit: () => Promise.resolve(), loop: {
     getUserNodeById: (id, cb) => cb(null, id === 'zane' ? zane : null),
     loadRoot: cb => cb(null, { data: { id: 'loop' } }),
     loadLoop: cb => cb(null, [zane]),
     // Like the robot's loop service: the phonetic-name update rewrites the node from its own copy.
-    setPhoneticName: (id, name, cb) => { zane.data = { firstName: zane.data.firstName, type: 'member', phoneticName: name }; cb(null); }
+    // Its copy is older, so the gender goes back to what it was (on a real robot too).
+    setPhoneticName: (id, name, cb) => { zane.data = { firstName: zane.data.firstName, type: 'member', gender: 'male', phoneticName: name }; cb(null); }
 } } };
 const load = Module._load;
 Module._load = function (request) { return request === 'jibo' ? fakeJibo : load.apply(this, arguments); };
@@ -32,5 +33,9 @@ people.updateMember('zane', { birthday: '1990-05-21' }).then((snapshot) => {
 }).then((snapshot) => {
     assert.ok(!('birthday' in zane.data), 'clearing the field removes it');
     assert.strictEqual(snapshot.members.filter(m => m.id === 'zane')[0].birthday, null);
-    console.log('PASS People saves, validates, keeps and clears a birthday');
+    return people.updateMember('zane', { firstName: 'Zane', gender: 'female', phoneticName: '', birthday: '' });
+}).then((snapshot) => {
+    assert.strictEqual(zane.data.gender, 'female', 'the Save button (which also sends the phonetic name) keeps the new gender');
+    assert.strictEqual(snapshot.members.filter(m => m.id === 'zane')[0].gender, 'female');
+    console.log('PASS People saves, validates, keeps and clears a birthday, and keeps the gender');
 }).catch((err) => { console.error(err); process.exit(1); });

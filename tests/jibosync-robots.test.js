@@ -24,12 +24,7 @@ function robot (name, members, enrolled) {
     r.people = {
         list: () => Promise.resolve({ members: r.members.map((m) => Object.assign({ hasPhoto: !!r.photos[m.id] }, m)) }),
         findMember: (id) => Promise.resolve({ member: find(id) }),
-        resolvePhotoFile: (id) => {
-            if (!r.photos[id]) return Promise.reject(new Error('no photo'));
-            const f = path.join(os.tmpdir(), 'jibosync-photo-' + name + '-' + id);
-            fs.writeFileSync(f, r.photos[id]);
-            return Promise.resolve(f);
-        },
+        readPhoto: (id) => (r.photos[id] ? Promise.resolve(Buffer.from(r.photos[id])) : Promise.reject(new Error('no photo'))),
         createMember: (fields) => {
             const id = name + '-new' + (nextId++);
             r.members.push({ id: id, firstName: fields.firstName, lastName: fields.lastName, gender: fields.gender, type: 'member', status: 'accepted', created: clock });

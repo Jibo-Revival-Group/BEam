@@ -55,9 +55,7 @@ function photoPathFor (looper) {
     try {
         const assets = looper.getAssets && looper.getAssets('photo');
         if (!assets || !assets.length) return null;
-        const url = assets[0].fullFilenameOrURL && assets[0].fullFilenameOrURL();
-        if (!url || url.indexOf('http') === 0) return url || null;
-        return url;
+        return (assets[0].fullFilenameOrURL && assets[0].fullFilenameOrURL()) || null;
     } catch (err) {
         return null;
     }
@@ -233,14 +231,18 @@ function parseBirthday (value) {
     return ms;
 }
 
-// setPhoneticName goes through the loop service, which rewrites the member node from its own copy
-// and drops data.birthday, so put the birthday back afterwards.
-function keepBirthday (jibo, memberId, birthday) {
+// setPhoneticName goes through the loop service, which rewrites the member node from its own (older)
+// copy: it drops data.birthday and puts back the old name and gender. Put the saved values back afterwards.
+const KEPT_FIELDS = ['firstName', 'lastName', 'gender', 'birthday'];
+function keepFields (jibo, memberId, saved) {
     return getUserNode(jibo, memberId).then((looper) => {
         const data = looper.data || (looper.data = {});
-        if (data.birthday === birthday) return null;
-        if (birthday === undefined) delete data.birthday;
-        else data.birthday = birthday;
+        const changed = KEPT_FIELDS.filter((key) => data[key] !== saved[key]);
+        if (!changed.length) return null;
+        changed.forEach((key) => {
+            if (saved[key] === undefined) delete data[key];
+            else data[key] = saved[key];
+        });
         return asPromise((cb) => looper.save(cb));
     }).catch(() => null);
 }
@@ -278,7 +280,7 @@ function updateMember (memberId, fields) {
                 if (fields && Object.prototype.hasOwnProperty.call(fields, 'phoneticName')) {
                     return asPromise((cb) => {
                         jibo.kb.loop.setPhoneticName(memberId, data.phoneticName || '', cb);
-                    }).catch(() => null).then(() => keepBirthday(jibo, memberId, data.birthday));
+                    }).catch(() => null).then(() => keepFields(jibo, memberId, data));
                 }
                 return null;
             }).then(() => list());
@@ -465,16 +467,27 @@ function setPhoneticName (memberId, phoneticName) {
     }).then(() => list());
 }
 
-function resolvePhotoFile (memberId) {
+// In Be the loop KB is served by the robot's KB service, so a photo is an http://127.0.0.1 URL, not a file.
+function fetchLocal (address) {
+    return new Promise((resolve, reject) => {
+        require('http').get(address, (res) => {
+            const chunks = [];
+            res.on('data', (chunk) => chunks.push(chunk));
+            res.on('end', () => (res.statusCode === 200 ? resolve(Buffer.concat(chunks)) : reject(fail('Photo file is missing.', 404))));
+        }).on('error', () => reject(fail('Photo file is missing.', 404)));
+    });
+}
+
+/** Resolves with the member's photo (JPEG bytes). */
+function readPhoto (memberId) {
     const jibo = ensureRobot();
     return jibo.kb.onInit().then(() => {
         return getUserNode(jibo, memberId).then((looper) => {
-            const filePath = photoPathFor(looper);
-            if (!filePath) throw fail('No photo for this member.', 404);
-            if (!paths.isFile(filePath) && !fs.existsSync(filePath)) {
-                throw fail('Photo file is missing on disk.', 404);
-            }
-            return filePath;
+            const location = photoPathFor(looper);
+            if (!location) throw fail('No photo for this member.', 404);
+            if (location.indexOf('http') === 0) return fetchLocal(location);
+            if (!paths.isFile(location)) throw fail('Photo file is missing.', 404);
+            return fs.readFileSync(location);
         });
     });
 }
@@ -536,7 +549,7 @@ module.exports = {
     setOwner,
     setPhoneticName,
     setEnrolled,
-    resolvePhotoFile,
+    readPhoto,
     setPhoto,
     clearPhoto,
     PHOTO_MAX_BYTES

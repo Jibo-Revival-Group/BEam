@@ -407,8 +407,8 @@ const routes = {
     }),
 
     'GET /api/people/photo': guard((req, res, query) => {
-        return people.resolvePhotoFile(query.id).then((filePath) => {
-            u.serveFile(req, res, filePath);
+        return people.readPhoto(query.id).then((buf) => {
+            u.sendBuffer(res, 200, buf, 'image/jpeg');
         });
     }),
 
