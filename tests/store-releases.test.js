@@ -4,7 +4,7 @@ const assert = require('assert'), stores = require('../@be/be/beacon/lib/theme-s
 const pkg = require('../@be/be/beacon/lib/theme-package'), fixture = require('./theme-fixtures');
 const files = fixture.astra(), repo = 'https://github.com/example/widget', api = 'https://api.github.com/repos/example/widget';
 const tag = 'v1.0.0', base = 'https://raw.githubusercontent.com/example/widget/' + tag + '/';
-const archive = api + '/zipball/' + tag, assetUrl = repo + '/releases/download/' + tag + '/widget.zip';
+const archive = repo + '/archive/refs/tags/' + tag + '.zip', assetUrl = repo + '/releases/download/' + tag + '/widget.zip';
 function release(overrides) { return Object.assign({id: 12, tag_name: tag, name: 'Version one', html_url: repo + '/releases/tag/' + tag, published_at: '2026-10-12T00:00:00Z', draft: false, prerelease: false, zipball_url: archive, assets: []}, overrides); }
 function zip(name, url) { return {name: name, state: 'uploaded', browser_download_url: url || assetUrl}; }
 function scenario(metadata) {
@@ -48,10 +48,8 @@ attached.store.catalog(repo).then(function(items){
 }).then(function(){
     return rejects(scenario(release({tag_name:''})).store.download(repo),/stable release/);
 }).then(function(){
-    return rejects(scenario(release({zipball_url:null})).store.download(repo),/no downloadable ZIP/);
-}).then(function(){
     const rate=scenario(Object.assign(new Error('Rate limit'),{remoteStatus:403}));
-    return rejects(rate.store.download(repo),/Rate limit/).then(function(){assert(rate.requests.every(u=>u.indexOf('https://api.github.com/')===0));});
+    return rejects(rate.store.download(repo),/Rate limit/).then(function(){assert(rate.requests.every(u=>u.indexOf('https://api.github.com/')===0||u.indexOf(stores.MIRROR)===0));});
 }).then(function(){
     const mismatch=stores.create(function(value){
         if(value===api){return Promise.resolve(Buffer.from('{}'));}
@@ -60,5 +58,21 @@ attached.store.catalog(repo).then(function(items){
         const changed=Object.assign({},files);const manifest=JSON.parse(files['manifest.json']);manifest.version='9.9.9';changed['manifest.json']=Buffer.from(JSON.stringify(manifest));
         return Promise.resolve(fixture.zip(changed));
     });return rejects(mismatch.download(repo),/does not match/);
-}).then(function(){console.log('Stable GitHub releases, attached package ZIPs, tagged archives, provenance, cache, ambiguity, missing releases, prereleases, API errors and manifest agreement passed');})
+}).then(function(){
+    // 5x1 Store entries are answered by BEaker's copy: GitHub's API is never asked, so no sign-in or rate limit.
+    const mirror=stores.MIRROR+'repos/example/widget', asked=[];
+    const mirrored=stores.create(function(value){
+        asked.push(value);
+        if(value===mirror){return Promise.resolve(Buffer.from(JSON.stringify({owner:{login:'example'},stargazers_count:8})));}
+        if(value===mirror+'/releases/latest'){return Promise.resolve(Buffer.from(JSON.stringify(release({assets:[zip('widget.zip')]}))));}
+        if(value===assetUrl){return Promise.resolve(fixture.zip(files));}
+        if(value.indexOf(base)===0&&files[value.slice(base.length)]){return Promise.resolve(files[value.slice(base.length)]);}
+        return Promise.reject(Object.assign(new Error('Unexpected request: '+value),{remoteStatus:404}));
+    });
+    return mirrored.catalog(repo).then(function(items){assert.strictEqual(items[0].stars,8);return mirrored.download(repo);}).then(function(download){
+        assert.strictEqual(download.release.id,12);assert(!asked.some(u=>u.indexOf('https://api.github.com/')===0),'BEaker answered; GitHub API not asked');
+        // A repository BEaker does not carry (someone's own storefront) is asked from GitHub, logged out.
+        assert.strictEqual(attached.requests[0],mirror);assert.strictEqual(attached.requests[1],api);
+    });
+}).then(function(){console.log('BEaker mirror first with GitHub fallback, stable GitHub releases, attached package ZIPs, tagged archives, provenance, cache, ambiguity, missing releases, prereleases, API errors and manifest agreement passed');})
 .catch(function(err){console.error(err);process.exitCode=1;});

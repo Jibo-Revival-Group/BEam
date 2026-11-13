@@ -22,7 +22,6 @@ const skills = require('./lib/skills');
 const customSkills = require('./lib/custom-skills');
 const voices = require('./lib/voices');
 const menuLayout = require('./lib/menu-layout');
-const githubAuth = require('./lib/github-auth');
 const system = require('./lib/system');
 const ota = require('./lib/ota');
 const location = require('./lib/location');
@@ -70,9 +69,6 @@ function guard (fn) {
     return function (req, res, query) {
         try {
             const pathname = url.parse(req.url).pathname;
-            if (/^\/api\/store(?:\/|$)/.test(pathname) || (req.method === 'POST' && /^\/api\/(?:(?:themes|skills|voices)\/install|voices\/theme)$/.test(pathname))) {
-                if (!githubAuth.token()) { req.resume(); throw fail('Sign in to GitHub to use the Store.', 401); }
-            }
             if (!voices.ENABLED && /^\/api\/voices\//.test(pathname)) { req.resume(); throw fail('Custom voices are turned off.', 404); }
             const result = fn(req, res, query);
             if (result && typeof result.then === 'function') {
@@ -114,10 +110,6 @@ const routes = {
     'POST /api/agent/models': guard((req, res) => {
         return u.readJson(req, 8192).then(body => agentProvider.models(body)).then(data => u.sendJson(res, 200, data));
     }),
-    'GET /api/github/auth': guard((req, res) => { u.sendJson(res, 200, githubAuth.status()); }),
-    'POST /api/github/auth': guard((req, res) => { return githubAuth.start().then(data => u.sendJson(res, 200, data)); }),
-    'POST /api/github/auth/poll': guard((req, res) => { return githubAuth.poll().then(data => u.sendJson(res, 200, data)); }),
-    'DELETE /api/github/auth': guard((req, res) => { u.sendJson(res, 200, githubAuth.disconnect()); }),
     'POST /api/sleep': guard(sleep.sleep),
     'GET /api/camera-stream/settings': guard((req, res) => {
         u.sendJson(res, 200, cameraController.settings());

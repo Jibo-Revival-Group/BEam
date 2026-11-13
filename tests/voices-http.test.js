@@ -6,14 +6,13 @@ const voicesLib = require('../@be/be/beacon/lib/voices'), fixture = require('./t
 const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'voices-http-'));
 const files = { 'manifest.json': Buffer.from('{"name":"HTTP Voice","version":"1.0.0","type":"voice","voice":{"vibrato":0.4,"volume":0.9}}'),
     'breath.mp3': Buffer.concat([Buffer.from('ID3'), Buffer.alloc(32)]), 'banner.png': fixture.png() };
-let connected = false; const themeList = { themes: [{ id: 'theme-1', manifest: { name: 'T', version: '1.0.0', voice: 'https://github.com/example/v' } }, { id: 'theme-2', manifest: { name: 'Plain', version: '1.0.0' } }] };
+const themeList = { themes: [{ id: 'theme-1', manifest: { name: 'T', version: '1.0.0', voice: 'https://github.com/example/v' } }, { id: 'theme-2', manifest: { name: 'Plain', version: '1.0.0' } }] };
 const fromTheme = [];
 const voices = voicesLib.create({ root: path.join(temp, 'voices'), compatibility: () => ({ status: 'compatible' }), catalog: () => ({ entries: [] }), store: { download: () => Promise.reject(new Error('offline')) } });
 voices.ENABLED = voicesLib.ENABLED;
 voices.installFromTheme = (url, name) => { fromTheme.push([url, name]); return Promise.resolve(voices.inventory()); };
 const serverPath = path.resolve(__dirname, '../@be/be/beacon/server.js'), serverRequire = createRequire(serverPath), mod = { exports: {} };
-new Function('require', 'module', 'exports', '__dirname', fs.readFileSync(serverPath, 'utf8'))(name => name === './lib/github-auth' ? { token: () => connected ? 'gho_test' : null } :
-    name === './lib/voices' ? voices : name === './lib/themes' ? { inventory: () => themeList, details: () => Promise.resolve({}) } : serverRequire(name), mod, mod.exports, path.dirname(serverPath));
+new Function('require', 'module', 'exports', '__dirname', fs.readFileSync(serverPath, 'utf8'))(name =>     name === './lib/voices' ? voices : name === './lib/themes' ? { inventory: () => themeList, details: () => Promise.resolve({}) } : serverRequire(name), mod, mod.exports, path.dirname(serverPath));
 function request(server, method, url, body) { return new Promise((resolve, reject) => {
     const req = http.request({ hostname: '127.0.0.1', port: server.address().port, method, path: url }, res => {
         const parts = []; res.on('data', b => parts.push(b)); res.on('end', () => { const buf = Buffer.concat(parts); let data; try { data = JSON.parse(buf); } catch (err) { data = buf; } resolve({ status: res.statusCode, data, type: res.headers['content-type'] }); });
@@ -22,10 +21,6 @@ function request(server, method, url, body) { return new Promise((resolve, rejec
 (async () => {
     const server = mod.exports.create(); await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
     try {
-        for (const url of ['/api/voices/install', '/api/voices/theme']) {
-            const blocked = await request(server, 'POST', url, {}); assert.strictEqual(blocked.status, 401, url); assert(blocked.data.error.includes('Sign in to GitHub'));
-        }
-        connected = true;
         const uploaded = await request(server, 'PUT', '/api/store/upload?name=v.zip', fixture.zip(files));
         assert.strictEqual(uploaded.status, 200, JSON.stringify(uploaded.data)); assert.strictEqual(uploaded.data.type, 'voice', 'Upload ZIP detects a voice');
         const id = uploaded.data.voices[0].id;

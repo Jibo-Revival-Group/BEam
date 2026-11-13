@@ -135,11 +135,10 @@ function start (options, callback) {
             }
         };
         robotMember(20);
-        // Keep Store listings current with no BEacon tab open. refresh(.., true) skips storefronts tried in the last 30 minutes;
-        // like the Store itself, it needs GitHub sign-in (unauthenticated GitHub API limits are too low).
-        const githubAuth = require('./lib/github-auth');
+        // The Store no longer signs in to GitHub: remove the token older versions saved.
+        try { require('fs').unlinkSync(require('path').join(paths.dataDir(), 'github', 'auth.json')); } catch (err) { /* none saved */ }
+        // Keep Store listings current with no BEacon tab open. refresh(.., true) skips storefronts tried in the last 30 minutes.
         const refreshStore = () => {
-            if (!githubAuth.token()) { return; }
             themes.refresh(null, true).catch(err => warn('background store refresh:', err && err.message))
                 .then(() => require('./lib/auto-update').run())
                 .then(updated => { if (updated && updated.length) { log('updated automatically:', updated.join(', ')); } })

@@ -131,25 +131,16 @@ the calendar controls are hidden; local Loop editing remains available.
 
 ## Themes and Store
 
-Storefronts automatically refresh every 30 minutes, in the background while GitHub is connected. Attempt timestamps persist across
+Storefronts automatically refresh every 30 minutes in the background. Attempt timestamps persist across
 restarts, including failed refreshes; cached entries remain available. The
 **Refresh** action still lets you request an immediate refresh.
 
-GitHub sign-in is required to use the Store, including cached browsing, source
-management, refreshes, and downloads. Choose **Sign in with GitHub** on the Store's
-sign-in screen (or in **⋮ → Manage Storefronts**). Open the displayed GitHub link, enter the device code, and
-authorize BEacon. Sign-in uses OAuth client ID `Ov23liRcugb5gNBIZj7z` and requests
-no additional scopes for public repositories. BEacon respects GitHub's polling
-interval and slow-down responses; expired or declined codes can be retried.
-**Disconnect GitHub** cancels a pending sign-in or removes the local credential.
-
-The token stays on the robot in
-`/opt/jibo/Knowledge/beacon/github/auth.json` (file mode `0600`, directory mode
-`0700`), surviving restarts and BEam updates. It is never returned to the browser
-and is sent only to HTTPS requests on `api.github.com`, including checks across
-redirects. Missing or revoked credentials lock the Store until you sign in again;
-GitHub API requests never retry anonymously. Installed themes and skills continue
-working on Jibo independently of Store sign-in.
+The Store needs no GitHub sign-in. For everything in the 5x1 Store, BEacon asks BEaker
+(`https://joap.5x1.com/store/repos/<owner>/<repo>` and `.../releases/latest`), which keeps a copy of
+GitHub's answers and checks GitHub and the Store's list every 15 minutes. A repository BEaker does not
+carry (one you added yourself) is asked from `api.github.com` logged out, which GitHub limits to
+60 requests an hour per network; BEacon says so when the limit is reached. Package files always
+download straight from GitHub. A token saved by an older BEacon is deleted at start.
 
 The Store starts with `https://store.5x1.com/manifest.json`. Add another manifest
 URL or a single GitHub repository such as `https://github.com/ZaneThePython/Astra`.
@@ -265,10 +256,6 @@ rather than failing.
 | GET | `/api/store` | Cached theme catalog, source statuses, compatibility |
 | GET | `/api/store/details?id=` | Theme metadata and README (catalog or installed ID) |
 | POST | `/api/store/refresh` | `{id?, automatic?}` refreshes sources; automatic requests respect the 30-minute interval |
-| GET | `/api/github/auth` | GitHub connection status and pending public device code; no token |
-| POST | `/api/github/auth` | Start GitHub device sign-in |
-| POST | `/api/github/auth/poll` | Check device authorization, respecting GitHub's polling interval |
-| DELETE | `/api/github/auth` | Cancel sign-in and remove the locally saved token |
 | GET | `/api/store/sources` | Configured storefronts |
 | POST | `/api/store/sources` | `{url}` adds and refreshes a manifest/repository |
 | DELETE | `/api/store/sources?id=` | Remove a source, preserve installations |

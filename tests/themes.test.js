@@ -77,7 +77,7 @@ async function run() {
         'https://skill.example/manifest.json': { name: 'Example skill', version: '1.0.0', type: 'skill' }
     };
     Object.keys(files).forEach(n => { responses[base + n] = files[n]; });
-    responses['https://api.github.com/repos/ZaneThePython/Astra/zipball/' + tag] = fixture.zip(nested);
+    responses['https://github.com/ZaneThePython/Astra/archive/refs/tags/' + tag + '.zip'] = fixture.zip(nested);
     const store = stores.create((u, limit) => {
         urls.push(u); assert(limit > 0);
         if (responses[u] === undefined) { const e = pkg.fail('Not found'); e.remoteStatus = 404; return Promise.reject(e); }

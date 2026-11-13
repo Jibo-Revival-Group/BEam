@@ -5,12 +5,12 @@ const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'skills-http-'));
 const files = { 'manifest.json': Buffer.from('{"name":"HTTP Skill","version":"1.0.0","type":"skill"}'), 'icon.png': fixture.png(),
     'package.json': Buffer.from('{"name":"@be/http-test","jibo":{"type":"asset-pack"}}'), 'index.js': Buffer.from('module.exports=function() {};') };
 const entry = { id: 'store-skill', type: 'skill', url: 'https://example.com/manifest.json', manifest: JSON.parse(files['manifest.json']) };
-let layout, connected = false;
+let layout;
 const skills = custom.create({ root: path.join(temp, 'skills'), compatibility: () => ({ status: 'compatible' }), catalog: () => ({ entries: [entry] }),
     store: { download: () => Promise.resolve({ files }) }, onChange: () => layout.sync() });
 layout = menus.create({ root: path.join(temp, 'menu'), skills });
 const serverPath = path.resolve(__dirname, '../@be/be/beacon/server.js'), serverRequire = createRequire(serverPath), mod = { exports: {} };
-new Function('require', 'module', 'exports', '__dirname', fs.readFileSync(serverPath, 'utf8'))(name => name === './lib/github-auth' ? { token: () => connected ? 'gho_test' : null } : name === './lib/custom-skills' ? skills : name === './lib/menu-layout' ? layout : name === './lib/themes' ? { details: () => Promise.resolve(entry) } : serverRequire(name), mod, mod.exports, path.dirname(serverPath));
+new Function('require', 'module', 'exports', '__dirname', fs.readFileSync(serverPath, 'utf8'))(name => name === './lib/custom-skills' ? skills : name === './lib/menu-layout' ? layout : name === './lib/themes' ? { details: () => Promise.resolve(entry) } : serverRequire(name), mod, mod.exports, path.dirname(serverPath));
 function request(server, method, url, body) { return new Promise((resolve, reject) => {
     const req = http.request({ hostname: '127.0.0.1', port: server.address().port, method, path: url }, res => {
         const parts = []; res.on('data', b => parts.push(b)); res.on('end', () => { const buf = Buffer.concat(parts); let data; try { data = JSON.parse(buf); } catch (err) { data = buf; } resolve({ status: res.statusCode, data }); });
@@ -19,10 +19,6 @@ function request(server, method, url, body) { return new Promise((resolve, rejec
 (async () => {
     const server = mod.exports.create(); await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
     try {
-        for (const [method, url] of [['GET', '/api/store'], ['POST', '/api/store/refresh'], ['GET', '/api/store/sources'], ['POST', '/api/store/sources'], ['DELETE', '/api/store/sources?id=x'], ['GET', '/api/store/details?id=x'], ['GET', '/api/store/banner?id=x'], ['POST', '/api/skills/install'], ['POST', '/api/themes/install']]) {
-            const blocked = await request(server, method, url, method === 'POST' ? {} : undefined); assert.strictEqual(blocked.status, 401, url); assert(blocked.data.error.includes('Sign in to GitHub'));
-        }
-        connected = true;
         assert.strictEqual((await request(server, 'PUT', '/api/skills/upload', Buffer.from('bad'))).status, 400);
         const uploaded = await request(server, 'PUT', '/api/store/upload?name=test.zip', fixture.zip(files)); assert.strictEqual(uploaded.status, 200);
         assert.strictEqual(uploaded.data.type, 'skill', 'Upload ZIP detects a skill from its manifest');

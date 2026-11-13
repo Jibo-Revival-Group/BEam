@@ -8,6 +8,11 @@ const fs = require('fs');
 const path = require('path');
 const pkg = require('./theme-package');
 const DEFAULT_SOURCE = 'https://store.5x1.com/manifest.json';
+// BEaker keeps a copy of GitHub's repository and latest-release answers for everything in the 5x1 Store
+// (refreshed every 15 minutes), so the Store needs no GitHub sign-in. Other repositories are asked from
+// GitHub directly, logged out (60 requests an hour per network).
+const MIRROR = 'https://joap.5x1.com/store/';
+const GITHUB_API = 'https://api.github.com/';
 const MAX_METADATA = 1024 * 1024;
 let authorities;
 function certificateAuthorities() {
@@ -38,10 +43,6 @@ function request(value, limit, hops, operation) {
         let done = false; let response; let unsubscribe = () => {};
         const requestOptions = url.parse(normalized);
         requestOptions.headers = { 'User-Agent': 'BEacon-Themes', Accept: 'application/json, */*' };
-        const auth = require('./github-auth');
-        const token = requestOptions.protocol === 'https:' && requestOptions.hostname === 'api.github.com' ? auth.token() : null;
-        if (requestOptions.hostname === 'api.github.com' && !token) { const e = pkg.fail('Sign in to GitHub to use the Store.'); e.status = 401; reject(e); return; }
-        if (token) { requestOptions.headers.Authorization = 'Bearer ' + token; }
         if (transport === https) {
             requestOptions.ca = certificateAuthorities();
             requestOptions.rejectUnauthorized = true;
@@ -58,9 +59,8 @@ function request(value, limit, hops, operation) {
                 done = true; clearTimeout(deadline); unsubscribe(); res.resume();
                 request(url.resolve(normalized, res.headers.location), limit, (hops || 0) + 1, operation).then(resolve, reject); return;
             }
-            if (res.statusCode === 401 && token) {
-                auth.invalidate(token);
-                const e = pkg.fail('GitHub authorization expired or was revoked. Sign in again.'); e.status = 401; e.remoteStatus = 401;
+            if ((res.statusCode === 403 || res.statusCode === 429) && requestOptions.hostname === 'api.github.com') {
+                const e = pkg.fail('GitHub is limiting requests from this network. Try again in an hour.'); e.remoteStatus = res.statusCode;
                 res.resume(); abort(e); return;
             }
             if (res.statusCode !== 200) {
@@ -133,9 +133,14 @@ function create(fetcher) {
     function resolve(value, operation) {
         value = normalize(value); const gh = github(value);
         if (!gh) { return fetch(value, MAX_METADATA, operation).then(buf => ({ url: value, base: value, data: json(buf), manifest: buf })); }
-        const api = 'https://api.github.com/repos/' + encodeURIComponent(gh.owner) + '/' + encodeURIComponent(gh.repo);
-        return cached(repoCache, api, 60 * 60 * 1000, operation).then(repo => {
-            return cached(releaseCache, api + '/releases/latest', 10 * 60 * 1000, operation).catch(err => {
+        const api = 'repos/' + encodeURIComponent(gh.owner) + '/' + encodeURIComponent(gh.repo);
+        // BEaker first; it answers 404 for repositories outside the 5x1 Store, and GitHub covers for it when it is down.
+        const ask = (cache, suffix, ttl) => cached(cache, MIRROR + api + suffix, ttl, operation).catch(err => {
+            if (operation) { operation.check(); }
+            return cached(cache, GITHUB_API + api + suffix, ttl, operation);
+        });
+        return ask(repoCache, '', 60 * 60 * 1000).then(repo => {
+            return ask(releaseCache, '/releases/latest', 10 * 60 * 1000).catch(err => {
                 if (err.remoteStatus === 404) { throw pkg.fail('No published GitHub release found for ' + gh.owner + '/' + gh.repo); }
                 throw err;
             }).then(release => ({ repo: repo, release: release }));
@@ -153,8 +158,8 @@ function create(fetcher) {
             const candidates = named.length ? named : zipAssets;
             if (candidates.length > 1) { throw pkg.fail('Release has multiple ZIP packages; name the installable package ' + gh.repo + '.zip'); }
             const asset = candidates[0];
-            const archive = asset ? asset.browser_download_url : release.zipball_url;
-            if (!archive) { throw pkg.fail('GitHub release has no downloadable ZIP'); }
+            // Without a ZIP asset, take the tag's source ZIP from github.com (release.zipball_url is the rate-limited API).
+            const archive = asset ? asset.browser_download_url : value + '/archive/refs/tags/' + tag + '.zip';
             const origin = { id: release.id, tag: release.tag_name, name: release.name || release.tag_name,
                 url: release.html_url || value + '/releases/tag/' + tag, publishedAt: release.published_at || null,
                 asset: asset ? asset.name : null };
@@ -253,4 +258,4 @@ function create(fetcher) {
     return { catalog: catalog, detail: detail, download: download, banner: banner };
 }
 module.exports = { create: create, normalize: normalize, hash: hash, paragraph: paragraph,
-    DEFAULT_SOURCE: DEFAULT_SOURCE, entries: entries, request: request };
+    DEFAULT_SOURCE: DEFAULT_SOURCE, MIRROR: MIRROR, entries: entries, request: request };

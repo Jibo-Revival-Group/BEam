@@ -1273,8 +1273,6 @@ dl.kv > dd:only-child { grid-column: 1 / -1; }
 #folder-form label { display: block; margin: 18px 0; }
 #folder-form input, #folder-form select { display: block; margin-top: 8px; max-width: 100%; }
 @media (max-width: 480px) { .menu-editor { padding: 16px; } .menu-editor-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; } .menu-editor-item.is-expanded { gap: 12px; } }
-.github-device-code { font-family: monospace; font-size: 26px; letter-spacing: 4px; font-weight: bold; user-select: all; }
-.github-auth h3 { margin-top: 0; }
 
 /* JiboSync robots (Etc) */
 .jibosync-robots { list-style: none; margin: 8px 0 12px; padding: 0; }

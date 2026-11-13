@@ -80,7 +80,7 @@ async function run() {
     });
     await assert.rejects(rateLimited.catalog('https://github.com/example/skill'), /Rate limit/);
     await assert.rejects(rateLimited.download('https://github.com/example/skill'), /Rate limit/);
-    assert(requested.every(url => url.indexOf('https://api.github.com/') === 0), 'Rate limits never fall back to anonymous Git requests');
+    assert(requested.every(url => url.indexOf('https://api.github.com/') === 0 || url.indexOf(stores.MIRROR) === 0), 'Rate limits never fall back to anonymous Git requests');
     const metadata = stores.create(url => url.endsWith('/releases/latest') ? Promise.resolve(Buffer.from(JSON.stringify({ id: 20, tag_name: 'v1.0.0', assets: [], zipball_url: 'https://api.github.com/repos/example/skill/zipball/v1.0.0' }))) :
         url.indexOf('https://api.github.com/') === 0 ? Promise.resolve(Buffer.from(JSON.stringify({ default_branch: 'custom-branch', owner: { login: 'example' }, stargazers_count: 42 }))) :
         Promise.resolve(url.endsWith('/manifest.json') ? files['manifest.json'] : files['README.md']));

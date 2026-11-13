@@ -17,7 +17,7 @@ class Node {
 }
 function all(node) { return node.children.reduce((list, c) => list.concat(c, all(c)), []); }
 const ids = {}, body = new Node('body');
-['store-content', 'store-auth-required', 'store-sign-in', 'themes-summary', 'theme-file', 'edit-main-menu', 'store-skill-list', 'upload-store-zip', 'store-sources', 'store-list',
+['store-content', 'themes-summary', 'theme-file', 'edit-main-menu', 'store-skill-list', 'upload-store-zip', 'store-sources', 'store-list',
     'store-switch', 'store-tab-themes', 'store-tab-skills', 'store-themes', 'store-skills', 'store-options', 'store-options-menu', 'store-options-button', 'manage-storefronts',
     'store-management', 'close-store-management', 'theme-details', 'theme-details-title', 'theme-details-meta', 'theme-details-readme',
     'store-tab-voices', 'store-voices', 'store-voice-list', 'voices-summary', 'voice-offer', 'voice-offer-text', 'voice-offer-yes', 'voice-offer-no'].forEach(id => { ids[id] = body.appendChild(new Node('div')); });
@@ -34,7 +34,6 @@ const catalog = { sources: [{ id: 'local', url: 'local:added', name: 'Added by t
     entries: [{ id: 'entry-chorus', type: 'voice', name: 'Chorus', url: 'https://github.com/example/chorus', manifest: { name: 'Chorus', version: '1.0.0', type: 'voice' }, compatibility: { status: 'compatible' }, description: 'Many Jibos.' }] };
 function api(method, url, data) {
     calls.push({ method, url, data });
-    if (url === '/api/github/auth') { return Promise.resolve({ connected: true }); }
     if (url === '/api/themes') { return Promise.resolve(themes); }
     if (url === '/api/skills/custom') { return Promise.resolve({ skills: [] }); }
     if (url === '/api/voices') { return Promise.resolve(voices); }

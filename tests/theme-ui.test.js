@@ -17,7 +17,7 @@ class Node {
 }
 function all(node) { return node.children.reduce((list, c) => list.concat(c, all(c)), []); }
 const ids = {}; const body = new Node('body');
-for (const id of ['store-content', 'store-auth-required', 'store-sign-in', 'themes-summary', 'theme-file', 'edit-main-menu', 'store-skill-list', 'upload-store-zip', 'store-sources', 'store-list', 'store-switch', 'store-tab-themes', 'store-tab-skills', 'store-themes', 'store-skills', 'store-options', 'store-options-menu', 'store-options-button', 'manage-storefronts', 'store-management', 'close-store-management', 'theme-details', 'theme-details-title', 'theme-details-meta', 'theme-details-readme', 'store-tab-voices', 'store-voices', 'store-voice-list', 'voices-summary', 'voice-offer', 'voice-offer-text', 'voice-offer-yes', 'voice-offer-no']) {
+for (const id of ['store-content', 'themes-summary', 'theme-file', 'edit-main-menu', 'store-skill-list', 'upload-store-zip', 'store-sources', 'store-list', 'store-switch', 'store-tab-themes', 'store-tab-skills', 'store-themes', 'store-skills', 'store-options', 'store-options-menu', 'store-options-button', 'manage-storefronts', 'store-management', 'close-store-management', 'theme-details', 'theme-details-title', 'theme-details-meta', 'theme-details-readme', 'store-tab-voices', 'store-voices', 'store-voice-list', 'voices-summary', 'voice-offer', 'voice-offer-text', 'voice-offer-yes', 'voice-offer-no']) {
     ids[id] = body.appendChild(new Node('div'));
 }
 const close = ids['theme-details'].appendChild(new Node('button'));
@@ -32,12 +32,11 @@ const document = { body, activeElement: close, createElement: tag => new Node(ta
 const timers = []; const window = { clearInterval: () => {}, setInterval: (fn, delay) => { timers.push({ fn, delay }); return timers.length; } }; const calls = [], errors = [], messages = [];
 const theme = { id: 'theme-id', revision: 'revision', manifest: { name: 'Astra', version: '1.0.0', supported: '3.1.6' }, compatibility: { status: 'compatible' },
     images: { 'face/eye.png': { width: 500, height: 500 } }, active: false, pending: false, origin: { kind: 'zip' } };
-let connected = false, inventory = { active: null, live: { live: true }, themes: [theme] };
+let inventory = { active: null, live: { live: true }, themes: [theme] };
 const catalog = { sources: [{ id: 'source-id', url: 'https://example.com/manifest.json', refreshedAt: '2026-10-10T12:00:00Z' }],
     entries: [{ id: 'entry-id', name: 'Astra', description: 'A description', bannerUrl: 'https://example.com/banner.png', manifest: theme.manifest, compatibility: { status: 'compatible' } }] };
 async function api(method, url, data) {
     calls.push({ method, url, data });
-    if (url === '/api/github/auth') return { connected: connected };
     if (url === '/api/themes') return inventory;
     if (url === '/api/store') return catalog;
     if (url.startsWith('/api/store/details')) return { manifest: theme.manifest, readmeUrl: 'https://raw.githubusercontent.com/owner/Astra/commit/README.md',
@@ -66,15 +65,8 @@ const ui = window.BEaconThemes.create({ api: (method, url, data) => {
     return api(method, url, data);
 }, requestTimeout: 100, progressPollInterval: 5, toast: text => messages.push(text), reportError: error => errors.push(error), prompt: () => Promise.resolve('https://github.com/ZaneThePython/Astra') });
 async function run() {
-    await ui.loadStore(false); await ui.refreshStore(null, true);
-    assert.strictEqual(ids['store-content'].hidden, true);
-    assert.strictEqual(ids['store-auth-required'].hidden, false);
-    assert(ids['upload-store-zip'].disabled && ids['store-tab-skills'].disabled);
-    assert(!calls.some(call => call.url.indexOf('/api/store') === 0), 'Signed-out Store never fetches or refreshes the catalog');
-    assert.strictEqual(timers.length, 0, 'No automatic refresh timer before authentication');
-    connected = true;
     await ui.loadStore(false);
-    assert.strictEqual(ids['store-content'].hidden, false);
+    assert(!calls.some(call => call.url.indexOf('/api/github') === 0), 'The Store needs no GitHub sign-in');
     assert.strictEqual(timers.length, 1); assert.strictEqual(timers[0].delay, 1800000, 'Refresh every 30 minutes');
     assert.strictEqual(ids['store-list'].children.length, 2, 'Installed/catalog matches appear once, alongside None');
     const stock = ids['store-list'].children[0]; assert(stock.textContent.includes('None'));

@@ -27,7 +27,7 @@ const store = { catalog: () => Promise.resolve([{ name: 'Astra', type: 'theme', 
 const manager = themes.create({ root: path.join(temp, 'http'), runtime, version: () => '3.1.6', store, downloadTimeout: 80 });
 const loaded = { exports: {} };
 new Function('require', 'module', 'exports', fs.readFileSync(sourceFile, 'utf8'))(
-    name => name === './lib/themes' ? manager : name === './lib/github-auth' ? { token: () => 'test-token' } : serverRequire(name), loaded, loaded.exports);
+    name => name === './lib/themes' ? manager : serverRequire(name), loaded, loaded.exports);
 function request(server, method, url, body) {
     const bytes = Buffer.isBuffer(body) ? body : body === undefined ? null : Buffer.from(JSON.stringify(body));
     return new Promise((resolve, reject) => {

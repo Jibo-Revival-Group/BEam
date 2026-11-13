@@ -86,10 +86,7 @@
                 path.indexOf('/api/themes/apply') === 0 ? 'Applying theme' :
                 method === 'DELETE' ? 'Removal' : path.indexOf('/api/store/refresh') === 0 ? 'Storefront refresh' : 'Theme/store request';
             return request(function (signal) { return options.api(method, path, body, { signal: signal }); }, label,
-                /\/api\/(?:themes|skills|voices)\/progress/.test(path) ? Math.min(options.requestTimeout || 5000, 5000) : null).catch(function (err) {
-                    if (err.status === 401) { setStoreAuth({ connected: false }); }
-                    throw err;
-                });
+                /\/api\/(?:themes|skills|voices)\/progress/.test(path) ? Math.min(options.requestTimeout || 5000, 5000) : null);
         }
         function storeErrors(data) {
             var errors = (data.sources || []).concat(data.entries || []).filter(function (item) { return item.error; });
@@ -100,20 +97,6 @@
         var skillInventory = { skills: [] }, voiceInventory = { voices: [], active: null };
         // Per-category API names: themes, skills (custom skills) and voices.
         var KIND = { theme: 'themes', skill: 'skills', voice: 'voices' };
-        function setStoreAuth(data) {
-            var connected = !!data.connected;
-            $('#store-auth-required').hidden = connected; $('#store-content').hidden = !connected;
-            ['store-tab-themes', 'store-tab-skills', 'store-tab-voices', 'upload-store-zip'].forEach(function (id) { $('#' + id).disabled = !connected; });
-            Array.prototype.forEach.call(document.querySelectorAll('[data-action="add-store"]'), function (button) { button.disabled = !connected; });
-            if (!connected) {
-                if (refreshTimer !== null) { window.clearInterval(refreshTimer); refreshTimer = null; }
-                $('#store-list').textContent = ''; $('#store-skill-list').textContent = ''; $('#store-voice-list').textContent = ''; $('#store-sources').textContent = '';
-                $('#theme-details').hidden = true;
-            }
-            return connected;
-        }
-        var githubUI = window.BEaconGithub ? window.BEaconGithub.create({ api: api, reportError: reportError, toast: toast, refresh: refreshStore, onChange: setStoreAuth }) : null;
-        setStoreAuth({ connected: false });
         var downloads = Object.create(null);
         function downloadFor(entry) {
             return Object.keys(downloads).map(function (id) { return downloads[id]; }).filter(function (item) {
@@ -189,9 +172,7 @@
         $('#manage-storefronts').onclick = function () {
             managementOpener = $('#store-options-button'); closeOptions();
             $('#store-management').hidden = false; $('#close-store-management').focus();
-            if (githubUI) { githubUI.load(); }
         };
-        $('#store-sign-in').onclick = function () { $('#manage-storefronts').onclick(); };
         function closeManagement() {
             $('#store-management').hidden = true;
             if (managementOpener && document.body.contains(managementOpener)) { managementOpener.focus(); }
@@ -378,11 +359,7 @@
         function refreshStore(id, silent) {
             if (refreshing) { return refreshing; }
             if (!silent) { toast('Refreshing storefront…'); }
-            refreshing = api('GET', '/api/github/auth').then(function (auth) {
-                if (!setStoreAuth(auth)) { return null; }
-                return api('POST', '/api/store/refresh', silent ? { id: id || undefined, automatic: true } : id ? { id: id } : {});
-            }).then(function (data) {
-                if (!data) { refreshing = null; return; }
+            refreshing = api('POST', '/api/store/refresh', silent ? { id: id || undefined, automatic: true } : id ? { id: id } : {}).then(function (data) {
                 return loadStore(false).then(function () {
                     refreshing = null; storeErrors(data);
                     if (!silent && !(data.sources || []).concat(data.entries || []).some(function (item) { return item.error; })) { toast('Storefront refreshed.', 'ok'); }
@@ -393,12 +370,8 @@
             return refreshing;
         }
         function loadStore(autoRefresh) {
-            return api('GET', '/api/github/auth').then(function (auth) {
-                if (!setStoreAuth(auth)) { return null; }
-                startStoreRefresh();
-                return loadThemes().then(function () { return api('GET', '/api/store'); });
-            }).then(function (data) {
-                if (!data) { return; }
+            startStoreRefresh();
+            return loadThemes().then(function () { return api('GET', '/api/store'); }).then(function (data) {
                 renderStore(data);
                 if (autoRefresh !== false && (data.catalogVersion === 1 || data.sources.some(function (s) { return !s.refreshedAt && !s.error; }))) { return refreshStore(); }
                 // Opening the Store keeps listings current; BEacon only refetches storefronts not tried in the last 30 minutes.
