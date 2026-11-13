@@ -158,6 +158,11 @@ function start (options, callback) {
         } catch (err) {
             warn('could not start custom voices:', err && err.message);
         }
+        try {
+            require('./lib/speech-language').install(require('jibo').tts);
+        } catch (err) {
+            warn('could not start the speech language:', err && err.message);
+        }
     });
 
     const port = opts.port || Number(process.env.BEACON_PORT) || DEFAULT_PORT;

@@ -129,6 +129,18 @@ shows the host, whether the feed is enabled, and the last error. A Google
 secret ICS address is a normal https link. If the credentials file is missing,
 the calendar controls are hidden; local Loop editing remains available.
 
+## Speech language
+
+**Settings → Language** chooses the language Jibo speaks: English, Español or Română. He still listens in English and
+his screen stays in English. With another language chosen, BEacon wraps `jibo.tts.speak` and `getWordTimings`
+(`lib/speech-language.js`): what he is about to say goes to the cloud (`Loop_20160324.TranslateSpeech`, signed like
+calendar calls), which translates it and returns phoneme markup that makes his own voice say it. Body and eye animation
+keep the English word timings, stretched to the translated length. Sentences he has said before come from
+`speech-<language>.json` in BEacon's data folder (newest 500). If the cloud takes over 4 seconds, is unreachable or
+does not offer the language, he says the English. Translations are automatic and can be wrong.
+
+Routes: `GET /api/language` (current language and the choices), `POST /api/language` `{ language: "en" | "es" | "ro" }`.
+
 ## Themes and Store
 
 Storefronts automatically refresh every 30 minutes in the background. Attempt timestamps persist across

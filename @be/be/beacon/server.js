@@ -26,6 +26,7 @@ const system = require('./lib/system');
 const ota = require('./lib/ota');
 const location = require('./lib/location');
 const units = require('./lib/units');
+const speechLanguage = require('./lib/speech-language');
 const people = require('./lib/people');
 const calendars = require('./lib/calendars');
 const commute = require('./lib/commute');
@@ -318,6 +319,9 @@ const routes = {
             u.sendJson(res, 200, units.set(body && body.temperature));
         });
     }),
+
+    'GET /api/language': guard((req, res) => { u.sendJson(res, 200, speechLanguage.get()); }),
+    'POST /api/language': guard((req, res) => u.readJson(req).then((body) => { u.sendJson(res, 200, speechLanguage.set(body && body.language)); })),
 
     'GET /api/ota': guard((req, res) => {
         u.sendJson(res, 200, ota.state());

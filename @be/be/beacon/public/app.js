@@ -336,7 +336,18 @@
     }
 
     function loadEtc () {
-        return Promise.all([loadCameraStreamSetting(), loadAutoUpdate(), loadJiboSync(), window.BEaconAgent ? window.BEaconAgent.load() : Promise.resolve()]);
+        return Promise.all([loadCameraStreamSetting(), loadAutoUpdate(), loadJiboSync(), loadLanguage(), window.BEaconAgent ? window.BEaconAgent.load() : Promise.resolve()]);
+    }
+
+    // Jibo's speech language: saved as soon as it is chosen; on failure the switch goes back.
+    var languageSaved = 'en';
+    var languageSwitch = window.BEaconAppearance.createSwitch($('#language-choices'), function (value) {
+        api('POST', '/api/language', { language: value }).then(function (data) {
+            languageSaved = data.language; toast('Jibo’s language saved.', 'ok');
+        }).catch(function (err) { languageSwitch.set(languageSaved); reportError(err); });
+    });
+    function loadLanguage () {
+        return api('GET', '/api/language').then(function (data) { languageSaved = data.language; languageSwitch.set(languageSaved); });
     }
 
     var jiboSyncTimer = null;
