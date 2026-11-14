@@ -62,6 +62,14 @@ async function run() {
     downloadMode = 'error'; await assert.rejects(() => service.install('entry', 'error'), /Download failed/); assert.strictEqual(service.progress('error').state, 'failed');
     downloadMode = 'hang'; await assert.rejects(() => service.install('entry', 'timeout'), /timed out/); finish({ files }); await new Promise(r => setImmediate(r)); assert.strictEqual(service.inventory().skills[0].revision, old, 'Late results cannot commit');
     downloadMode = 'success'; await service.install('entry', 'retry'); assert.strictEqual(service.progress('retry').state, 'complete'); assert.strictEqual(service.inventory().skills[0].origin.release.tag, 'v1.0.0');
+    // Asked permissions need the owner's yes (409 + the list); an update keeps what was agreed, new asks need a new yes.
+    const asking = p => fixture.zip(Object.assign({}, files, { 'manifest.json': Buffer.from(JSON.stringify(Object.assign({}, manifest, { permissions: p }))) }));
+    const refused = await service.upload(asking(['microphone'])).catch(e => e);
+    assert.strictEqual(refused.status, 409); assert.strictEqual(refused.detail, 'microphone'); assert(/asks for: microphone/.test(refused.message));
+    await service.upload(asking(['microphone']), 'x.zip', ['microphone']);
+    await service.upload(asking(['microphone']));
+    assert.strictEqual((await service.upload(asking(['microphone', 'camera'])).catch(e => e)).detail, 'camera');
+    await service.upload(fixture.zip(files)); layout.sync();
     // A voice-only skill (menuButton: false) leaves the menu, including a layout that already had its button.
     await service.upload(fixture.zip(Object.assign({}, files, { 'manifest.json': Buffer.from(JSON.stringify(Object.assign({}, manifest, { menuButton: false }))) })));
     layout.sync(); assert(!JSON.stringify(layout.inventory().tree).includes('@be/test-skill'), 'no button for menuButton: false');

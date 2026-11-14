@@ -144,12 +144,12 @@ const routes = {
     }),
 
     'POST /api/skills/install': guard((req, res) => {
-        return u.readJson(req, 4096).then(body => customSkills.install(body.entryId, body.requestId)).then(data => u.sendJson(res, 200, data));
+        return u.readJson(req, 4096).then(body => customSkills.install(body.entryId, body.requestId, body.accept)).then(data => u.sendJson(res, 200, data));
     }),
     'GET /api/skills/custom': guard((req, res) => { u.sendJson(res, 200, customSkills.inventory()); }),
     'GET /api/skills/progress': guard((req, res, query) => { u.sendJson(res, 200, customSkills.progress(query.id)); }),
     'PUT /api/skills/upload': guard((req, res, query) => {
-        return u.readBody(req, themePackage.MAX_ZIP, 120000).then(buf => customSkills.upload(buf, query.name)).then(data => u.sendJson(res, 200, data));
+        return u.readBody(req, themePackage.MAX_ZIP, 120000).then(buf => customSkills.upload(buf, query.name, String(query.accept || '').split(','))).then(data => u.sendJson(res, 200, data));
     }),
     'DELETE /api/skills': guard((req, res, query) => { return customSkills.remove(query.id).then(data => u.sendJson(res, 200, data)); }),
     'GET /api/skills/asset': guard((req, res, query) => { u.serveFile(req, res, customSkills.asset(query.id, query.name), { contentType: 'image/png' }); }),
@@ -202,7 +202,7 @@ const routes = {
         return u.readBody(req, themePackage.MAX_ZIP, 120000).then(buf => themePackage.unzip(buf, { skill: true })
             .then(files => themePackage.manifest(files['manifest.json']).type)
             .then(type => { if (type === 'voice' && !voices.ENABLED) { throw fail('Custom voices are turned off.'); } return type; })
-            .then(type => (type === 'skill' ? customSkills : type === 'voice' ? voices : themes).upload(buf, query.name).then(data => Object.assign({ type: type }, data))))
+            .then(type => (type === 'skill' ? customSkills : type === 'voice' ? voices : themes).upload(buf, query.name, String(query.accept || '').split(',')).then(data => Object.assign({ type: type }, data))))
             .then(data => u.sendJson(res, 200, data));
     }),
     'GET /api/voices': guard((req, res) => { u.sendJson(res, 200, voices.ENABLED ? Object.assign({ enabled: true }, voices.inventory()) : { enabled: false, voices: [], active: null }); }),

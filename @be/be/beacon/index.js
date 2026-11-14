@@ -113,6 +113,14 @@ function start (options, callback) {
         } catch (err) {
             warn('could not restore theme:', err && err.message);
         }
+        // Custom skills' microphone, camera and transcripts need a permission and their screen open.
+        try {
+            require('./lib/skill-permissions').create({ skillsDir: require('path').join(paths.dataDir(), 'skills', 'packages'),
+                skills: () => require('./lib/custom-skills').inventory().skills, be: () => global.be })
+                .guard(require('jibo'), typeof navigator === 'undefined' ? null : navigator);
+        } catch (err) {
+            warn('skill permissions:', err && err.message);
+        }
         // Custom skills' launch phrases ("buy a pizza") are matched here on the robot.
         try {
             require('./lib/launch-phrases').hook(require('jibo'), () => require('./lib/custom-skills').inventory().skills);

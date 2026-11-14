@@ -26,11 +26,13 @@ const dirs = {
     '@be/plain': pack('plain', { name: '@be/plain', jibo: { type: 'asset-pack' } }, {}),
     '@be/broken': pack('broken', { name: '@be/broken', jibo: { type: 'asset-pack', background: 'bg.js' } }, { 'bg.js': 'throw new Error("boom")' }),
     '@be/escape': pack('escape', { name: '@be/escape', jibo: { type: 'asset-pack', background: '../caller/background.js' } }, {}),
+    // A background script without the background permission the owner agreed to never runs.
+    '@be/unasked': pack('unasked', { name: '@be/unasked', jibo: { type: 'asset-pack', background: 'bg.js' } }, { 'bg.js': 'global.__bg.push(["unasked ran"]);' }),
     '@be/old': pack('old', { name: '@be/old', jibo: { type: 'asset-pack', background: 'bg.js' } }, { 'bg.js': 'global.__bg.push(["old ran"]);' })
 };
 global.__bg = calls;
 
-const skills = Object.keys(dirs).map(id => ({ packageName: id, compatibility: { status: id === '@be/old' ? 'incompatible' : 'compatible' } }));
+const skills = Object.keys(dirs).map(id => ({ packageName: id, manifest: { permissions: id === '@be/unasked' ? [] : ['background'] }, compatibility: { status: id === '@be/old' ? 'incompatible' : 'compatible' } }));
 require.cache[path.join(BE, 'beacon/lib/custom-skills.js')] = { exports: {
     inventory: () => ({ skills: skills }), resolve: id => dirs[id]
 } };

@@ -47,6 +47,23 @@ formats and single-repository sources. Bad Apple is the reference package:
 with the same values. The first is the highlight, the second the shadow. One
 color applies to both; omission uses the default blue pair.
 
+`permissions` is an optional list of what the skill needs beyond its own screen:
+
+- `"microphone"`: listening (`jibo.jetstream.startLocalTurn` and similar), transcripts
+  (`globalTurnResult`, `localTurnResult`, `skillRelaunch`), speaker IDs, and
+  `getUserMedia({ audio })`.
+- `"camera"`: `jibo.media.takePhoto`, camera streams, stored photos, and
+  `getUserMedia({ video })`.
+- `"background"`: run the package.json `jibo.background` script from boot.
+
+The owner is asked before a skill with permissions installs (BEacon shows what each
+one allows); updates keep what was agreed, and new permissions are asked again.
+Microphone and camera work only while the skill's own screen is open, and as long as it
+stays open. A background script never gets them while the screen is closed: it can call
+`api.open()` first. Without a permission the call throws, and transcript events are not
+delivered. This keeps skills from listening in by accident or casually; skills still run
+inside Jibo's own program, so only install skills from people you trust.
+
 `menuButton` is an optional boolean. Omission or `true` gives the skill a main-menu
 button. Set `"menuButton": false` for skills launched only by voice (or by another
 skill): no button appears and the menu editor does not offer one.

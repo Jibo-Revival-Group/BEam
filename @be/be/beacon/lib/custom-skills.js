@@ -58,9 +58,17 @@ function create(options) {
             images: images, readme: files['README.md'] ? files['README.md'].toString('utf8').slice(0, 1024 * 1024) : ''
         }));
     }
-    function installFiles(files, origin, operation) {
+    // accept: permissions the owner agreed to for this install. An update keeps what was agreed before.
+    function installFiles(files, origin, operation, accept) {
         return validate(files).then(skill => {
             operation.check();
+            const before = read().skills.filter(s => s.id === skill.id)[0];
+            const granted = (Array.isArray(accept) ? accept : []).concat(before && before.manifest.permissions || []);
+            const missing = (skill.manifest.permissions || []).filter(p => granted.indexOf(p) < 0);
+            if (missing.length) {
+                const err = packages.fail(skill.manifest.name + ' asks for: ' + missing.join(', ') + '. Allow it to install.');
+                err.status = 409; err.detail = missing.join(','); throw err;
+            }
             const compat = compatibility(skill.manifest);
             if (compat.status === 'incompatible') { throw packages.fail(skill.manifest.name + ' needs version ' + compat.minimum + ' or newer'); }
             const state = read(), previous = state.skills.slice(), old = state.skills.filter(s => s.id === skill.id)[0];
@@ -86,8 +94,8 @@ function create(options) {
             return inventory();
         });
     }
-    function upload(buf, name) { return mutate(operation => packages.unzip(buf, { skill: true }).then(files => installFiles(files, { kind: 'zip', name: String(name || 'skill.zip').slice(0, 180) }, operation))); }
-    function install(entryId, requestId) {
+    function upload(buf, name, accept) { return mutate(operation => packages.unzip(buf, { skill: true }).then(files => installFiles(files, { kind: 'zip', name: String(name || 'skill.zip').slice(0, 180) }, operation, accept))); }
+    function install(entryId, requestId, accept) {
         if (requestId !== undefined && (typeof requestId !== 'string' || !/^[A-Za-z0-9_-]{1,80}$/.test(requestId))) { return Promise.reject(packages.fail('Invalid request ID')); }
         if (downloading) { return Promise.reject(packages.fail('A skill download is already in progress')); }
         downloading = true; progressState = { id: requestId || crypto.randomBytes(12).toString('hex'), entryId: entryId, state: 'resolving', percent: null };
@@ -97,7 +105,7 @@ function create(options) {
             if (!entry || entry.error) { throw packages.fail('Refresh the storefront before installing this skill'); }
             return store.download(entry.url, operation).then(result => mutate(commit => installFiles(result.files,
                 { kind: 'store', url: entry.url, commit: result.commit, release: result.release || null, readmeUrl: result.readmeUrl, developer: entry.developer, stars: entry.stars },
-                { check: () => { operation.check(); commit.check(); } })));
+                { check: () => { operation.check(); commit.check(); } }, accept)));
         }).then(value => { downloading = false; Object.assign(progressState, { state: 'complete', percent: 100 }); return value; }, err => {
             downloading = false; Object.assign(progressState, { state: 'failed', error: err.message }); throw err;
         });

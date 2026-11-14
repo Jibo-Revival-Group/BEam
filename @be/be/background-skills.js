@@ -23,6 +23,8 @@ function customSkills () { return require('./beacon/lib/custom-skills'); }
 // The background script of an installed, compatible skill, or null.
 function scriptFor (item) {
     if (!item || item.compatibility.status === 'incompatible') { return null; }
+    // Running all the time is something the owner agreed to at install.
+    if ((item.manifest.permissions || []).indexOf('background') < 0) { return null; }
     const dir = customSkills().resolve(item.packageName);
     let pkg;
     try { pkg = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8')); } catch (err) { return null; }

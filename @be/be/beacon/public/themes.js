@@ -127,10 +127,10 @@
             box.appendChild(label); box.appendChild(bar); content.appendChild(box);
             item.nodes.push({ box: box, label: label, bar: bar }); updateProgress(item);
         }
-        function installTheme(entry, existing, content, button) {
+        function installTheme(entry, existing, content, button, accept) {
             var isSkill = entry.type === 'skill', kind = entry.type === 'voice' ? 'voice' : isSkill ? 'skill' : 'theme';
             var item = { kind: kind, id: kind + '-' + Date.now() + '-' + Math.random().toString(16).slice(2),
-                entryId: entry.id, themeId: existing && existing.id, nodes: [], buttons: [{ node: button, disabled: false }], stopped: false, timer: null, data: { state: 'resolving', percent: null } };
+                entryId: entry.id, themeId: existing && existing.id, accept: accept, nodes: [], buttons: [{ node: button, disabled: false }], stopped: false, timer: null, data: { state: 'resolving', percent: null } };
             Object.keys(downloads).forEach(function (id) {
                 var prior = downloads[id];
                 if (prior.stopped && (prior.entryId === item.entryId || (item.themeId && prior.themeId === item.themeId))) {
@@ -148,10 +148,14 @@
             }
             item.timer = setTimeout(poll, options.progressPollInterval || 500);
             function stop(data) { item.stopped = true; clearTimeout(item.timer); item.data = data; updateProgress(item); }
-            return api('POST', '/api/' + KIND[kind] + '/install', { entryId: entry.id, requestId: item.id }).then(function () {
+            return api('POST', '/api/' + KIND[kind] + '/install', { entryId: entry.id, requestId: item.id, accept: item.accept }).then(function () {
                 stop({ state: 'complete', percent: 100 }); toast(isSkill ? 'Skill installed. It is now first in the main menu.' : kind === 'voice' ? 'Voice installed. Choose Use to give it to Jibo.' : 'Theme installed. Choose Apply to use it.', 'ok');
                 delete downloads[item.id]; return loadStore(false);
-            }, function (err) { stop({ state: 'failed', percent: item.data.percent, error: err.message }); throw err; });
+            }, function (err) {
+                var ok = isSkill && !item.accept && allowPermissions(err);
+                if (ok) { stop({ state: 'complete', percent: 0 }); delete downloads[item.id]; return installTheme(entry, existing, content, button, ok); }
+                stop({ state: 'failed', percent: item.data.percent, error: err.message }); throw err;
+            });
         }
         function closeOptions(focus) {
             $('#store-options-menu').hidden = true;
@@ -407,23 +411,33 @@
                 return data;
             });
         }
-        function upload(file) {
+        // A skill asking for the microphone, camera or to run in the background installs only after the owner says yes.
+        var PERMISSION_TEXT = { microphone: 'hear you and read what you say to Jibo while it is open',
+            camera: 'take photos and see through Jibo’s cameras while it is open', background: 'run all the time, even when it is not open' };
+        function allowPermissions(err) {
+            if (!err || err.status !== 409 || !err.detail) { return null; }
+            var asked = String(err.detail).split(',');
+            var text = 'This skill asks to:\n\n' + asked.map(function (p) { return '• ' + (PERMISSION_TEXT[p] || p); }).join('\n') +
+                '\n\nOnly allow this for skills you trust. Allow and install?';
+            return confirm(text) ? asked : null;
+        }
+        function upload(file, accept) {
             if (uploading) { return; }
             if (!/\.zip$/i.test(file.name) || file.size > 32 * 1024 * 1024) { reportError(new Error('Choose a theme, skill or voice ZIP up to 32 MB')); return; }
             uploading = true; toast('Validating and installing ZIP…');
             return request(function (signal) {
                 var uploadOptions = { method: 'PUT', headers: { 'Content-Type': 'application/zip' }, body: file };
                 if (signal) { uploadOptions.signal = signal; }
-                return fetch('/api/store/upload?name=' + encodeURIComponent(file.name), uploadOptions).then(function (res) {
+                return fetch('/api/store/upload?name=' + encodeURIComponent(file.name) + (accept ? '&accept=' + encodeURIComponent(accept.join(',')) : ''), uploadOptions).then(function (res) {
                     return res.text().then(function (text) {
                         var data;
                         try { data = JSON.parse(text); } catch (err) { throw new Error('BEacon returned an invalid upload response (HTTP ' + res.status + ')'); }
-                        if (!res.ok) { throw new Error(data.error || 'Upload failed (HTTP ' + res.status + ')'); } return data;
+                        if (!res.ok) { var e = new Error(data.error || 'Upload failed (HTTP ' + res.status + ')'); e.status = res.status; e.detail = data.detail; throw e; } return data;
                     });
                 });
             }, 'ZIP upload')
                 .then(function (data) { uploading = false; toast(data && data.type === 'skill' ? 'Skill installed. It is now first in the main menu.' : data && data.type === 'voice' ? 'Voice installed. Choose Use in Store › Voices.' : 'Theme installed. Choose Apply to test it.', 'ok'); return loadStore(false); })
-                .catch(function (err) { uploading = false; reportError(err); });
+                .catch(function (err) { uploading = false; var ok = !accept && allowPermissions(err); if (ok) { return upload(file, ok); } reportError(err); });
         }
         function addSource() {
             return options.prompt({ title: 'Add storefront', placeholder: 'https://github.com/ZaneThePython/Astra', hint: 'A manifest URL or a single GitHub repository' })

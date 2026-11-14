@@ -161,6 +161,14 @@ function manifest(buf) {
         // Skills launched only by voice (or by another skill) can opt out of a main-menu button.
         if (m.menuButton !== undefined && typeof m.menuButton !== 'boolean') { throw fail('menuButton must be true or false'); }
         out.menuButton = m.menuButton !== false;
+        // Private abilities the owner agrees to at install (lib/skill-permissions.js).
+        if (m.permissions !== undefined) {
+            const known = require('./skill-permissions').PERMISSIONS;
+            if (!Array.isArray(m.permissions) || m.permissions.some((p, i) => known.indexOf(p) < 0 || m.permissions.indexOf(p) !== i)) {
+                throw fail('permissions must list any of: ' + known.join(', '));
+            }
+            out.permissions = m.permissions.slice();
+        }
         // Launch phrases ("buy a pizza") open the skill when heard after "Hey Jibo"; matched on the robot.
         if (m.phrases !== undefined) {
             const normalize = require('./launch-phrases').normalize;
