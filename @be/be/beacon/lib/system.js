@@ -89,7 +89,7 @@ function status () {
     try {
         const inventory = themes.inventory();
         const active = inventory.themes.filter(t => t.active)[0];
-        themeState = { name: active ? active.manifest.name : 'None', live: inventory.live.live };
+        themeState = { name: active ? active.manifest.name : inventory.active === require('./eye3d').ID ? require('./eye3d').NAME : 'None', live: inventory.live.live };
     } catch (err) { themeState = { name: 'Unavailable', error: err.message }; }
 
     return {

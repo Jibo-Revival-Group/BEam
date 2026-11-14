@@ -62,6 +62,17 @@ installed, the previous revision stays active until Apply. Installed themes
 work offline and survive BEam updates. Store Update downloads the latest published stable release;
 ZIP themes are updated by uploading another ZIP. None restores stock appearance.
 
+## 3D Eye (built in)
+
+The 3D Eye is a built-in theme, like None: no download, nothing to remove. Apply it in the
+Store to draw Jibo's eye as a real 3D ball (three.js, `@be/be/beacon/eye3d/`) over the stock
+face. The ball follows every movement, blink and shape change of the stock eye: shape
+animations reshape the sphere itself, the happy crescent comes from the eye's mask cutting the
+sphere, glows light it from within with bloom, and listening fades in a blue light. Pictures
+that replace the eye (emoji, dice, icons) are shown flat as usual. It is saved as
+`{ "id": "3d-eye", "builtin": true }` in `state.json`, survives restarts, and Apply on None or
+any other theme turns it off.
+
 ## Face configuration
 
 ```json
@@ -300,7 +311,7 @@ The Store fills the available width and refreshes every 30 minutes (BEacon also 
 the background while GitHub is connected). Installed themes show Remove when the catalog version matches,
 and Update when it differs, plus Apply/Active controls on the same cards. ZIP
 uploads and installed themes from removed sources stay in this grid. None is
-always the first card and restores stock appearance. Separate Themes and Skills
+always the first card and restores stock appearance; the built-in 3D Eye is second. Separate Themes and Skills
 navigation tabs have been merged into the Store. Use the three-dot menu beside
 the switch to select Upload ZIP (themes, skills and voices are detected from the manifest's type) or open Manage Storefronts.
 Both management and theme details close on a backdrop click,
@@ -341,7 +352,7 @@ with that `requestId` in `POST /api/themes/install`.
 
 ## Validation and device acceptance
 
-Run `node tests/themes.test.js`, `node tests/theme-runtime.test.js`,
+Run `node tests/themes.test.js`, `node tests/theme-3d-eye.test.js`, `node tests/theme-runtime.test.js`,
 `node tests/theme-ui.test.js`, `node tests/theme-http.test.js`,
 `node tests/theme-animation-assets.test.js`, `node tests/theme-icons.test.js`, `node tests/theme-decoding.test.js`,
 `node tests/theme-recovery.test.js`, and

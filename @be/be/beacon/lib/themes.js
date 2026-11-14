@@ -10,6 +10,7 @@ const stores = require('./theme-store');
 const runtime = require('./theme-runtime');
 const animationAssets = require('./theme-animation-assets');
 const operations = require('./theme-operation');
+const eye3d = require('./eye3d');
 
 // Storefront listings refresh every 30 minutes (background timer in index.js and an open Store tab).
 const REFRESH_MS = 30 * 60 * 1000;
@@ -46,7 +47,7 @@ function removeTree(dir) {
 }
 function create(options) {
     const opts = options || {}; const root = opts.root || path.join(paths.dataDir(), 'themes');
-    const store = opts.store || stores.create(); const renderer = opts.runtime || runtime;
+    const store = opts.store || stores.create(); const renderer = opts.runtime || runtime; const builtinEye = opts.eye3d || eye3d;
     const version = opts.version || tbdVersion; let queue = Promise.resolve(); let downloading = false;
     let downloadProgress = { state: 'idle' };
     function progress(id) { return Object.assign({}, !id || downloadProgress.id === id ? downloadProgress : { id: id, state: 'idle' }); }
@@ -215,23 +216,26 @@ function create(options) {
             downloadProgress.state = 'complete'; downloadProgress.percent = 100; downloading = false; return value;
         }, err => { downloadProgress.state = 'failed'; downloadProgress.error = err.message; downloading = false; throw err; });
     }
+    // Built-in themes (only the 3D Eye) ship with Jibo: no package, the stock look underneath, saved as { id, builtin }.
     function activeTheme(s) {
-        if (!s.active) { return null; }
+        if (!s.active || s.active.builtin) { return null; }
         return JSON.parse(fs.readFileSync(path.join(dir(s.active.revision), 'theme.json'), 'utf8'));
     }
     function activate(id) {
         return mutate(operation => {
-            if (id !== null && (typeof id !== 'string' || !/^[a-f0-9]{24}$/.test(id))) { throw packages.fail('Use a theme ID or null for None'); }
-            const s = read(); const theme = id ? s.themes.filter(t => t.id === id)[0] : null;
-            if (id && !theme) { throw packages.fail('Theme not found'); } if (theme) { check(theme.manifest); }
+            const builtin = id === builtinEye.ID;
+            if (id !== null && !builtin && (typeof id !== 'string' || !/^[a-f0-9]{24}$/.test(id))) { throw packages.fail('Use a theme ID or null for None'); }
+            const s = read(); const theme = id && !builtin ? s.themes.filter(t => t.id === id)[0] : null;
+            if (id && !builtin && !theme) { throw packages.fail('Theme not found'); } if (theme) { check(theme.manifest); }
             const old = s.active;
             return renderer.prepare(theme, theme && dir(theme.revision)).then(prepared => {
                 try { operation.check(); } catch (err) { if (renderer.discard) { renderer.discard(prepared); } throw err; }
                 return renderer.apply(prepared, () => {
                     operation.check();
-                    s.active = theme ? { id: theme.id, revision: theme.revision } : null; save(s);
+                    s.active = theme ? { id: theme.id, revision: theme.revision } : builtin ? { id: builtinEye.ID, builtin: true } : null; save(s);
                 }).then(() => {
-                    if (old && !s.themes.some(t => t.revision === old.revision)) { try { removeTree(dir(old.revision)); } catch (err) { /* retained orphan */ } }
+                    try { if (builtin) { builtinEye.start(); } else { builtinEye.stop(); } } catch (err) { console.warn('[themes] 3D eye:', err.message); }
+                    if (old && old.revision && !s.themes.some(t => t.revision === old.revision)) { try { removeTree(dir(old.revision)); } catch (err) { /* retained orphan */ } }
                     return inventory();
                 });
             });
@@ -321,7 +325,10 @@ function create(options) {
             const s = read(); const theme = activeTheme(s); if (theme) { check(theme.manifest); }
             return renderer.prepare(theme, theme && dir(theme.revision)).then(p => {
                 try { operation.check(); } catch (err) { if (renderer.discard) { renderer.discard(p); } throw err; }
-                return renderer.apply(p);
+                return renderer.apply(p).then(value => {
+                    if (s.active && s.active.builtin) { try { builtinEye.start(); } catch (err) { console.warn('[themes] 3D eye:', err.message); } }
+                    return value;
+                });
             });
         }));
     }

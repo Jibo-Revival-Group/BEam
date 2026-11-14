@@ -97,6 +97,7 @@
         var skillInventory = { skills: [] }, voiceInventory = { voices: [], active: null };
         // Per-category API names: themes, skills (custom skills) and voices.
         var KIND = { theme: 'themes', skill: 'skills', voice: 'voices' };
+        var EYE3D = '3d-eye';   // the built-in 3D Eye theme (lib/eye3d.js)
         var downloads = Object.create(null);
         function downloadFor(entry) {
             return Object.keys(downloads).map(function (id) { return downloads[id]; }).filter(function (item) {
@@ -246,7 +247,7 @@
                 $('#store-tab-voices').hidden = !voiceInventory.enabled; // voices are turned off unless BEacon says otherwise
                 var activeVoice = voiceInventory.voices.filter(function (v) { return v.active; })[0];
                 $('#voices-summary').textContent = 'Jibo’s voice: ' + (activeVoice ? activeVoice.manifest.name : 'Normal');
-                var summary = 'Active theme: None';
+                var summary = 'Active theme: ' + (data.active === EYE3D ? '3D Eye' : 'None');
                 data.themes.forEach(function (t) {
                     if (t.active) { summary = 'Active theme: ' + t.manifest.name + (t.pending ? ' (new version ready to apply)' : ''); }
                 });
@@ -272,6 +273,7 @@
             var remoteEntries = data.entries.filter(function (entry) { return (entry.type || 'theme') === category; });
             var list = $(isSkill ? '#store-skill-list' : isVoice ? '#store-voice-list' : '#store-list'); list.textContent = '';
             var entries = isSkill ? [] : [{ name: isVoice ? 'Jibo' : 'None', stock: true }], seen = Object.create(null);
+            if (!isSkill && !isVoice) { entries.push({ name: '3D Eye', stock: true, builtin: EYE3D }); }
             (isSkill ? skillInventory.skills : isVoice ? voiceInventory.voices : inventory.themes).forEach(function (theme) {
                 var matches = remoteEntries.filter(function (entry) { return (entry.name || '').toLowerCase() === theme.manifest.name.toLowerCase(); });
                 var remote = theme.origin && theme.origin.url ? matches.filter(function (entry) { return entry.url === theme.origin.url; })[0] : matches[0];
@@ -295,7 +297,8 @@
                 if (entry.stock) {
                     media.className += ' store-none-banner';
                     fallback.hidden = true;
-                    var stockIcon = el('img', 'store-none-icon'); stockIcon.src = 'theme-none.svg'; stockIcon.alt = isVoice ? 'Jibo’s normal voice' : 'Stock appearance'; media.appendChild(stockIcon);
+                    var stockIcon = el('img', 'store-none-icon'); stockIcon.src = entry.builtin ? 'theme-3d-eye.svg' : 'theme-none.svg';
+                    stockIcon.alt = entry.builtin ? 'Jibo’s eye as a 3D ball' : isVoice ? 'Jibo’s normal voice' : 'Stock appearance'; media.appendChild(stockIcon);
                 } else if (entry.bannerUrl || (entry.local && entry.local.images['banner.png'])) {
                     var image = el('img', 'store-banner-image'); image.alt = (entry.name || 'Theme') + ' banner'; image.loading = 'lazy';
                     image.onload = function () { fallback.hidden = true; };
@@ -309,15 +312,16 @@
                 if (!entry.stock) {
                     var publisher = el('p', 'store-publisher'); publisher.appendChild(el('span', null, entry.developer || 'Local package')); publisher.appendChild(el('span', null, '★ ' + (typeof entry.stars === 'number' ? entry.stars.toLocaleString() : '—'))); content.appendChild(publisher);
                 }
-                content.appendChild(el('p', 'store-description', entry.stock ? (isVoice ? 'Jibo’s own, normal voice.' : 'Jibo’s stock face and menus.') : entry.description || entry.error || (isSkill ? 'A new skill for Jibo.' : isVoice ? 'A new voice for Jibo.' : 'A new look for Jibo.')));
+                content.appendChild(el('p', 'store-description', entry.builtin ? 'Jibo’s eye as a real 3D ball that moves, blinks and changes shape in 3D. Built in.' :
+                    entry.stock ? (isVoice ? 'Jibo’s own, normal voice.' : 'Jibo’s stock face and menus.') : entry.description || entry.error || (isSkill ? 'A new skill for Jibo.' : isVoice ? 'A new voice for Jibo.' : 'A new look for Jibo.')));
                 if (entry.compatibility && entry.compatibility.status === 'incompatible') {
                     content.appendChild(el('p', 'hint', 'Needs version ' + entry.manifest.supported + ' or newer'));
                 }
                 var actions = el('div', 'theme-actions'), existing = entry.local, download = downloadFor(entry);
                 if (download) { attachProgress(content, download); }
                 if (entry.stock) {
-                    var stockActive = isVoice ? !voiceInventory.active : !inventory.active && inventory.live.live;
-                    var stockApply = button(actions, stockActive ? (isVoice ? 'In use' : 'Active') : (isVoice ? 'Use' : 'Apply'), function () { return action('POST', '/api/' + (isVoice ? 'voices' : 'themes') + '/apply', { id: null }); }, stockActive);
+                    var stockActive = isVoice ? !voiceInventory.active : (inventory.active || null) === (entry.builtin || null) && inventory.live.live;
+                    var stockApply = button(actions, stockActive ? (isVoice ? 'In use' : 'Active') : (isVoice ? 'Use' : 'Apply'), function () { return action('POST', '/api/' + (isVoice ? 'voices' : 'themes') + '/apply', { id: entry.builtin || null }); }, stockActive);
                     stockApply.className = 'btn btn-primary store-install';
                     content.appendChild(actions); card.appendChild(content); list.appendChild(card); return;
                 }
