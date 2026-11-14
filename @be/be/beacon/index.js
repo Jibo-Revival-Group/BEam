@@ -113,11 +113,13 @@ function start (options, callback) {
         } catch (err) {
             warn('could not restore theme:', err && err.message);
         }
-        // Custom skills' microphone, camera and transcripts need a permission and their screen open.
+        // Custom skills need declared permissions for the microphone, camera, network, files and other skills' KB.
         try {
+            const os = require('os');
             require('./lib/skill-permissions').create({ skillsDir: require('path').join(paths.dataDir(), 'skills', 'packages'),
-                skills: () => require('./lib/custom-skills').inventory().skills, be: () => global.be })
-                .guard(require('jibo'), typeof navigator === 'undefined' ? null : navigator);
+                skills: () => require('./lib/custom-skills').inventory().skills, be: () => global.be,
+                ownAddresses: () => [].concat.apply([], Object.keys(os.networkInterfaces()).map(n => os.networkInterfaces()[n])).map(a => a.address.toLowerCase())
+            }).guard(require('jibo'), typeof window === 'undefined' ? null : window, require('jibo-kb'));
         } catch (err) {
             warn('skill permissions:', err && err.message);
         }

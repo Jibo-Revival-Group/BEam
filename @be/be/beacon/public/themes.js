@@ -413,7 +413,11 @@
         }
         // A skill asking for the microphone, camera or to run in the background installs only after the owner says yes.
         var PERMISSION_TEXT = { microphone: 'hear you and read what you say to Jibo while it is open',
-            camera: 'take photos and see through Jibo’s cameras while it is open', background: 'run all the time, even when it is not open' };
+            camera: 'take photos and see through Jibo’s cameras while it is open', background: 'run all the time, even when it is not open',
+            'local-network': 'connect to other devices on your home network', 'jibo-apis': 'use Jibo’s own services directly',
+            'read-jibo-files': 'read Jibo’s system files', 'edit-jibo-files': 'change Jibo’s system files',
+            'read-kb': 'read what Jibo knows (people, photos, settings, other skills’ data)', 'edit-kb': 'change what Jibo knows (people, photos, settings, other skills’ data)',
+            'run-programs': 'run its own programs — this gives it FULL ACCESS to Jibo' };
         function allowPermissions(err) {
             if (!err || err.status !== 409 || !err.detail) { return null; }
             var asked = String(err.detail).split(',');

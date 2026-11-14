@@ -47,22 +47,33 @@ formats and single-repository sources. Bad Apple is the reference package:
 with the same values. The first is the highlight, the second the shadow. One
 color applies to both; omission uses the default blue pair.
 
-`permissions` is an optional list of what the skill needs beyond its own screen:
+`permissions` lists what the skill needs beyond its own screen and files. Anything not
+declared is blocked:
 
 - `"microphone"`: listening (`jibo.jetstream.startLocalTurn` and similar), transcripts
-  (`globalTurnResult`, `localTurnResult`, `skillRelaunch`), speaker IDs, and
-  `getUserMedia({ audio })`.
-- `"camera"`: `jibo.media.takePhoto`, camera streams, stored photos, and
-  `getUserMedia({ video })`.
+  (`globalTurnResult`, `localTurnResult`, `skillRelaunch`), speaker IDs, `getUserMedia({ audio })`.
+- `"camera"`: `jibo.media.takePhoto`, camera streams, stored photos, `getUserMedia({ video })`.
 - `"background"`: run the package.json `jibo.background` script from boot.
+- `"local-network"`: connect to other devices on the home network (private IP ranges, `.local`).
+- `"jibo-apis"`: connect to Jibo's own services on the robot (`127.0.0.1`, `localhost`, the
+  robot's own addresses, local sockets), including BEacon and helpers the skill starts.
+- `"read-jibo-files"` / `"edit-jibo-files"`: files outside `/opt/jibo/Knowledge`.
+- `"read-kb"` / `"edit-kb"`: the Knowledge base outside the skill's own section, on disk
+  or through `jibo.kb`. Its own section is `/opt/jibo/Knowledge/<skill-name>` and KB slice
+  `/<skill-name>` (`@be/pizza` -> `pizza`); it can always read its own installed files.
+- `"run-programs"`: start programs (`child_process`). A program can do anything, so this
+  is full access; BEacon says so when asking.
 
-The owner is asked before a skill with permissions installs (BEacon shows what each
-one allows); updates keep what was agreed, and new permissions are asked again.
-Microphone and camera work only while the skill's own screen is open, and as long as it
-stays open. A background script never gets them while the screen is closed: it can call
-`api.open()` first. Without a permission the call throws, and transcript events are not
-delivered. This keeps skills from listening in by accident or casually; skills still run
-inside Jibo's own program, so only install skills from people you trust.
+The internet needs no permission. The owner is asked before a skill with permissions
+installs (BEacon shows what each one allows); updates keep what was agreed, and new
+permissions are asked again. Microphone and camera work only while the skill's own screen
+is open, for as long as it stays open; a background script never gets them while the
+screen is closed (it can call `api.open()` first). A blocked call throws an error naming
+the missing permission, and transcript events are not delivered.
+
+This stops skills from reaching these by accident or casually. Skills still run inside
+Jibo's own program, so a deliberately malicious skill can get around it (for example
+through native code); only install skills from people you trust.
 
 `menuButton` is an optional boolean. Omission or `true` gives the skill a main-menu
 button. Set `"menuButton": false` for skills launched only by voice (or by another
