@@ -82,7 +82,8 @@ function create(options) {
     }
     function check(m) { const c = compat(m); if (c.status === 'incompatible') { throw packages.fail(m.name + ' needs version ' + c.minimum + ' or newer (installed: ' + c.current + ')'); } }
     function inventory() {
-        const s = read(); return { active: s.active ? s.active.id : null, jiboTbdVersion: version(), live: renderer.status(),
+        const s = read(); return { active: s.active ? s.active.id : null, mix: s.active && s.active.mix ? Object.assign({ parts: s.active.parts }, s.active.mix) : null,
+            jiboTbdVersion: version(), live: renderer.status(),
             themes: s.themes.map(t => Object.assign({}, t, { compatibility: compat(t.manifest), active: !!(s.active && s.active.id === t.id),
                 pending: !!(s.active && s.active.id === t.id && s.active.revision !== t.revision) })) };
     }
@@ -228,24 +229,72 @@ function create(options) {
         if (!s.active || s.active.builtin) { return null; }
         return JSON.parse(fs.readFileSync(path.join(dir(s.active.revision), 'theme.json'), 'utf8'));
     }
-    function activate(id) {
+    // Advanced mode: one theme for the eye (face/: eye, background, 3D mode), one for menus (menu/, icons/) and one for
+    // everything else (atex/ animation art, asfx/ sounds). Each part is null (stock), an installed theme's ID, or for the
+    // eye the built-in 3D Eye. The parts are linked into a package of their own, so the renderer sees one ordinary theme.
+    const PARTS = { eye: /^face\//, menu: /^(menu|icons)\//, extras: /^(atex|asfx)\// };
+    function compose(mix, s) {
+        if (!mix || typeof mix !== 'object' || Array.isArray(mix) || Object.keys(mix).some(k => !PARTS[k])) { throw packages.fail('Choose themes for eye, menu and extras'); }
+        const pick = {};
+        Object.keys(PARTS).forEach(part => {
+            const id = mix[part] === undefined ? null : mix[part];
+            if (id === null || (part === 'eye' && id === builtinEye.ID)) { pick[part] = id; return; }
+            const t = s.themes.filter(v => v.id === id)[0]; if (!t) { throw packages.fail('Theme not found for ' + part); }
+            check(t.manifest); pick[part] = t;
+        });
+        const names = Object.keys(PARTS).map(part => pick[part] && pick[part].manifest ? pick[part].manifest.name : pick[part] ? '3D Eye' : 'None');
+        const revision = crypto.randomBytes(12).toString('hex'), dest = dir(revision);
+        const theme = { id: 'mix', revision: revision, manifest: { name: 'Mixed', version: '1.0.0', type: 'theme' },
+            face: { backgroundColor: '#000000', eyeSize: 100, eyes: [{ x: 0, y: 0 }], eye3d: false },
+            menu: { menuType: 'native', buttonColors: false, backgroundColor: '#000000', buttonSize: 42, iconSize: 70, textSize: 15,
+                iconPlacement: { x: 0, y: 0 }, textPlacement: { x: 0, y: -40 } },
+            images: {}, animationAssets: [], icons: [], hasFace: false, hasMenu: false, readme: '',
+            mix: { eye: pick.eye && pick.eye.id || pick.eye, menu: pick.menu && pick.menu.id, extras: pick.extras && pick.extras.id }, parts: names };
+        try {
+            Object.keys(PARTS).forEach(part => {
+                const t = pick[part]; if (!t || !t.revision) { return; }
+                const from = dir(t.revision), files = [];
+                (function walk(rel) {
+                    fs.readdirSync(path.join(from, rel)).forEach(n => {
+                        const r = rel ? rel + '/' + n : n, full = path.join(from, r);
+                        if (fs.lstatSync(full).isDirectory()) { walk(r); } else if (PARTS[part].test(r)) { files.push(r); }
+                    });
+                })('');
+                files.forEach(r => {
+                    const to = path.join(dest, r); paths.ensureDir(path.dirname(to));
+                    try { fs.linkSync(path.join(from, r), to); } catch (err) { fs.writeFileSync(to, fs.readFileSync(path.join(from, r))); }
+                });
+                Object.keys(t.images || {}).filter(n => PARTS[part].test(n)).forEach(n => { theme.images[n] = t.images[n]; });
+                if (part === 'eye') { theme.face = t.face; theme.hasFace = t.hasFace; }
+                if (part === 'menu') { theme.menu = t.menu; theme.hasMenu = t.hasMenu; theme.icons = t.icons || []; }
+                if (part === 'extras') { theme.animationAssets = t.animationAssets || []; }
+                const supported = t.manifest.supported;
+                if (supported && (!theme.manifest.supported || compare(supported, theme.manifest.supported) > 0)) { theme.manifest.supported = supported; }
+            });
+            atomic(path.join(dest, 'theme.json'), theme);
+        } catch (err) { try { removeTree(dest); } catch (ignored) { /* report the copy failure */ } throw err; }
+        return theme;
+    }
+    function activate(id, mix) {
         return mutate(operation => {
-            const builtin = id === builtinEye.ID;
-            if (id !== null && !builtin && (typeof id !== 'string' || !/^[a-f0-9]{24}$/.test(id))) { throw packages.fail('Use a theme ID or null for None'); }
-            const s = read(); const theme = id && !builtin ? s.themes.filter(t => t.id === id)[0] : null;
-            if (id && !builtin && !theme) { throw packages.fail('Theme not found'); } if (theme) { check(theme.manifest); }
-            const old = s.active;
+            const builtin = id === builtinEye.ID, mixed = id === 'mix';
+            if (id !== null && !builtin && !mixed && (typeof id !== 'string' || !/^[a-f0-9]{24}$/.test(id))) { throw packages.fail('Use a theme ID or null for None'); }
+            const s = read(); const theme = mixed ? compose(mix, s) : id && !builtin ? s.themes.filter(t => t.id === id)[0] : null;
+            if (id && !builtin && !theme) { throw packages.fail('Theme not found'); } if (theme && !mixed) { check(theme.manifest); }
+            const old = s.active, eyeBuiltin = builtin || !!(mixed && theme.mix.eye === builtinEye.ID);
+            function dropMix() { if (mixed) { try { removeTree(dir(theme.revision)); } catch (err) { /* retained orphan */ } } }
             return renderer.prepare(theme, theme && dir(theme.revision)).then(prepared => {
                 try { operation.check(); } catch (err) { if (renderer.discard) { renderer.discard(prepared); } throw err; }
                 return renderer.apply(prepared, () => {
                     operation.check();
-                    s.active = theme ? { id: theme.id, revision: theme.revision } : builtin ? { id: builtinEye.ID, builtin: true } : null; save(s);
+                    s.active = mixed ? { id: 'mix', revision: theme.revision, mix: theme.mix, parts: theme.parts } :
+                        theme ? { id: theme.id, revision: theme.revision } : builtin ? { id: builtinEye.ID, builtin: true } : null; save(s);
                 }).then(() => {
-                    eyeMode(builtin, theme);
+                    eyeMode(eyeBuiltin, theme);
                     if (old && old.revision && !s.themes.some(t => t.revision === old.revision)) { try { removeTree(dir(old.revision)); } catch (err) { /* retained orphan */ } }
                     return inventory();
                 });
-            });
+            }).catch(err => { if (!s.active || s.active.revision !== (theme && theme.revision)) { dropMix(); } throw err; });
         });
     }
     function remove(id) {
@@ -332,7 +381,9 @@ function create(options) {
             const s = read(); const theme = activeTheme(s); if (theme) { check(theme.manifest); }
             return renderer.prepare(theme, theme && dir(theme.revision)).then(p => {
                 try { operation.check(); } catch (err) { if (renderer.discard) { renderer.discard(p); } throw err; }
-                return renderer.apply(p).then(value => { eyeMode(!!(s.active && s.active.builtin), theme); return value; });
+                return renderer.apply(p).then(value => {
+                    eyeMode(!!(s.active && (s.active.builtin || s.active.mix && s.active.mix.eye === builtinEye.ID)), theme); return value;
+                });
             });
         }));
     }

@@ -68,7 +68,7 @@ async function run() {
     await ui.loadStore(false);
     assert(!calls.some(call => call.url.indexOf('/api/github') === 0), 'The Store needs no GitHub sign-in');
     assert.strictEqual(timers.length, 1); assert.strictEqual(timers[0].delay, 1800000, 'Refresh every 30 minutes');
-    assert.strictEqual(ids['store-list'].children.length, 3, 'Installed/catalog matches appear once, alongside None and the built-in 3D Eye');
+    assert.strictEqual(ids['store-list'].children.length, 4, 'Installed/catalog matches appear once, alongside None, the built-in 3D Eye and the mix card');
     const stock = ids['store-list'].children[0]; assert(stock.textContent.includes('None'));
     assert.strictEqual(all(stock).find(n => n.tagName === 'img').src, 'theme-none.svg');
     assert(all(stock).find(n => n.tagName === 'button').disabled, 'None is initially active');
@@ -163,7 +163,16 @@ async function run() {
     const entries = catalog.entries; catalog.entries = [];
     inventory = Object.assign({}, inventory, { themes: [theme, Object.assign({}, theme, { id: 'local-zip', manifest: { name: 'ZIP Only', version: '1.0.0' }, images: { 'banner.png': {} }, readme: '# ZIP Only\n\nLocal description.' })] });
     await ui.loadStore(false);
-    assert.strictEqual(ids['store-list'].children.length, 4, 'Installed themes remain without their storefront');
+    assert.strictEqual(ids['store-list'].children.length, 5, 'Installed themes remain without their storefront');
+    // Advanced: mix the eye, menus and sounds from different themes.
+    const mixCard = ids['store-list'].children[4]; assert(mixCard.textContent.includes('Advanced: mix themes'));
+    const selects = all(mixCard).filter(n => n.tagName === 'select');
+    assert.deepStrictEqual(selects.map(n => n.id), ['theme-mix-eye', 'theme-mix-menu', 'theme-mix-extras']);
+    assert.deepStrictEqual(selects[0].children.map(o => o.textContent), ['None', '3D Eye', 'Astra', 'ZIP Only'], 'the eye can also be the 3D Eye');
+    assert.deepStrictEqual(selects[1].children.map(o => o.textContent), ['None', 'Astra', 'ZIP Only']);
+    selects[0].value = '3d-eye'; selects[1].value = 'local-zip'; selects[2].value = 'theme-id';
+    await all(mixCard).find(n => n.tagName === 'button').onclick();
+    assert(calls.some(c => c.url === '/api/themes/apply' && c.data.id === 'mix' && JSON.stringify(c.data.mix) === JSON.stringify({ eye: '3d-eye', menu: 'local-zip', extras: 'theme-id' })));
     const localCard = ids['store-list'].children[3]; assert(localCard.textContent.includes('ZIP Only') && localCard.textContent.includes('Local description.'));
     assert(all(localCard).find(n => n.tagName === 'img').src.includes('/api/themes/asset?id=local-zip&name=banner.png'));
     assert(all(localCard).some(n => n.textContent === 'Remove') && all(localCard).some(n => n.textContent === 'Apply'));

@@ -233,7 +233,7 @@ const routes = {
         return u.readBody(req, themePackage.MAX_ZIP, 120000).then(buf => themes.upload(buf, query.name)).then(data => u.sendJson(res, 200, data));
     }),
     'POST /api/themes/apply': guard((req, res) => {
-        return u.readJson(req, 4096).then(body => themes.activate(body.id === undefined ? null : body.id)).then(data => u.sendJson(res, 200, data));
+        return u.readJson(req, 4096).then(body => themes.activate(body.id === undefined ? null : body.id, body.mix)).then(data => u.sendJson(res, 200, data));
     }),
     'DELETE /api/themes': guard((req, res, query) => {
         return themes.remove(query.id).then(data => u.sendJson(res, 200, data));

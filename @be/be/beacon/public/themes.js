@@ -247,7 +247,8 @@
                 $('#store-tab-voices').hidden = !voiceInventory.enabled; // voices are turned off unless BEacon says otherwise
                 var activeVoice = voiceInventory.voices.filter(function (v) { return v.active; })[0];
                 $('#voices-summary').textContent = 'Jibo’s voice: ' + (activeVoice ? activeVoice.manifest.name : 'Normal');
-                var summary = 'Active theme: ' + (data.active === EYE3D ? '3D Eye' : 'None');
+                var summary = 'Active theme: ' + (data.active === EYE3D ? '3D Eye' : data.mix ? 'Mixed (eye: ' + data.mix.parts[0] +
+                    ' · menus: ' + data.mix.parts[1] + ' · sounds & animation art: ' + data.mix.parts[2] + ')' : 'None');
                 data.themes.forEach(function (t) {
                     if (t.active) { summary = 'Active theme: ' + t.manifest.name + (t.pending ? ' (new version ready to apply)' : ''); }
                 });
@@ -356,9 +357,32 @@
                 detailButton.className = 'btn store-details';
                 content.appendChild(actions); card.appendChild(content); list.appendChild(card);
             });
+            if (category === 'theme' && inventory.themes.length) { list.appendChild(mixCard()); }
             if (!entries.length) { list.appendChild(el('p', 'hint', 'No skills are listed yet. Add a storefront or upload a ZIP.')); }
             if (isVoice && entries.length === 1) { list.appendChild(el('p', 'hint', 'No custom voices yet. Upload a voice ZIP or add a storefront that lists voices.')); }
             });
+        }
+        // Advanced: pick which installed theme provides the eye, the menus, and the sounds & animation art.
+        function mixCard() {
+            var card = el('article', 'store-card store-mix'), content = el('div', 'store-card-content'), mix = inventory.mix || {}, selects = {};
+            content.appendChild(el('h3', 'store-card-name', 'Advanced: mix themes'));
+            content.appendChild(el('p', 'store-description', 'Use one theme’s eye, another’s menus, and another’s sounds and animation art.'));
+            [['eye', 'Eye'], ['menu', 'Menus'], ['extras', 'Sounds & animation art']].forEach(function (part) {
+                var row = el('div', 'form-row'), label = el('label', null, part[1]), select = el('select');
+                label.htmlFor = select.id = 'theme-mix-' + part[0];
+                var options = [['', 'None']].concat(part[0] === 'eye' ? [[EYE3D, '3D Eye']] : [])
+                    .concat(inventory.themes.map(function (t) { return [t.id, t.manifest.name]; }));
+                options.forEach(function (o) { var option = el('option', null, o[1]); option.value = o[0]; select.appendChild(option); });
+                select.value = mix[part[0]] || '';
+                row.appendChild(label); row.appendChild(select); content.appendChild(row); selects[part[0]] = select;
+            });
+            var actions = el('div', 'theme-actions');
+            var apply = button(actions, inventory.mix && inventory.live.live ? 'Apply changes' : 'Apply mix', function () {
+                var chosen = {}; Object.keys(selects).forEach(function (k) { chosen[k] = selects[k].value || null; });
+                return action('POST', '/api/themes/apply', { id: 'mix', mix: chosen });
+            });
+            apply.className = 'btn btn-primary store-apply';
+            content.appendChild(actions); card.appendChild(content); return card;
         }
         function refreshStore(id, silent) {
             if (refreshing) { return refreshing; }

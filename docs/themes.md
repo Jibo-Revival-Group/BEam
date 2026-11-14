@@ -88,6 +88,21 @@ Set `"eye3d": true` in `face/face.json` to draw your theme's eye in 3D too:
 
 `face/eye.glb` without `"eye3d": true` is rejected. Multiple `eyes` show one 3D eye.
 
+## Advanced: mix themes
+
+The last card under Store → Themes picks a theme for each part of Jibo's look:
+
+- **Eye:** everything under `face/` (eye pictures, size, positions, background, 3D mode), or
+  the built-in 3D Eye.
+- **Menus:** everything under `menu/` and `icons/`.
+- **Sounds & animation art:** everything under `asfx/` and `atex/`.
+
+Each part can also be None (stock). Apply mix links the chosen files into a package of their
+own (`POST /api/themes/apply` with `{ "id": "mix", "mix": { "eye", "menu", "extras" } }`), so it
+works offline, survives restarts, and keeps working if a source theme is later removed or
+updated (Apply mix again to pick up an update). The Store's summary and BEacon status show
+`Mixed (eye, menus, sounds)`. Applying None or any single theme ends the mix.
+
 ## Face configuration
 
 ```json
@@ -367,7 +382,7 @@ with that `requestId` in `POST /api/themes/install`.
 
 ## Validation and device acceptance
 
-Run `node tests/themes.test.js`, `node tests/theme-3d-eye.test.js`, `node tests/theme-runtime.test.js`,
+Run `node tests/themes.test.js`, `node tests/theme-3d-eye.test.js`, `node tests/theme-mix.test.js`, `node tests/theme-runtime.test.js`,
 `node tests/theme-ui.test.js`, `node tests/theme-http.test.js`,
 `node tests/theme-animation-assets.test.js`, `node tests/theme-icons.test.js`, `node tests/theme-decoding.test.js`,
 `node tests/theme-recovery.test.js`, and
