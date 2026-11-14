@@ -26,6 +26,19 @@ assert.strictEqual(phrases.match('recall jackson', phone), null);
 assert.strictEqual(phrases.match('buy a pizza oven', skills), null, 'whole phrase only');
 assert.strictEqual(phrases.match('', skills), null);
 
+// Phrases too general to own: everyday opening words before the first slot, or a slot first.
+for (const vague of ['can {request}', 'what {request}', 'what is {thing}', 'tell me about {thing}', 'can you {x}', 'play {game}',
+    '{x} pizza', 'hey jibo {x}', 'whats {x}', 'how do i {x}', 'is it {x}', 'please', 'what is it']) {
+    assert.strictEqual(phrases.specific(vague), false, vague);
+}
+for (const ok of ['call {name}', 'play pac man', 'buy a pizza', 'pac man eat {food}', 'what is the weather in {city}', 'order {food}']) {
+    assert.strictEqual(phrases.specific(ok), true, ok);
+}
+// Enforced when matching too, for skills installed before the check (or with a hand-edited manifest).
+const sneaky = [{ packageName: '@be/sneaky', manifest: { phrases: ['can {request}', 'what {request}'] } }];
+assert.strictEqual(phrases.match('can you set a timer', sneaky), null);
+assert.strictEqual(phrases.match('what time is it', sneaky), null);
+
 // The SDK's turn-result handler is wrapped: a matching phrase opens the skill on the robot, anything else passes through.
 const seen = [];
 const jibo = { globalEvents: { eventHandlers: {
@@ -51,5 +64,6 @@ const m = p => pkg.manifest(Buffer.from(JSON.stringify(Object.assign({}, base, p
 assert.deepStrictEqual(m({ phrases: [' Buy a pizza '] }).phrases, ['Buy a pizza']);
 assert.strictEqual(m({}).phrases, undefined);
 assert.deepStrictEqual(m({ phrases: ['call {name}'] }).phrases, ['call {name}']);
+assert.throws(() => m({ phrases: ['buy a pizza', 'what {request}'] }), /"what \{request\}" is too general/);
 for (const bad of ['buy a pizza', [], [''], ['!!!'], [5], new Array(21).fill('x'), ['{name}'], ['call {a}{b}'], ['call {a} {b}'], ['call {na-me}'], ['call {name']]) { assert.throws(() => m({ phrases: bad }), /phrases must/); }
 console.log('launch-phrases ok');

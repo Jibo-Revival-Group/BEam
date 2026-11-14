@@ -63,6 +63,12 @@ A phrase can have `{slots}` that match any words: with `"phrases": ["call {name}
 `result.nlu.entities.name === "jackson"` (lower case, no punctuation; `result.asr.text`
 has what was said). Slots need a word between them (`"text {name} saying {message}"`).
 
+A phrase must start with words specific to the skill: everyday opening words such as
+"what", "can", "is", "tell me about", "play" or "set" do not count, and a phrase cannot
+start with a slot. So `"call {name}"` and `"play pac man"` work, but `"can {request}"`,
+`"what is {thing}"` and `"play {game}"` are rejected, because they would take requests
+meant for Jibo or other skills.
+
 `themes` is an optional boolean. Omission or `true` allows the active custom
 theme as usual. Set `"themes": false` to use stock buttons, menu layouts,
 backgrounds, animation artwork, and animation sounds while the skill runs.

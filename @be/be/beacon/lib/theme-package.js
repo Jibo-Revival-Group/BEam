@@ -169,6 +169,8 @@ function manifest(buf) {
                     /[{}]/.test(p.replace(/\{[a-z_][a-z0-9_]*\}/ig, '')) || /\}\s*\{/.test(p))) {
                 throw fail('phrases must be a list of 1 to 20 phrases, each a few words; {slots} need a word between them');
             }
+            const vague = m.phrases.filter(p => !require('./launch-phrases').specific(p))[0];
+            if (vague) { throw fail('"' + vague + '" is too general to be a launch phrase: start with words specific to the skill'); }
             out.phrases = m.phrases.map(p => p.trim());
         }
         const colors = m.buttonColor === undefined ? ['#58BCEB', '#246487'] : typeof m.buttonColor === 'string' ? m.buttonColor.trim().split(/\s+/) : m.buttonColor;

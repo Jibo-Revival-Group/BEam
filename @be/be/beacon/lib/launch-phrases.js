@@ -9,6 +9,22 @@ function normalize(text) {
     t = t.replace(/^ (hey )?jibo /, ' ').replace(/^ (please |can you |could you |will you |would you )+/, ' ').replace(/ please $/, ' ');
     return t.trim();
 }
+// Everyday words that start ordinary requests. A phrase must say something more specific before its first {slot} (or,
+// with no slot, anywhere), so a skill cannot grab "can {x}", "what is {x}" or "tell me about {x}" from everything else.
+const COMMON = ('a an the and or but so to of in on at for with from about into over up down out off by as if then ' +
+    'what whats who whos whom whose where wheres when whens why how hows which ' +
+    'is are was were be been am do does did dont doesnt didnt can cant could couldnt will wont would wouldnt shall should ' +
+    'may might must have has had havent isnt arent ' +
+    'i im ive id ill me my mine you youre your yours we us our he him his she her it its they them their this that these those ' +
+    'there theres here hey hi hello ok okay jibo please thanks thank yes no not just really very much more some any all ' +
+    'tell say ask play show set turn take open start stop go get give make let lets look find help put know think want ' +
+    'like need see hear talk read sing dance').split(' ');
+// True when the phrase opens with words specific enough to be a launch phrase (see COMMON).
+function specific(phrase) {
+    const lead = String(phrase).split('{')[0];
+    if (!normalize(lead)) { return false; }
+    return normalize(lead).split(' ').some(w => COMMON.indexOf(w) < 0);
+}
 // "call {name}" -> /^call (.+?)$/ with slot names ['name']. A {slot} matches one or more spoken words.
 function pattern(phrase) {
     const slots = [], parts = String(phrase).split(/\{([a-z_][a-z0-9_]*)\}/i);
@@ -25,6 +41,7 @@ function match(text, skills) {
     for (let i = 0; i < skills.length; i++) {
         const phrases = skills[i].manifest && skills[i].manifest.phrases || [];
         for (let j = 0; j < phrases.length; j++) {
+            if (!specific(phrases[j])) { continue; }   // also guards skills installed before this check existed
             const p = pattern(phrases[j]), m = p.re.exec(said);
             if (!m) { continue; }
             const entities = {};
@@ -61,4 +78,4 @@ function hook(jibo, skills) {
     events._beamLaunchPhrases = true;
     return true;
 }
-module.exports = { normalize: normalize, pattern: pattern, match: match, redirect: redirect, hook: hook };
+module.exports = { normalize: normalize, specific: specific, pattern: pattern, match: match, redirect: redirect, hook: hook };
