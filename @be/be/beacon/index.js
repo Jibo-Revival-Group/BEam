@@ -113,6 +113,12 @@ function start (options, callback) {
         } catch (err) {
             warn('could not restore theme:', err && err.message);
         }
+        // Custom skills' launch phrases ("buy a pizza") are matched here on the robot.
+        try {
+            require('./lib/launch-phrases').hook(require('jibo'), () => require('./lib/custom-skills').inventory().skills);
+        } catch (err) {
+            warn('launch phrases:', err && err.message);
+        }
         // New (e.g. OOBE) robots start with an empty loop: add a placeholder owner to rename in BEacon.
         try {
             require('./lib/people').ensureOwner()

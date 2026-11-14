@@ -51,6 +51,13 @@ color applies to both; omission uses the default blue pair.
 button. Set `"menuButton": false` for skills launched only by voice (or by another
 skill): no button appears and the menu editor does not offer one.
 
+`phrases` is an optional list of 1 to 20 launch phrases, for example
+`"phrases": ["buy a pizza", "order a pizza"]`. Saying "Hey Jibo, buy a pizza"
+opens the skill. Matching happens on the robot as soon as the ZIP is uploaded;
+nothing is sent to or installed on the cloud. The whole phrase must match, ignoring
+case, punctuation, a leading "Jibo", "please" and "can you". If two skills share a
+phrase, the one installed first wins.
+
 `themes` is an optional boolean. Omission or `true` allows the active custom
 theme as usual. Set `"themes": false` to use stock buttons, menu layouts,
 backgrounds, animation artwork, and animation sounds while the skill runs.
