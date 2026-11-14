@@ -29,6 +29,11 @@ function command (line) {
 const status = () => command('status');
 const setEnabled = (on) => command(on ? 'on' : 'off');
 const disconnect = () => command('disconnect');
+// Speakers and headphones Jibo plays through (BEnch jibo-bluetooth's A2DP source).
+const scan = () => command('scan');
+const speakers = () => command('speakers');
+const connectSpeaker = (address) => command('connect ' + address);
+const disconnectSpeaker = () => command('disconnect-speaker');
 
 // Jibo's volume (MIN_VOLUME..MAX_VOLUME) <-> AVRCP absolute volume 0-127.
 function toPhone (level, v) { return Math.round((level - v.MIN_VOLUME) / (v.MAX_VOLUME - v.MIN_VOLUME) * 127); }
@@ -79,4 +84,4 @@ function watch (getHost) {
     }, WATCH_MS);
 }
 
-module.exports = { status, setEnabled, disconnect, toPhone, toJibo, step, watch, SKILL };
+module.exports = { status, setEnabled, disconnect, scan, speakers, connectSpeaker, disconnectSpeaker, toPhone, toJibo, step, watch, SKILL };
