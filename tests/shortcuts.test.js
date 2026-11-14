@@ -23,12 +23,19 @@ try {
 
     // The shade module loads on Node 6 syntax with the robot modules stubbed.
     const load = Module._load;
-    Module._load = function (name) { return name === 'jibo' || name === '@be/be-framework' ? {} : load.apply(this, arguments); };
+    const jiboStub = { face: {} };
+    Module._load = function (name) { return name === 'jibo' ? jiboStub : name === '@be/be-framework' ? {} : load.apply(this, arguments); };
     let Shortcuts;
     try { Shortcuts = require('../@be/be/skills/idle/shortcuts'); } finally { Module._load = load; }
     const shade = new Shortcuts(() => {}, { warn() {} }, () => true);
     assert.strictEqual(shade.consumesTap(), false, 'a closed, untouched shade lets taps through to the eye');
     shade.offset = 10; assert.strictEqual(shade.consumesTap(), true, 'an open shade eats the tap');
+    // The 3D eye is a canvas above the face: it steps aside while the shade is out, and comes back when it closes.
+    global.window = {};
+    shade.root = {}; shade.dim = {}; shade.card = {}; shade.render = () => {}; shade.tick = () => {};
+    shade.place(120); assert.strictEqual(window.__eye3dUnderShade, true, '3D eye hidden under an open shade');
+    shade.place(0); assert.strictEqual(window.__eye3dUnderShade, false, '3D eye back once the shade is closed');
+    shade.place(120); shade.root = null; shade.detach(); assert.strictEqual(window.__eye3dUnderShade, false, 'and when idle removes the shade');
 
     const idle = fs.readFileSync(path.resolve(__dirname, '../@be/be/skills/idle/index.js'), 'utf8');
     assert(/CircadianState\.ALERT \|\| state === jibo_common_types_1\.CircadianState\.RELAXED/.test(idle), 'shade only while Jibo is awake');

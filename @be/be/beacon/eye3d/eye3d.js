@@ -171,7 +171,8 @@ module.exports = function (opts) {
         var overlayOk = !overlayOn || masked || /(glow|empty|White_Eye|white-circle)[^/]*\.png$/i.test(otex);
         var etex = d.eyeTextureInfixBn_r || '', blurred = /whiteeye_blur1\.png$/.test(etex);
         var plain = (etex === '' || blurred || /(White|Default)_Eye\.png$/.test(etex)) && d.eyeVisibilityBn_r > 0.5 && overlayOk &&
-            E.worldVisible && eye.worldVisible && mesh.worldAlpha > 0.01 && view && view.id === 'eyeView' && !window.__eye3dSuspended;
+            E.worldVisible && eye.worldVisible && mesh.worldAlpha > 0.01 && view && view.id === 'eyeView' && !window.__eye3dSuspended &&
+            !window.__eye3dUnderShade;                                                // the shortcut shade covers the flat eye; the 3D canvas would sit above it
         state.on = !!plain; state.frames++;
         canvas.style.display = state.on ? '' : 'none';
         if (!window.__eye3dSuspended) { mesh.renderable = !state.on; }

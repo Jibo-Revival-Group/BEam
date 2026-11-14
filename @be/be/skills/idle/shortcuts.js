@@ -57,6 +57,7 @@ class Shortcuts {
         this.stopAnimation(); clearInterval(this.timer); this.timer = null;
         if (this.root) { if (this.root.parent) this.root.parent.removeChild(this.root); this.root.destroy({ children: true }); }
         this.root = null; this.view = null; this.drag = null; this.clock = null; this.offset = 0; this.unblur();
+        window.__eye3dUnderShade = false;
     }
 
     // Build the card's contents each time it starts to open (favorite, Wi-Fi icon).
@@ -199,6 +200,7 @@ class Shortcuts {
         if (!this.root) return;
         const k = offset / HEIGHT, eye = jibo.face.eye;
         this.card.y = offset - HEIGHT; this.card.visible = offset > 0;
+        window.__eye3dUnderShade = offset > 0; // the 3D eye is its own canvas above the face: it shows the (blurred) flat eye meanwhile
         this.dim.alpha = 0.45 * k; this.dim.visible = offset > 0;
         if (eye && offset > 0) { this.blur.blur = 12 * k; if (!eye.filters || eye.filters.indexOf(this.blur) < 0) eye.filters = [this.blur]; }
         else this.unblur();
