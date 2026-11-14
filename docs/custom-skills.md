@@ -47,6 +47,10 @@ formats and single-repository sources. Bad Apple is the reference package:
 with the same values. The first is the highlight, the second the shadow. One
 color applies to both; omission uses the default blue pair.
 
+`menuButton` is an optional boolean. Omission or `true` gives the skill a main-menu
+button. Set `"menuButton": false` for skills launched only by voice (or by another
+skill): no button appears and the menu editor does not offer one.
+
 `themes` is an optional boolean. Omission or `true` allows the active custom
 theme as usual. Set `"themes": false` to use stock buttons, menu layouts,
 backgrounds, animation artwork, and animation sounds while the skill runs.

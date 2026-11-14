@@ -23,6 +23,8 @@ async function run() {
         const validated = await service.validate(Object.assign({}, files, { 'manifest.json': Buffer.from(JSON.stringify(Object.assign({}, manifest, { themes }))) }));
         assert.strictEqual(validated.manifest.themes, themes);
     }
+    assert.strictEqual(pkg.manifest(files['manifest.json']).menuButton, true, 'Skills get a menu button unless they opt out');
+    assert.throws(() => pkg.manifest(Buffer.from(JSON.stringify(Object.assign({}, manifest, { menuButton: 'no' })))), /menuButton must/);
     for (const themes of ['false', 0, null, [], {}]) {
         assert.throws(() => pkg.manifest(Buffer.from(JSON.stringify(Object.assign({}, manifest, { themes })))), /themes must/);
     }
@@ -60,7 +62,13 @@ async function run() {
     downloadMode = 'error'; await assert.rejects(() => service.install('entry', 'error'), /Download failed/); assert.strictEqual(service.progress('error').state, 'failed');
     downloadMode = 'hang'; await assert.rejects(() => service.install('entry', 'timeout'), /timed out/); finish({ files }); await new Promise(r => setImmediate(r)); assert.strictEqual(service.inventory().skills[0].revision, old, 'Late results cannot commit');
     downloadMode = 'success'; await service.install('entry', 'retry'); assert.strictEqual(service.progress('retry').state, 'complete'); assert.strictEqual(service.inventory().skills[0].origin.release.tag, 'v1.0.0');
-    await service.remove(item.id); layout.sync(); assert(!JSON.stringify(layout.inventory().tree).includes('@be/test-skill'));
+    // A voice-only skill (menuButton: false) leaves the menu, including a layout that already had its button.
+    await service.upload(fixture.zip(Object.assign({}, files, { 'manifest.json': Buffer.from(JSON.stringify(Object.assign({}, manifest, { menuButton: false }))) })));
+    layout.sync(); assert(!JSON.stringify(layout.inventory().tree).includes('@be/test-skill'), 'no button for menuButton: false');
+    assert(!layout.inventory().skills.some(s => s.id === '@be/test-skill'), 'not offered in the menu editor either');
+    assert(service.resolve('@be/test-skill'), 'still installed and launchable');
+    await service.upload(fixture.zip(files)); layout.sync();
+    await service.remove(service.inventory().skills[0].id); layout.sync(); assert(!JSON.stringify(layout.inventory().tree).includes('@be/test-skill'));
     tree = layout.inventory().tree; const empty = { type: 'folder', id: 'folder-empty', name: 'Empty', colors: ['#123456', '#234567'], icon: 'resources/icons/fun-stuff.png', children: [] };
     layout.save(tree.concat(empty)); assert(!layout.inventory().tree.some(n => n.id === empty.id));
     const real = {}; const appleRoot = path.resolve(__dirname, '../../BadApple');
