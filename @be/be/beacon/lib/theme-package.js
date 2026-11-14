@@ -165,8 +165,9 @@ function manifest(buf) {
         if (m.phrases !== undefined) {
             const normalize = require('./launch-phrases').normalize;
             if (!Array.isArray(m.phrases) || m.phrases.length < 1 || m.phrases.length > 20 ||
-                m.phrases.some(p => typeof p !== 'string' || p.length > 100 || !normalize(p))) {
-                throw fail('phrases must be a list of 1 to 20 phrases, each a few words');
+                m.phrases.some(p => typeof p !== 'string' || p.length > 100 || !normalize(p.replace(/\{[^}]*\}/g, ' ')) ||
+                    /[{}]/.test(p.replace(/\{[a-z_][a-z0-9_]*\}/ig, '')) || /\}\s*\{/.test(p))) {
+                throw fail('phrases must be a list of 1 to 20 phrases, each a few words; {slots} need a word between them');
             }
             out.phrases = m.phrases.map(p => p.trim());
         }

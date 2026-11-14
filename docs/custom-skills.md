@@ -58,6 +58,11 @@ nothing is sent to or installed on the cloud. The whole phrase must match, ignor
 case, punctuation, a leading "Jibo", "please" and "can you". If two skills share a
 phrase, the one installed first wins.
 
+A phrase can have `{slots}` that match any words: with `"phrases": ["call {name}"]`,
+"Hey Jibo, call Jackson" opens the skill, and its `open(result)` gets
+`result.nlu.entities.name === "jackson"` (lower case, no punctuation; `result.asr.text`
+has what was said). Slots need a word between them (`"text {name} saying {message}"`).
+
 `themes` is an optional boolean. Omission or `true` allows the active custom
 theme as usual. Set `"themes": false` to use stock buttons, menu layouts,
 backgrounds, animation artwork, and animation sounds while the skill runs.
