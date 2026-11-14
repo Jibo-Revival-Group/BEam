@@ -216,6 +216,13 @@ function create(options) {
             downloadProgress.state = 'complete'; downloadProgress.percent = 100; downloading = false; return value;
         }, err => { downloadProgress.state = 'failed'; downloadProgress.error = err.message; downloading = false; throw err; });
     }
+    // The 3D eye: the built-in 3D Eye theme, or a theme whose face.json sets "eye3d": true; otherwise off.
+    function eyeMode(builtin, theme) {
+        try {
+            const themed = theme && builtinEye.themeOptions(theme, dir(theme.revision));
+            if (builtin || themed) { builtinEye.start(themed || null); } else { builtinEye.stop(); }
+        } catch (err) { console.warn('[themes] 3D eye:', err.message); }
+    }
     // Built-in themes (only the 3D Eye) ship with Jibo: no package, the stock look underneath, saved as { id, builtin }.
     function activeTheme(s) {
         if (!s.active || s.active.builtin) { return null; }
@@ -234,7 +241,7 @@ function create(options) {
                     operation.check();
                     s.active = theme ? { id: theme.id, revision: theme.revision } : builtin ? { id: builtinEye.ID, builtin: true } : null; save(s);
                 }).then(() => {
-                    try { if (builtin) { builtinEye.start(); } else { builtinEye.stop(); } } catch (err) { console.warn('[themes] 3D eye:', err.message); }
+                    eyeMode(builtin, theme);
                     if (old && old.revision && !s.themes.some(t => t.revision === old.revision)) { try { removeTree(dir(old.revision)); } catch (err) { /* retained orphan */ } }
                     return inventory();
                 });
@@ -325,10 +332,7 @@ function create(options) {
             const s = read(); const theme = activeTheme(s); if (theme) { check(theme.manifest); }
             return renderer.prepare(theme, theme && dir(theme.revision)).then(p => {
                 try { operation.check(); } catch (err) { if (renderer.discard) { renderer.discard(p); } throw err; }
-                return renderer.apply(p).then(value => {
-                    if (s.active && s.active.builtin) { try { builtinEye.start(); } catch (err) { console.warn('[themes] 3D eye:', err.message); } }
-                    return value;
-                });
+                return renderer.apply(p).then(value => { eyeMode(!!(s.active && s.active.builtin), theme); return value; });
             });
         }));
     }

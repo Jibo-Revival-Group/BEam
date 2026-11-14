@@ -7,7 +7,7 @@ const MAX_ZIP = 32 * 1024 * 1024;
 const MAX_EXPANDED = 64 * 1024 * 1024;
 // PNG files can be small on disk while a full set of animation textures exceeds 64 MB in RGBA.
 const MAX_DECODED_IMAGES = 256 * 1024 * 1024;
-const FILES = ['manifest.json', 'README.md', 'banner.png', 'face/face.json', 'face/eye.png',
+const FILES = ['manifest.json', 'README.md', 'banner.png', 'face/face.json', 'face/eye.png', 'face/eye.glb',
     'face/eyeClosed.png', 'face/eyeListening.png', 'face/background.png', 'menu/menu.json', 'menu/button.png'];
 function assetPath(name) {
     return typeof name === 'string' && name.length <= 512 && !/[\\:\u0000-\u001f]/.test(name) &&
@@ -301,7 +301,15 @@ function validate(files) {
     if (Object.keys(files).reduce((total, name) => total + files[name].length, 0) > MAX_EXPANDED) { return Promise.reject(fail('Theme exceeds 64 MB expanded')); }
     const m = manifest(files['manifest.json']);
     if (m.type !== 'theme') { throw fail('Custom skill installation is not available yet'); }
-    const face = config(files['face/face.json'], 'face.json', { backgroundColor: '#000000', eyeSize: 100, eyes: [{ x: 0, y: 0 }] });
+    const face = config(files['face/face.json'], 'face.json', { backgroundColor: '#000000', eyeSize: 100, eyes: [{ x: 0, y: 0 }], eye3d: false });
+    if (typeof face.eye3d !== 'boolean') { throw fail('eye3d must be true or false'); }
+    if (files['face/eye.glb']) {
+        const glb = files['face/eye.glb'];
+        if (!face.eye3d) { throw fail('face/eye.glb needs "eye3d": true in face.json'); }
+        // Binary glTF 2.0: "glTF" magic, version 2, declared length = file length. Bounded so a model can't eat memory.
+        if (glb.length < 20 || glb.readUInt32LE(0) !== 0x46546c67 || glb.readUInt32LE(4) !== 2 || glb.readUInt32LE(8) !== glb.length) { throw fail('face/eye.glb must be a binary glTF 2.0 (.glb) file'); }
+        if (glb.length > 8 * 1024 * 1024) { throw fail('face/eye.glb must be at most 8 MB'); }
+    }
     const menu = config(files['menu/menu.json'], 'menu.json', { menuType: 'native', buttonColors: false, backgroundColor: '#000000', buttonSize: 42, iconSize: 70, textSize: 15, iconPlacement: 'x0 y0', textPlacement: 'x0 y-40' });
     const images = {}; let decodedSize = 0;
     const animationAssets = Object.keys(files).filter(n => assetPath(n) && !n.startsWith('icons/'));

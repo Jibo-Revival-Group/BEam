@@ -73,6 +73,21 @@ that replace the eye (emoji, dice, icons) are shown flat as usual. It is saved a
 `{ "id": "3d-eye", "builtin": true }` in `state.json`, survives restarts, and Apply on None or
 any other theme turns it off.
 
+### 3D mode for your theme
+
+Set `"eye3d": true` in `face/face.json` to draw your theme's eye in 3D too:
+
+- **Picture on the ball:** with only `face/eye.png`, the picture is wrapped onto the 3D ball,
+  facing the viewer, so the front looks like your flat eye and it curves away round the sides.
+  It bends with every shape animation (happy crescent, smile), and blinks close 3D lids over it.
+- **Your own model:** add `face/eye.glb` (binary glTF 2.0, at most 8 MB; Blender: File → Export →
+  glTF 2.0, format "glTF Binary"). It is drawn instead of the ball, sized to the eye, and squashes
+  for blinks. If the theme has `face/eye.png`, that picture becomes the model's texture through
+  the model's own UVs; without it the model keeps its own materials. The model faces the viewer
+  along +Z (Blender's -Y front once exported) and is centred and scaled to the eye automatically.
+
+`face/eye.glb` without `"eye3d": true` is rejected. Multiple `eyes` show one 3D eye.
+
 ## Face configuration
 
 ```json

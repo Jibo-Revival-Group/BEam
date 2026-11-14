@@ -10,7 +10,10 @@
 //   onto the mask's edge, so the ball itself becomes the happy crescent. The blurred eye (checking, waking) is the ball
 //   seen out of focus.
 // - Anything else (icons, emoji textures, other overlays, other views) shows the stock flat eye.
-module.exports = function () {
+// opts (from a theme with face.json "eye3d": true): { texture: PNG path wrapped onto the ball, or onto the model;
+// model: .glb path drawn instead of the ball }. No opts = the built-in 3D Eye (Phoenix's grey ball).
+module.exports = function (opts) {
+    opts = opts || {};
     if (window.__eye3d) { window.__eye3d.stop(); }
     var DIR = __dirname + '/';
     var THREE = require(DIR + 'three.min.js');
@@ -33,6 +36,38 @@ module.exports = function () {
     var unit = new Float32Array(ballGeo.attributes.position.array);                  // unit-sphere positions
     var ballMat = new THREE.MeshPhongMaterial({ color: 0x9d9d9d, specular: 0x1a1a1a, shininess: 20, transparent: true, opacity: 0.7 });
     var ball = new THREE.Mesh(ballGeo, ballMat); ball.frustumCulled = false; scene.add(ball);   // vertices are in pixels
+    var tex = null, model = null, modelMats = [];
+    if (opts.texture) {
+        // The theme's eye picture faces the viewer: planar UVs from the unit sphere's x/y, so the front looks like the
+        // flat eye and the picture curves away round the sides; it bends with every shape change of the ball.
+        var uv = new Float32Array(unit.length / 3 * 2);
+        for (var ui = 0, uj = 0; ui < unit.length; ui += 3, uj += 2) { uv[uj] = (unit[ui] + 1) / 2; uv[uj + 1] = (unit[ui + 1] + 1) / 2; }
+        ballGeo.addAttribute('uv', new THREE.BufferAttribute(uv, 2));
+        tex = new THREE.TextureLoader().load('file://' + opts.texture);
+        tex.minFilter = THREE.LinearFilter;
+        ballMat.map = tex; ballMat.specular.setRGB(0.05, 0.05, 0.05); ballMat.needsUpdate = true;
+    }
+    if (opts.model) {
+        // A theme's own model: scaled to the eye's size each frame and squashed for blinks (shortcut: it does not take
+        // the eye's per-animation shape like the ball does; warp its vertices through shapeBall's mapping if wanted).
+        window.THREE = THREE; require(DIR + 'ex/GLTFLoader.js');
+        var buf = require('fs').readFileSync(opts.model);
+        new THREE.GLTFLoader().parse(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.length), '', function (gltf) {
+            if (!window.__eye3d || window.__eye3d.state !== state) { return; }
+            var root = gltf.scene, box = new THREE.Box3().setFromObject(root), size = box.getSize(new THREE.Vector3());
+            var centre = box.getCenter(new THREE.Vector3()), k = 2 / Math.max(size.x, size.y, 1e-6);
+            root.position.set(-centre.x * k, -centre.y * k, -centre.z * k); root.scale.set(k, k, k);
+            root.traverse(function (o) {
+                if (!o.isMesh) { return; }
+                o.frustumCulled = false;
+                [].concat(o.material).forEach(function (m) {
+                    if (tex) { m.map = tex; m.needsUpdate = true; }                    // the theme's eye picture is its skin
+                    modelMats.push({ m: m, color: m.color ? m.color.clone() : null });
+                });
+            });
+            model = new THREE.Group(); model.add(root); scene.add(model); ball.visible = false;
+        }, function (err) { console.warn('[eye3d] model:', err && err.message || err); });
+    }
     var lidMat = new THREE.MeshBasicMaterial({ color: 0x000000, side: THREE.DoubleSide });
     var upper = new THREE.Mesh(new THREE.SphereBufferGeometry(1.03, 64, 32, 0, 2 * Math.PI, 0, Math.PI / 2), lidMat);
     var lower = new THREE.Mesh(new THREE.SphereBufferGeometry(1.03, 64, 32, 0, 2 * Math.PI, Math.PI / 2, Math.PI / 2), lidMat);
@@ -161,7 +196,7 @@ module.exports = function () {
                 for (var k = 0; k < 9; k++) { g.push({ x: (k % 3 - 1) * 300, y: (Math.floor(k / 3) - 1) * 300 }); }
                 shapeBall(g, { a: s, b: 0, c: 0, d: s, tx: cx, ty: cy }, r);
             }
-            lids.visible = true; lids.position.set(cx, -cy, 0); lids.scale.set(r, r, r);
+            lids.visible = !model; lids.position.set(cx, -cy, 0); lids.scale.set(r, r, r);
             upper.rotation.x = -(95 - 103 * c) * D2R; lower.rotation.x = -(-95 + 87 * c) * D2R;
         } else {
             if (shapeKey !== lastKey) {                                              // the ball itself takes the new shape
@@ -170,6 +205,7 @@ module.exports = function () {
             lids.visible = false;
         }
         lastKey = shapeKey; state.mode = blink ? 'blink' : 'shape';
+        if (model) { model.position.set(cx, -cy, 0); model.scale.set(r, r * (blink ? Math.max(1 - c, 0.04) : (maxY - minY) / (2 * r)), r); }
 
         var tint = mesh.tint, tr = (tint >> 16 & 255) / 255, tg = (tint >> 8 & 255) / 255, tb = (tint & 255) / 255;
         var listening = state.forceListen || tb - tr > 0.2;                          // stock listening tints the eye blue
@@ -184,10 +220,15 @@ module.exports = function () {
         state.blur = (state.blur || 0) + ((blurred ? 6 : 0) - (state.blur || 0)) * Math.min(dt / 0.15, 1);
         var f = state.blur > 0.3 ? 'blur(' + state.blur.toFixed(1) + 'px)' : '';
         if (canvas.style.filter !== f) { canvas.style.filter = f; canvas.style.webkitFilter = f; }
-        if (listen > 0) { ballMat.color.setRGB(0.616, 0.616, 0.616); } else { ballMat.color.setRGB(0.616 * tr, 0.616 * tg, 0.616 * tb); }
+        var base = tex ? 1 : 0.616;                                                  // a picture shows its own colours
+        if (listen > 0) { ballMat.color.setRGB(base, base, base); } else { ballMat.color.setRGB(base * tr, base * tg, base * tb); }
         var em = Math.min(0.22 * glow + 0.5 * flash + 0.25 * bright, 0.75);
         ballMat.emissive.setRGB(em, em, em);
-        ballMat.opacity = Math.min(0.7 + 0.3 * Math.max(glow, bright), 1) * mesh.worldAlpha;
+        ballMat.opacity = Math.min((tex ? 1 : 0.7) + 0.3 * Math.max(glow, bright), 1) * mesh.worldAlpha;
+        modelMats.forEach(function (x) {
+            if (x.m.emissive) { x.m.emissive.setRGB(em, em, em); }
+            if (x.color) { x.m.color.setRGB(x.color.r * tr, x.color.g * tg, x.color.b * tb); }
+        });
         key.intensity = 1 - 0.7 * listen + 0.3 * listen * pulse;
         blue.intensity = 1.5 * listen * (1 - 0.12 * pulse);
         state.key = key.intensity; state.blue = blue.intensity; state.c = c; state.listen = listen; state.glow = glow;
@@ -203,10 +244,10 @@ module.exports = function () {
     renderer.clear();
     PIXI.ticker.shared.add(tick);
     window.__eye3d = {
-        state: state, three: { THREE: THREE, scene: scene, ball: ball, lids: lids, renderer: renderer },
+        opts: opts, state: state, three: { THREE: THREE, scene: scene, ball: ball, lids: lids, renderer: renderer },
         stop: function () {
             PIXI.ticker.shared.remove(tick); mesh.renderable = true;
-            ballGeo.dispose(); renderer.dispose(); renderer.forceContextLoss();   // free the WebGL context: leaked ones OOM'd the renderer
+            ballGeo.dispose(); if (tex) { tex.dispose(); } renderer.dispose(); renderer.forceContextLoss();   // free the WebGL context: leaked ones OOM'd the renderer
             if (canvas.parentNode) { canvas.parentNode.removeChild(canvas); } delete window.__eye3d;
         }
     };
