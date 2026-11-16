@@ -276,7 +276,7 @@ const routes = {
     }),
 
     'PUT /api/people/work': guard((req, res) => {
-        return u.readJson(req).then((body) => sendPeople(res, commute.setWork(body && body.id, body && body.address)));
+        return u.readJson(req).then((body) => sendPeople(res, commute.setWork(body && body.id, body && body.address, body && body.mode)));
     }),
 
     'DELETE /api/people/work': guard((req, res, query) => {

@@ -707,6 +707,20 @@
         input.setAttribute('autocomplete', 'off');
         row.appendChild(input);
         block.appendChild(row);
+        var modeRow = el('div', 'setting-row');
+        var modeLabel = el('label', '', 'Gets there by ');
+        var mode = document.createElement('select');
+        mode.className = 'people-commute-mode';
+        mode.setAttribute('data-member-id', member.id);
+        [['driving', 'Car'], ['bicycling', 'Bike'], ['walking', 'Walk']].forEach(function (pair) {
+            var option = el('option', '', pair[1]);
+            option.value = pair[0];
+            mode.appendChild(option);
+        });
+        mode.value = member.commuteMode || 'driving';
+        modeLabel.appendChild(mode);
+        modeRow.appendChild(modeLabel);
+        block.appendChild(modeRow);
         var actions = el('div', 'setting-row people-actions-row');
         var save = el('button', 'btn btn-primary', 'Save address');
         save.setAttribute('data-action', 'save-work');
@@ -1383,9 +1397,10 @@
             var memberId = button && button.getAttribute('data-member-id');
             var input = document.querySelector('.people-work-address[data-member-id="' + memberId + '"]');
             var address = input ? input.value.trim() : '';
+            var mode = document.querySelector('.people-commute-mode[data-member-id="' + memberId + '"]');
             if (!memberId || !address) { toast('Enter a work address.', 'error'); return; }
             toast('Looking up the address…');
-            return api('PUT', '/api/people/work', { id: memberId, address: address }).then(function (data) {
+            return api('PUT', '/api/people/work', { id: memberId, address: address, mode: mode ? mode.value : undefined }).then(function (data) {
                 toast('Work address saved.', 'ok');
                 renderPeople(data);
             });

@@ -10,7 +10,7 @@ const stubs = {
         callCloud: (op, body, robot) => {
             if (cloudDown) throw new Error('no credentials');
             calls.push({ op, body, robot });
-            if (op === 'GetCommuteAddresses') return Promise.resolve({ available: true, addresses: [{ memberId: 'home', address: '1 Main St' }, { memberId: 'zane', address: '2 Work Rd' }, { memberId: 'home:zane', address: '9 Dorm Ln' }] });
+            if (op === 'GetCommuteAddresses') return Promise.resolve({ available: true, addresses: [{ memberId: 'home', address: '1 Main St' }, { memberId: 'zane', address: '2 Work Rd', mode: 'walking' }, { memberId: 'home:zane', address: '9 Dorm Ln' }] });
             return Promise.resolve({ address: '1 Main St, Tyngsborough, MA', lat: 42.6, lng: -71.4, city: 'Tyngsborough', state: 'Massachusetts', stateAbbr: 'MA' });
         }
     },
@@ -33,11 +33,15 @@ const commute = mod.exports;
     await commute.setWork('zane', '2 Work Rd, Boston');
     assert.deepStrictEqual(calls[1].body, { memberId: 'zane', address: '2 Work Rd, Boston', memberName: 'Zane Vincent' });
     await assert.rejects(commute.setWork('robot', 'x'), /robot/);
+    await commute.setWork('zane', '2 Work Rd', 'bicycling');
+    assert.deepStrictEqual(calls[calls.length - 1].body, { memberId: 'zane', address: '2 Work Rd', memberName: 'Zane Vincent', mode: 'bicycling' });
+    await assert.rejects(commute.setWork('zane', '2 Work Rd', 'rocket'), /Car, Bike or Walk/);
     assert.throws(() => commute.setHome(' '), /Enter an address/);
 
     const snapshot = await commute.attach({ members: [{ id: 'zane' }, { id: 'robot', isJibo: true }] });
     assert.strictEqual(snapshot.commuteAvailable, true);
     assert.strictEqual(snapshot.members[0].workAddress, '2 Work Rd');
+    assert.strictEqual(snapshot.members[0].commuteMode, 'walking', 'the saved mode is shown');
     assert.strictEqual(snapshot.members[0].homeAddress, '9 Dorm Ln', 'a person\'s own home is kept under home:<id>');
     assert.strictEqual(snapshot.members[1].workAddress, undefined);
 

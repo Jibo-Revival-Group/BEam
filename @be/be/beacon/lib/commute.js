@@ -35,12 +35,13 @@ function attach (snapshot) {
     return Promise.resolve().then(function () {
         return calendars.callCloud('GetCommuteAddresses', {}, calendars.robotIdFrom(snapshot));
     }).then(function (result) {
-        const byId = {};
-        (result.addresses || []).forEach(function (item) { byId[String(item.memberId)] = item.address; });
+        const byId = {}, modes = {};
+        (result.addresses || []).forEach(function (item) { byId[String(item.memberId)] = item.address; modes[String(item.memberId)] = item.mode; });
         snapshot.commuteAvailable = result.available === true;
         (snapshot.members || []).forEach(function (member) {
             if (member.isJibo) { return; }
             member.workAddress = byId[String(member.id)] || null;
+            member.commuteMode = modes[String(member.id)] || 'driving';
             member.homeAddress = byId[homeKey(member.id)] || null;
         });
         return snapshot;
@@ -74,17 +75,23 @@ function setHome (address) {
     });
 }
 
-function setWork (memberId, address) {
+const MODES = ['driving', 'bicycling', 'walking'];
+
+// mode: how the person gets there (driving, bicycling or walking); omitted keeps the saved one.
+function setWork (memberId, address, mode) {
     const text = addressText(address);
+    if (mode != null && MODES.indexOf(mode) < 0) { return Promise.reject(fail('Pick Car, Bike or Walk.', 400)); }
     if (!memberId) { return Promise.reject(fail('memberId is required.', 400)); }
     return people.findMember(memberId).then(function (found) {
         const member = found.member;
         if (member.isJibo) { throw fail('The robot does not have a job.', 400); }
-        return calendars.callCloud('SetCommuteAddress', {
+        const body = {
             memberId: String(memberId),
             address: text,
             memberName: [member.firstName, member.lastName].filter(Boolean).join(' ') || member.writtenName || null
-        }, calendars.robotIdFrom(found.snapshot));
+        };
+        if (mode != null) { body.mode = mode; }
+        return calendars.callCloud('SetCommuteAddress', body, calendars.robotIdFrom(found.snapshot));
     }).then(function () { return people.list(); });
 }
 
