@@ -789,7 +789,9 @@ class CronJobManager {
                 else {
                     alarmJobPromise = this.checkForMissingCronJob(alarm, 'alarm', KBModel).then((jobID) => {
                         CronJobManager.log.info(`restoring cronJob. Old: ${alarm.jobID} | New: ${jobID}`);
-                        alarm.jobID = jobID;
+                        if (jobID) { // undefined when the job is still scheduled (a renderer reload)
+                            alarm.jobID = jobID;
+                        }
                     });
                 }
             }
@@ -806,7 +808,9 @@ class CronJobManager {
                 else {
                     timerJobPromise = this.checkForMissingCronJob(timer, 'timer', KBModel).then((jobID) => {
                         CronJobManager.log.info(`restoring cronJob. Old: ${timer.jobID} | New: ${jobID}`);
-                        timer.jobID = jobID;
+                        if (jobID) { // undefined when the job is still scheduled (a renderer reload)
+                            timer.jobID = jobID;
+                        }
                     });
                 }
             }

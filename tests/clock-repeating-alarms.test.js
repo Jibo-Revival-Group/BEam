@@ -132,6 +132,13 @@ async function run() {
     assert.strictEqual((await R.store.list()).length, 0);
     assert.strictEqual(oneTime.root.data.alarm.jobID, 'one-time-job');
     assert(jibo.scheduler.jobs['one-time-job']);
+    // Startup restore keeps the one-time alarm's job id when the job is still scheduled (renderer reload);
+    // losing it made "delete my alarm" do nothing while the alarm still rang.
+    const kept = fakeModel({ alarm: { dateTimeInstance: { utc: oneTimeUtc }, jobID: 'one-time-job', cronString: 'x' } });
+    jibo.kb.onInit = () => Promise.resolve();
+    jibo.kb.createModel = name => name === '/jibo/clock/alarm_timer' ? kept : fakeModel();
+    await new Promise(done => ClockSkill.prototype.postInit.call({ log }, done));
+    assert.strictEqual(kept.root.data.alarm.jobID, 'one-time-job');
     console.log('clock repeating alarms: ok');
 }
 
