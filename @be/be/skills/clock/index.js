@@ -2130,6 +2130,7 @@ const AlarmGUI_1 = require("./AlarmGUI");
 const AlarmTimerUtils_1 = require("./AlarmTimerUtils");
 const AlarmTimerSubClass_1 = require("./AlarmTimerSubClass");
 const CronJobManager_1 = require("../CronJobManager");
+const RepeatingAlarms = require(require('path').join(__dirname, 'repeating-alarms'));
 class Alarm extends AlarmTimerSubClass_1.default {
     constructor(alarmTimer) {
         super();
@@ -2138,10 +2139,21 @@ class Alarm extends AlarmTimerSubClass_1.default {
         this._result = alarmTimer._result;
         this.time = alarmTimer._time;
         this.ampm = alarmTimer._ampm;
-        this.dateTimeInstance = alarmTimer._dateTimeInstance || this.createDateTimeInstance();
+        this.repeat = alarmTimer._result && alarmTimer._result.repeat || null;
+        this.repeatId = alarmTimer._result && alarmTimer._result.repeatId || null;
+        this.dateTimeInstance = (!this.repeat && alarmTimer._dateTimeInstance) || this.createDateTimeInstance();
         this._model = alarmTimer._model;
         let { time, ampm } = this.convertAlarmTime(this.dateTimeInstance);
         this.gui = new AlarmGUI_1.default(alarmTimer._addViewOptions, time, ampm, this._context);
+    }
+    get repeatingAlarm() {
+        const local = this.dateTimeInstance.getLocalTime();
+        return { id: this.repeatId, hour: local.hour, minute: local.minute, days: this.repeat };
+    }
+    saveRepeating() {
+        return RepeatingAlarms.store.save(this.repeatingAlarm).then((saved) => {
+            this.repeatId = saved.id;
+        });
     }
     get cronString() {
         let seconds = this.dateTimeInstance.getLocalTime().seconds;
@@ -2152,6 +2164,10 @@ class Alarm extends AlarmTimerSubClass_1.default {
         return `${seconds} ${minute} ${hour} ${date} ${monthNum} *`;
     }
     get promptTime() {
+        if (this.repeat) {
+            const text = RepeatingAlarms.spokenText(this.repeatingAlarm);
+            return { toString: () => text };
+        }
         return this.dateTimeInstance;
     }
     addToKB() {
@@ -2175,6 +2191,9 @@ class Alarm extends AlarmTimerSubClass_1.default {
         }
     }
     changeTime(clearDataBoolean, result) {
+        if (this.repeat || (!clearDataBoolean && result && result.repeat)) {
+            return this.changeRepeating(clearDataBoolean, result);
+        }
         return this._model.loadRoot().then((rootNode) => {
             if (rootNode.data.alarm && rootNode.data.alarm.jobID) {
                 return CronJobManager_1.default.removeJob(rootNode.data.alarm.jobID).then(() => {
@@ -2190,6 +2209,27 @@ class Alarm extends AlarmTimerSubClass_1.default {
             let { time, ampm } = this.convertAlarmTime(this.dateTimeInstance);
             this.gui.changeTime(time, ampm);
             return this.addToKB();
+        });
+    }
+    // A repeating alarm never touches the one-time alarm. Clearing one (e.g. "that's wrong" right
+    // after setting it) deletes the repeating alarm that was just saved.
+    changeRepeating(clearDataBoolean, result) {
+        const removed = clearDataBoolean && this.repeatId ? RepeatingAlarms.store.remove(this.repeatId) : Promise.resolve();
+        return removed.then(() => {
+            if (clearDataBoolean) {
+                this.repeat = null;
+                this.repeatId = null;
+                RepeatingAlarms.edit = null;
+            }
+            else {
+                this.repeat = result.repeat;
+                this.repeatId = result.repeatId || null;
+            }
+            this.time = clearDataBoolean ? null : result.time;
+            this.ampm = clearDataBoolean ? null : result.ampm;
+            this.dateTimeInstance = this.createDateTimeInstance();
+            let { time, ampm } = this.convertAlarmTime(this.dateTimeInstance);
+            this.gui.changeTime(time, ampm);
         });
     }
     createDateTimeInstance(kbOrResult) {
@@ -2269,6 +2309,7 @@ const AlarmTimerUtils_1 = require("./AlarmTimerUtils");
 const jibo = require('jibo');
 const View = jibo.rendering.gui.views.View;
 const ActionData = jibo.rendering.gui.actions.ActionData;
+const RepeatingAlarms = require(require('path').join(__dirname, 'repeating-alarms'));
 class AlarmEditGUIView extends View {
     constructor() {
         super();
@@ -2276,6 +2317,14 @@ class AlarmEditGUIView extends View {
         this._editClip = null;
     }
     loadData(loadAssetsOnComplete) {
+        // A tapped repeating alarm (set by the alarm screen) is edited in place; otherwise days picked here make a new one.
+        const edit = RepeatingAlarms.edit && RepeatingAlarms.edit.id ? RepeatingAlarms.edit : null;
+        RepeatingAlarms.edit = edit || { id: null, days: [] };
+        if (edit) {
+            this._dateTimeInstance = new BeFramework.utils.DateTime(null, RepeatingAlarms.clockText(edit).replace(' ', ''), BeFramework.utils.Location.jiboHome.timezone);
+            super.loadData(loadAssetsOnComplete);
+            return;
+        }
         jibo.kb.createModel('/jibo/clock/alarm_timer').loadRoot().then((rootNode) => {
             let data = rootNode.data;
             let alarm = data.alarm;
@@ -2293,6 +2342,27 @@ class AlarmEditGUIView extends View {
         this.setupDisplay();
     }
     actionHandler(action, fromComponent) {
+        if (action.type === ActionData.EVENT && action.data.event === 'dayPress') {
+            const days = RepeatingAlarms.edit.days;
+            const index = days.indexOf(action.data.day);
+            if (index < 0) {
+                days.push(action.data.day);
+                days.sort();
+            }
+            else if (!RepeatingAlarms.edit.id || days.length > 1) { // a saved repeating alarm keeps at least one day; Delete removes it
+                days.splice(index, 1);
+            }
+            this.drawRepeat();
+            return;
+        }
+        if (action.type === ActionData.EVENT && action.data.event === 'deletePress') {
+            const id = RepeatingAlarms.edit.id;
+            RepeatingAlarms.edit = null;
+            RepeatingAlarms.store.remove(id).catch(err => console.warn('deleting repeating alarm failed', err)).then(() => {
+                super.actionHandler(new ActionData(ActionData.UTTERANCE, { utterance: 'cancel' }), fromComponent);
+            });
+            return;
+        }
         if (action.type === ActionData.EVENT && action.data.event === 'confirmPress') {
             let hour = this._dateTimeInstance.getLocalTime().hour;
             let minute = this._dateTimeInstance.getLocalTime().minute;
@@ -2378,6 +2448,35 @@ class AlarmEditGUIView extends View {
         amButton.setupHitArea(new PIXI.Rectangle(0, 0, 220, 150));
         pmButton.setupHitArea(new PIXI.Rectangle(0, 0, 220, 150));
         this.updateEditGui(this._dateTimeInstance);
+        for (let i = 0; i < 7; ++i) {
+            this.getComponentById('day_0' + i).setupHitArea(new PIXI.Rectangle(-46, -46, 92, 92));
+        }
+        this.getComponentById('delete_button').setupHitArea(new PIXI.Rectangle(-95, -38, 190, 76));
+        this.drawRepeat();
+    }
+    // The S M T W T F S row under the time, and Delete when editing a saved repeating alarm.
+    drawRepeat() {
+        const edit = RepeatingAlarms.edit;
+        for (let i = 0; i < 7; ++i) {
+            const button = this.getComponentById('day_0' + i);
+            const on = edit.days.indexOf(i) >= 0;
+            if (!button._dot) {
+                button._dot = new PIXI.Graphics();
+                button._letter = new PIXI.Text('SMTWTFS'[i], { fontFamily: 'Proxima Nova Soft', fontSize: 44, fontWeight: 'bold', fill: '#FFFFFF' });
+                button._letter.anchor.set(0.5);
+                button.display.addChild(button._dot, button._letter);
+            }
+            button._dot.clear().beginFill(on ? 0x00D4F0 : 0x2A2938).drawCircle(0, 0, 38).endFill();
+            button._letter.style.fill = on ? '#FFFFFF' : '#6E6E80';
+        }
+        const del = this.getComponentById('delete_button');
+        if (!del._pill) {
+            del._pill = new PIXI.Graphics().beginFill(0x2A2938).drawRoundedRect(-95, -38, 190, 76, 38).endFill();
+            const label = new PIXI.Text('Delete', { fontFamily: 'Proxima Nova Soft', fontSize: 40, fontWeight: 'bold', fill: '#FF5A5A' });
+            label.anchor.set(0.5);
+            del.display.addChild(del._pill, label);
+        }
+        del.display.visible = !!edit.id;
     }
     updateEditGui(dt) {
         let hour = dt.getLocalTime().hour;
@@ -2406,6 +2505,7 @@ exports.default = AlarmEditGUIView;
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const Contexts_1 = require("../Contexts");
+const RepeatingAlarms = require(require('path').join(__dirname, 'repeating-alarms'));
 class AlarmGUI {
     constructor(addViewOptions, time, ampm, context) {
         this._context = context;
@@ -2434,6 +2534,15 @@ class AlarmGUI {
                     try {
                         this._alarmTimerMovieClip = view.getComponentById(`alarmClip`).movieClip;
                         this._alarmTimerMovieClip.gotoAndStop(`alarm_in_stop`);
+                        // A tap on a repeating alarm opens the edit screen (the normal tap path) for that alarm.
+                        const handler = view.actionHandler;
+                        view.actionHandler = (action, fromComponent) => {
+                            if (action && action.type === 'mimEnd') {
+                                const hit = RepeatingAlarms.hitTest(this._repeatRects);
+                                RepeatingAlarms.edit = hit ? { id: hit.id, hour: hit.hour, minute: hit.minute, days: hit.days.slice() } : null;
+                            }
+                            return handler.call(view, action, fromComponent);
+                        };
                         view.addAction('event', { event: 'swipeDown' }, true, false, jibo.face.views.SWIPE);
                         view.addAction('mimEnd', null, false, false, jibo.face.views.SWIPE);
                         view.addAction('mimEnd', null, false, false, jibo.face.views.TAP);
@@ -2447,6 +2556,7 @@ class AlarmGUI {
         });
     }
     alarmGuiSetup() {
+        this.drawRepeating();
         let timeClip = this._alarmTimerMovieClip.timeClip;
         timeClip.tapToEdit.alpha = 1;
         if (!this.time) {
@@ -2461,6 +2571,37 @@ class AlarmGUI {
             timeClip.am_pm.text = this.ampm || 'AM? PM?';
             timeClip.time.text = this.time;
         }
+    }
+    // Repeating alarms beside the clock: right column, then left.
+    drawRepeating() {
+        const clip = this._alarmTimerMovieClip;
+        if (!clip || !RepeatingAlarms.store) {
+            return;
+        }
+        RepeatingAlarms.store.list().then((alarms) => {
+            if (this._repeatBox) {
+                this._repeatBox.destroy({ children: true });
+            }
+            if (!clip.parent) {
+                return;
+            }
+            const box = this._repeatBox = new PIXI.Container();
+            this._repeatRects = [];
+            // shortcut: shows the first 8 (by time); add paging if people keep more than that
+            alarms.slice(0, 8).forEach((alarm, i) => {
+                const x = i < 4 ? 975 : 25, y = 110 + (i % 4) * 125, w = 280, h = 110;
+                const pill = new PIXI.Graphics().beginFill(0x2A2938).drawRoundedRect(x, y, w, h, 55).endFill();
+                const time = new PIXI.Text(RepeatingAlarms.clockText(alarm), { fontFamily: 'Proxima Nova Soft', fontSize: 48, fontWeight: 'bold', fill: '#FFFFFF' });
+                const days = new PIXI.Text(RepeatingAlarms.daysText(alarm.days), { fontFamily: 'Proxima Nova Soft', fontSize: 32, fill: '#00D4F0' });
+                time.anchor.set(0.5);
+                days.anchor.set(0.5);
+                time.position.set(x + w / 2, y + 40);
+                days.position.set(x + w / 2, y + 82);
+                box.addChild(pill, time, days);
+                this._repeatRects.push({ x, y, w, h, alarm });
+            });
+            clip.parent.addChild(box);
+        }).catch(err => console.warn('listing repeating alarms failed', err));
     }
     cleanUpTimers() {
         return;
@@ -2482,6 +2623,7 @@ const TimerEditGUIView_1 = require("./TimerEditGUIView");
 const CronJobManager_1 = require("../CronJobManager");
 const ActionData = jibo.rendering.gui.actions.ActionData;
 const alarmTimerFlow = require('../flows/alarmTimerMain');
+const RepeatingAlarms = require(require('path').join(__dirname, 'repeating-alarms'));
 class AlarmTimer extends SubSkill_1.default {
     constructor(clockSkill, assetPack, resultObject, domainIsTimer, KBModel, context = null, flowOverrides = null) {
         super();
@@ -2635,12 +2777,21 @@ class AlarmTimer extends SubSkill_1.default {
         }
     }
     addToScheduler() {
+        if (this._domainInstance.repeat) {
+            return this._domainInstance.saveRepeating();
+        }
         return CronJobManager_1.default.addJob(this._domainInstance.cronString, this._eruptData, this._domain, this._model);
     }
     addToKB() {
+        if (this._domainInstance.repeat) {
+            return Promise.resolve();
+        }
         return this._domainInstance.addToKB();
     }
     isCurrentDomainSet() {
+        if (this._domainInstance && this._domainInstance.repeat) {
+            return false; // a new repeating alarm is added next to the one-time alarm, never instead of it
+        }
         this.queryLocalRootNode();
         return !!this._rootNode.data[this._domain];
     }
@@ -2702,6 +2853,8 @@ class AlarmTimer extends SubSkill_1.default {
         this._result.seconds = null;
         this._result.time = null;
         this._result.ampm = null;
+        this._result.repeat = null;
+        this._result.repeatId = null;
     }
     createTimeObject(result) {
         return this._clockSkill.createTimeObject(result);
@@ -2836,6 +2989,7 @@ class AlarmTimer extends SubSkill_1.default {
     }
     destroy(timedOut, callback) {
         this.log.info(`destroying...`);
+        RepeatingAlarms.edit = null;
         jibo.face.views.creator.unregisterClass('AlarmEditGUIView');
         jibo.face.views.creator.unregisterClass('TimerEditGUIView');
         this.cleanUpTimers();
@@ -4677,7 +4831,11 @@ module.exports = function (blackboard, notepad, result, emitter) {
                 'class': 'Flow.Eval-Async',
                 'options': {
                     'exec': done => {
-                        blackboard.alarmTimer.changeAlarmTimer(true).then(() => {
+                        // Opened from a repeating alarm on the alarm screen: delete that one, not the one-time alarm.
+                        const repeating = require(require('path').join(__dirname, 'repeating-alarms'));
+                        const edit = repeating.edit;
+                        repeating.edit = null;
+                        (edit && edit.id ? repeating.store.remove(edit.id) : blackboard.alarmTimer.changeAlarmTimer(true)).then(() => {
                             jibo.face.views.forceEyeView(() => {
                                 done();
                             }, null, jibo.face.views.IN, jibo.face.views.OUT);
@@ -4705,7 +4863,9 @@ module.exports = function (blackboard, notepad, result, emitter) {
                 'class': 'Flow.Eval-Async',
                 'options': {
                     'exec': done => {
-                        blackboard.alarmTimer.changeAlarmTimer(true).then(() => {
+                        // Opened from a repeating alarm: keep the one-time alarm; the edit screen loads the repeating one.
+                        const edit = require(require('path').join(__dirname, 'repeating-alarms')).edit;
+                        (edit && edit.id ? Promise.resolve() : blackboard.alarmTimer.changeAlarmTimer(true)).then(() => {
                             done();
                         }, err => {
                             blackboard.alarmTimer.handleViewError(err);
@@ -5127,7 +5287,8 @@ module.exports = function (blackboard, notepad, result, emitter) {
                         let time = blackboard.alarmTimer._time;
                         blackboard.alarmTimer._result = {
                             ampm,
-                            time
+                            time,
+                            repeat: result.repeat || blackboard.alarmTimer._result && blackboard.alarmTimer._result.repeat || null
                         };
                         if (result.intent === 'cancel') {
                             return '~close';
@@ -5658,9 +5819,13 @@ module.exports = function (blackboard, notepad, result, emitter) {
                         blackboard.alarmTimer.sanitizeInput(result.ampm, result.time);
                         let ampm = blackboard.alarmTimer._ampm;
                         let time = blackboard.alarmTimer._time;
+                        // Days picked on the edit screen make this a repeating alarm.
+                        const edit = require(require('path').join(__dirname, 'repeating-alarms')).edit;
                         blackboard.alarmTimer._result = {
                             ampm,
-                            time
+                            time,
+                            repeat: result.repeat || (edit && edit.days.length ? edit.days.slice() : null),
+                            repeatId: edit && edit.id || null
                         };
                         return transition;
                     }
@@ -5989,6 +6154,7 @@ const Analytics_1 = require("./analytics/Analytics");
 const CancelToken = be_framework_1.libraries.jibo_cai_utils.CancelToken;
 const CancelTokenSession = be_framework_1.libraries.jibo_cai_utils.CancelTokenSession;
 const jibo = require('jibo');
+const RepeatingAlarms = require(require('path').join(__dirname, 'repeating-alarms'));
 class ClockSkill extends be_framework_1.BeSkill {
     constructor(assetPack) {
         super(assetPack);
@@ -6019,7 +6185,8 @@ class ClockSkill extends be_framework_1.BeSkill {
     postInit(done) {
         jibo.kb.onInit().then(() => {
             this._model = jibo.kb.createModel('/jibo/clock/alarm_timer');
-            return CronJobManager_1.default.restoreJobs(this._model).then(() => {
+            RepeatingAlarms.store = RepeatingAlarms.create(jibo.kb.createModel('/jibo/clock/repeating_alarms'), jibo.scheduler, this.log.createChild('RepeatingAlarms'));
+            return CronJobManager_1.default.restoreJobs(this._model).then(() => RepeatingAlarms.store.restore()).then(() => {
                 this.log.debug(`restored CronJobs`);
                 done();
             });
@@ -6246,7 +6413,9 @@ class ClockSkill extends be_framework_1.BeSkill {
     createTimeObject(result) {
         try {
             const entities = result.entities || result.nlu.entities;
-            return new ResultObject_1.default(entities.domain, result.intent || result.nlu.intent, entities.hours !== "null" ? parseInt(entities.hours) : null, entities.minutes !== "null" ? parseInt(entities.minutes) : null, entities.seconds !== "null" ? parseInt(entities.seconds) : null, entities.time !== "null" ? entities.time : null, entities.ampm !== "null" ? entities.ampm : null);
+            const resultObject = new ResultObject_1.default(entities.domain, result.intent || result.nlu.intent, entities.hours !== "null" ? parseInt(entities.hours) : null, entities.minutes !== "null" ? parseInt(entities.minutes) : null, entities.seconds !== "null" ? parseInt(entities.seconds) : null, entities.time !== "null" ? entities.time : null, entities.ampm !== "null" ? entities.ampm : null);
+            resultObject.repeat = resultObject.domain === 'alarm' ? RepeatingAlarms.parseDays(entities.repeat) : null;
+            return resultObject;
         }
         catch (err) {
             this.log.error(err);

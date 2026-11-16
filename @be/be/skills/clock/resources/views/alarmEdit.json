@@ -294,6 +294,62 @@
                 "x": 670,
                 "y": 590
             }
+        },
+        {
+            "id": "day_00",
+            "type": "Button",
+            "assets": [],
+            "position": { "x": 110, "y": 668 },
+            "actions": [{ "type": "event", "data": { "event": "dayPress", "day": 0 } }]
+        },
+        {
+            "id": "day_01",
+            "type": "Button",
+            "assets": [],
+            "position": { "x": 205, "y": 668 },
+            "actions": [{ "type": "event", "data": { "event": "dayPress", "day": 1 } }]
+        },
+        {
+            "id": "day_02",
+            "type": "Button",
+            "assets": [],
+            "position": { "x": 300, "y": 668 },
+            "actions": [{ "type": "event", "data": { "event": "dayPress", "day": 2 } }]
+        },
+        {
+            "id": "day_03",
+            "type": "Button",
+            "assets": [],
+            "position": { "x": 395, "y": 668 },
+            "actions": [{ "type": "event", "data": { "event": "dayPress", "day": 3 } }]
+        },
+        {
+            "id": "day_04",
+            "type": "Button",
+            "assets": [],
+            "position": { "x": 490, "y": 668 },
+            "actions": [{ "type": "event", "data": { "event": "dayPress", "day": 4 } }]
+        },
+        {
+            "id": "day_05",
+            "type": "Button",
+            "assets": [],
+            "position": { "x": 585, "y": 668 },
+            "actions": [{ "type": "event", "data": { "event": "dayPress", "day": 5 } }]
+        },
+        {
+            "id": "day_06",
+            "type": "Button",
+            "assets": [],
+            "position": { "x": 680, "y": 668 },
+            "actions": [{ "type": "event", "data": { "event": "dayPress", "day": 6 } }]
+        },
+        {
+            "id": "delete_button",
+            "type": "Button",
+            "assets": [],
+            "position": { "x": 855, "y": 668 },
+            "actions": [{ "type": "event", "data": { "event": "deletePress" } }]
         }
     ]
 }
