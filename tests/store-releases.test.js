@@ -5,6 +5,9 @@ const pkg = require('../@be/be/beacon/lib/theme-package'), fixture = require('./
 const files = fixture.astra(), repo = 'https://github.com/example/widget', api = 'https://api.github.com/repos/example/widget';
 const tag = 'v1.0.0', base = 'https://raw.githubusercontent.com/example/widget/' + tag + '/';
 const archive = repo + '/archive/refs/tags/' + tag + '.zip', assetUrl = repo + '/releases/download/' + tag + '/widget.zip';
+// Store entries flagged for burn-in keep the flag so BEacon can warn on the card (Nova Halo).
+const listed = stores.entries({themes: ['NovaHalo', {url: 'https://github.com/a/halo', burnInWarning: true}, 'Plain', {url: 'https://github.com/a/plain'}]}, 'themes', 'https://store.example/manifest.json');
+assert.strictEqual(listed[0].burnInWarning, true); assert.strictEqual(listed[1].burnInWarning, undefined);
 function release(overrides) { return Object.assign({id: 12, tag_name: tag, name: 'Version one', html_url: repo + '/releases/tag/' + tag, published_at: '2026-10-12T00:00:00Z', draft: false, prerelease: false, zipball_url: archive, assets: []}, overrides); }
 function zip(name, url) { return {name: name, state: 'uploaded', browser_download_url: url || assetUrl}; }
 function scenario(metadata) {

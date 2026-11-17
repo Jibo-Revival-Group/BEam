@@ -1279,3 +1279,6 @@ dl.kv > dd:only-child { grid-column: 1 / -1; }
 .jibosync-robots li { padding: 4px 0; }
 .store-mix select { flex: 1; min-width: 0; }
 .store-mix .form-row { margin: 8px 0; }
+
+.store-card .store-warning { margin: -8px 0 16px; padding: 8px 10px; border-radius: 8px; font-size: 13px; line-height: 1.4; color: #8a4b00; background: #fff3d6; border: 1px solid #f0c66b; }
+:root[data-appearance="dark"] .store-card .store-warning { color: #ffd88a; background: #3a2c10; border-color: #8a6a24; }

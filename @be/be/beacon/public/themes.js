@@ -319,6 +319,7 @@
                 }
                 content.appendChild(el('p', 'store-description', entry.builtin ? 'Jibo’s eye as a real 3D ball that moves, blinks and changes shape in 3D. Built in.' :
                     entry.stock ? (isVoice ? 'Jibo’s own, normal voice.' : 'Jibo’s stock face and menus.') : entry.description || entry.error || (isSkill ? 'A new skill for Jibo.' : isVoice ? 'A new voice for Jibo.' : 'A new look for Jibo.')));
+                if (entry.burnInWarning) { content.appendChild(el('p', 'store-warning', 'This theme has been tested and may cause burn-in or ghosting on certain screens.')); }
                 if (entry.compatibility && entry.compatibility.status === 'incompatible') {
                     content.appendChild(el('p', 'hint', 'Needs version ' + entry.manifest.supported + ' or newer'));
                 }

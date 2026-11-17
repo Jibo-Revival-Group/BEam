@@ -113,7 +113,9 @@ function entries(data, section, base) {
         } else if (item && typeof item === 'object') { name = item.name; }
         if (!item || typeof item.url !== 'string') { throw pkg.fail('Store entries require a URL'); }
         if (name === 'None' && item.url === '.') { out.push({ name: 'None', type: 'theme', stock: true, url: null }); continue; }
-        out.push({ name: name || '', type: section === 'themes' ? 'theme' : section === 'voices' ? 'voice' : 'skill', url: normalize(url.resolve(base, item.url)) });
+        const entry = { name: name || '', type: section === 'themes' ? 'theme' : section === 'voices' ? 'voice' : 'skill', url: normalize(url.resolve(base, item.url)) };
+        if (item.burnInWarning === true) { entry.burnInWarning = true; }
+        out.push(entry);
     }
     if (out.length > 100) { throw pkg.fail('Store has too many entries'); }
     return out;
