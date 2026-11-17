@@ -10,7 +10,17 @@ function signal() {
         fire: () => handlers.slice().forEach(fn => fn()), count: () => handlers.length };
 }
 const jibo = { jetstream: { events: { hjHeard: signal(), globalTurnStarted: signal(), skillSwitch: signal() } },
-    system: { events: { touchOn: signal() } } };
+    system: { events: { touchOn: signal() } }, loader: { activeCache: 'cache' } };
+// Sway_01 plays: each play() hands back a stoppable playback whose result settles when that loop ends.
+const sways = [];
+jibo.animDB = { getAnimByName: name => name !== 'Sway_01' ? null : { play: () => {
+    let done;
+    const dance = { stopped: false, result: new Promise(resolve => { done = resolve; }) };
+    dance.playback = { stop: () => { dance.stopped = true; done('STOPPED'); } };
+    dance.finish = () => done('DONE');
+    sways.push(dance);
+    return dance;
+} } };
 class BeSkill { exit(options) { this.exited = (this.exited || 0) + 1; this.exitOptions = options; } }
 const load = Module._load;
 Module._load = function (name) {
@@ -59,6 +69,24 @@ let closed = false;
 skill.close(() => { closed = true; });
 assert.ok(closed && audios[3].paused && listening() === 0, 'close (another skill took over) stops it');
 assert.strictEqual(skill.exited, 3, 'close does not call exit again');
+// He sways while he sings: from the first sound, loop after loop, and stops with the song.
+skill.open();
+assert.strictEqual(sways.length, 0, 'still before the song starts');
+audios[4].fire('playing');
+audios[4].fire('playing');
+assert.strictEqual(sways.length, 1, 'one sway at a time');
+sways[0].finish();
+setTimeout(() => {
+    assert.strictEqual(sways.length, 2, 'sways again when a loop ends');
+    jibo.system.events.touchOn.fire();
+    assert.ok(sways[1].stopped, 'stopping the song stops the sway');
+    setTimeout(() => {
+        assert.strictEqual(sways.length, 2, 'no sway after the song');
+        audios.splice(4, 1);
+        songs();
+    }, 0);
+}, 0);
+function songs() {
 // A song BEefy sends is downloaded (the page can't load api.5x1.com's certificate) and played from the file.
 const server = require('http').createServer((req, res) => res.end(req.url === '/songs/new-song.mp3' ? 'mp3 bytes' : ''));
 server.listen(0, '127.0.0.1', () => {
@@ -76,9 +104,10 @@ server.listen(0, '127.0.0.1', () => {
         skill.open({ nlu: { entities: { url: 'http://127.0.0.1:1/missing.mp3' } } });
         setTimeout(() => {
             assert.strictEqual(audios.length, 5, 'nothing plays after close or a failed download');
-            assert.strictEqual(skill.exited, 4, 'a failed download leaves');
+            assert.strictEqual(skill.exited, 5, 'a failed download leaves');
             server.close();
             console.log('daisy-bell ok');
         }, 300);
     }, 300);
 });
+}

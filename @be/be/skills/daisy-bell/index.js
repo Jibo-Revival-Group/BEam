@@ -21,6 +21,7 @@ class DaisyBellSkill extends BeSkill {
         const play = (file) => {
             if (this.run !== run) return;
             const audio = this.audio = new Audio('file://' + file);
+            audio.addEventListener('playing', () => this.sway(run));
             audio.addEventListener('ended', leave);
             audio.addEventListener('error', leave);
             Promise.resolve(audio.play()).catch(leave);
@@ -46,8 +47,19 @@ class DaisyBellSkill extends BeSkill {
         request.on('error', done);
         request.setTimeout(30000, () => request.abort());
     }
+    // A slow side-to-side sway (the stock slow-dance loop) while he sings, again and again until the song stops.
+    sway(run) {
+        const anim = jibo.animDB.getAnimByName('Sway_01');
+        if (this.run !== run || this.dance || !anim) return;
+        const dance = this.dance = anim.play({ cache: jibo.loader.activeCache });
+        const next = () => { if (this.dance === dance) { this.dance = null; this.sway(run); } };
+        Promise.resolve(dance.result).then(next, next);
+    }
     stop() {
         this.run = null;
+        const dance = this.dance;
+        this.dance = null;
+        if (dance) dance.playback.stop();
         (this.events || []).forEach(off => off());
         this.events = [];
         const audio = this.audio;
