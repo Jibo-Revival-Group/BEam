@@ -937,95 +937,14 @@ class MoreSettingsSkill extends SubSkill_1.default {
         super.destroy();
     }
 }
-// 5x1: Bluetooth (BEnch jibo-bluetooth). Off: turn it on, confirmed on Privacy's own screen with other words.
-// On: a list (like Wi-Fi's) of speakers and headphones Jibo can play through, "Find speakers" and "Turn off".
-const BT_COLORS = { item: [0x58586D, 0x282735], playing: [0xA3FF4A, 0x2A7922], off: [0xFF5A5A, 0x8A1F1F] }; // Wi-Fi's metro and limeade
+// 5x1: Bluetooth speaker on/off (BEnch jibo-bluetooth), confirmed on Privacy's own screen with other words.
 class BluetoothSettingsSkill extends SubSkill_1.default {
     constructor(skill, intent, onClose) {
         super(skill, intent, onClose);
         this.view = null;
-        this.list = null;
         this.bluetooth = require('../../beacon/lib/bluetooth');
         this.onPressed = this.onPressed.bind(this);
-        this.bluetooth.status().then((s) => s.enabled ? this.showList() : this.show(s), () => this.show(null));
-    }
-    // (Re)draws the speaker list; `title` replaces the usual one while something is happening.
-    showList(title) {
-        const bt = this.bluetooth;
-        Promise.all([bt.status(), bt.speakers()]).then((r) => {
-            const s = r[0], speakers = r[1].speakers || [];
-            if (this.destroyed) {
-                return;
-            }
-            const list = speakers.map((sp, i) => ({
-                id: 'speaker' + i,
-                label: sp.name,
-                iconSrc: 'assets/menu/icons/volume.png',
-                colors: sp.address === s.speakerAddress ? BT_COLORS.playing : BT_COLORS.item,
-                action: { type: 'event', data: { event: 'pickSpeaker', index: i } }
-            }));
-            list.push({ id: 'find', label: 'Find speakers', iconSrc: 'assets/menu/icons/bluetooth.png', colors: BT_COLORS.item,
-                action: { type: 'event', data: { event: 'find' } } });
-            list.push({ id: 'off', label: 'Turn off Bluetooth', iconSrc: 'assets/menu/icons/bluetooth.png', colors: BT_COLORS.off,
-                action: { type: 'event', data: { event: 'turnOff' } } });
-            title = title || (s.speakerError ? s.speakerError : s.speakerPlaying ? 'Playing on ' + s.speaker :
-                speakers.length ? 'Speakers' : 'No speakers yet');
-            const config = { viewConfig: { title: title, id: 'bluetoothList', listDefault: { menuButtonType: 'ActionBigButton' }, list: list } };
-            const open = () => {
-                if (this.destroyed) {
-                    return;
-                }
-                const view = this.list = this.view = jibo.face.views.createView('MenuView', config, true);
-                view.once(jibo.face.views.CLOSED, this.destroyThenClose);
-                view.on('pickSpeaker', (d) => this.pick(speakers[d.index], s));
-                view.on('find', () => this.find());
-                view.on('turnOff', () => this.show(s));
-            };
-            if (!this.list) {
-                return open();
-            }
-            this.list.removeListener(jibo.face.views.CLOSED, this.destroyThenClose);
-            jibo.face.views.changeView({ removeToInclude: 'bluetoothList', leaveEmpty: true, transitionOpen: jibo.face.views.NONE,
-                transitionClose: jibo.face.views.NONE }, open, open);
-        }, () => this.show(null)).catch((err) => this.log && this.log.error('Bluetooth list failed', err));
-    }
-    // Tap a speaker: play through it (pairing the first time), or stop if Jibo already is.
-    pick(speaker, s) {
-        if (!speaker || this.busy) {
-            return;
-        }
-        this.busy = true;
-        if (speaker.address === s.speakerAddress) {
-            this.bluetooth.disconnectSpeaker().catch(() => { }).then(() => setTimeout(() => { this.busy = false; this.showList(); }, 1500));
-            return;
-        }
-        this.showList('Connecting to ' + speaker.name + '\u2026');
-        this.bluetooth.connectSpeaker(speaker.address).then(() => this.until((st) => st.speakerPlaying || !st.speaker, 20000, () => this.bluetooth.status()),
-            (err) => this.showList(err.message)).then(() => { this.busy = false; });
-    }
-    find() {
-        if (this.busy) {
-            return;
-        }
-        this.busy = true;
-        this.bluetooth.scan().then(() => {
-            this.showList('Looking for speakers\u2026');
-            return this.until((r) => !r.scanning, 30000, () => this.bluetooth.speakers());
-        }, (err) => this.showList(err.message)).then(() => { this.busy = false; });
-    }
-    // Polls `get` until `done` (or the timeout), then redraws the list.
-    until(done, timeout, get) {
-        const end = Date.now() + timeout;
-        return new Promise((resolve) => {
-            const tick = () => get().then(done, () => true).then((ok) => {
-                if (this.destroyed || ok || Date.now() > end) {
-                    resolve();
-                    return this.showList();
-                }
-                setTimeout(tick, 1000);
-            });
-            setTimeout(tick, 1000);
-        });
+        this.bluetooth.status().then((s) => this.show(s), () => this.show(null));
     }
     show(s) {
         if (this.destroyed) {
@@ -1041,12 +960,11 @@ class BluetoothSettingsSkill extends SubSkill_1.default {
         }
         else if (this.enabled) {
             byId('title').text = 'Turn off Bluetooth?';
-            byId('text').text = 'Jibo will stop being a Bluetooth speaker' + (s.connected ? '\nand disconnect from ' + s.device + '.' :
-                s.speaker ? '\nand stop playing on ' + s.speaker + '.' : '.');
+            byId('text').text = 'Jibo will stop being a Bluetooth speaker' + (s.connected ? '\nand disconnect from ' + s.device + '.' : '.');
         }
         else {
             byId('title').text = 'Turn on Bluetooth?';
-            byId('text').text = 'Pair your phone with \u201c' + s.name + '\u201d to play music\non him, or play Jibo through your own speaker.';
+            byId('text').text = 'Jibo becomes a Bluetooth speaker. Pair your phone\nwith \u201c' + s.name + '\u201d to play music on him.';
         }
         const view = jibo.face.views.createView('View', config, false);
         if (s) {

@@ -64,8 +64,7 @@ server.listen(sock, () => {
         .then(() => { seen.length = 0; bt.step({ connected: false }, f.host, f.volume, state, f.Data); f.volume.currentVolume = 1; bt.step(status({ volumeSeq: 5 }), f.host, f.volume, state, f.Data); })
         .then(() => wait(50)).then(() => assert.deepStrictEqual(seen, ['volume 0']))
         .then(() => bt.setEnabled(true)).then(() => bt.setEnabled(false)).then(() => bt.disconnect())
-        .then(() => bt.scan()).then(() => bt.speakers()).then(() => bt.connectSpeaker('00:11:22:33:44:55')).then(() => bt.disconnectSpeaker())
-        .then(() => assert.deepStrictEqual(seen.slice(1), ['on', 'off', 'disconnect', 'scan', 'speakers', 'connect 00:11:22:33:44:55', 'disconnect-speaker']))
+        .then(() => assert.deepStrictEqual(seen.slice(1), ['on', 'off', 'disconnect']))
         .then(() => new Promise((resolve) => server.close(resolve)))
         // No daemon: a clear error, not a hang.
         .then(() => bt.status().then(() => assert.fail('should reject'), (err) => assert(/isn’t available/.test(err.message))))
