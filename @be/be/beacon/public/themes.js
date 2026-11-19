@@ -299,11 +299,15 @@
                 var card = el('article', 'store-card'), media = el('div', 'store-card-banner');
                 var fallback = el('span', 'store-banner-fallback', (entry.name || 'J').charAt(0).toUpperCase());
                 fallback.setAttribute('aria-hidden', 'true'); media.appendChild(fallback);
-                if (entry.stock) {
+                if (entry.builtin) {
+                    // The built-in 3D Eye's banner is the real eye, captured from a robot.
+                    fallback.hidden = true;
+                    var eyeImage = el('img', 'store-banner-image'); eyeImage.src = 'theme-3d-eye.png'; eyeImage.alt = 'Jibo’s eye as a 3D ball'; media.appendChild(eyeImage);
+                } else if (entry.stock) {
                     media.className += ' store-none-banner';
                     fallback.hidden = true;
-                    var stockIcon = el('img', 'store-none-icon'); stockIcon.src = entry.builtin ? 'theme-3d-eye.svg' : 'theme-none.svg';
-                    stockIcon.alt = entry.builtin ? 'Jibo’s eye as a 3D ball' : isVoice ? 'Jibo’s normal voice' : 'Stock appearance'; media.appendChild(stockIcon);
+                    var stockIcon = el('img', 'store-none-icon'); stockIcon.src = 'theme-none.svg';
+                    stockIcon.alt = isVoice ? 'Jibo’s normal voice' : 'Stock appearance'; media.appendChild(stockIcon);
                 } else if (entry.bannerUrl || (entry.local && entry.local.images['banner.png'])) {
                     var image = el('img', 'store-banner-image'); image.alt = (entry.name || 'Theme') + ' banner'; image.loading = 'lazy';
                     image.onload = function () { fallback.hidden = true; };

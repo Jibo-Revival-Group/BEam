@@ -74,7 +74,7 @@ async function run() {
     assert(all(stock).find(n => n.tagName === 'button').disabled, 'None is initially active');
     assert.strictEqual(ids['store-skills'].hidden, true); assert.strictEqual(ids['store-tab-themes'].attrs['aria-selected'], 'true');
     const eye = ids['store-list'].children[1]; assert(eye.textContent.includes('3D Eye') && eye.textContent.includes('Built in'));
-    assert.strictEqual(all(eye).find(n => n.tagName === 'img').src, 'theme-3d-eye.svg');
+    const eyeBanner = all(eye).find(n => n.tagName === 'img'); assert.strictEqual(eyeBanner.src, 'theme-3d-eye.png', 'The 3D Eye banner is the real eye'); assert.strictEqual(eyeBanner.className, 'store-banner-image');
     assert(!all(eye).find(n => n.tagName === 'button').disabled, 'The 3D Eye is not active while None is');
     assert(!all(eye).some(n => n.textContent === 'Remove' || n.textContent === 'Details'), 'The built-in theme cannot be removed');
     const card = ids['store-list'].children[2]; assert.strictEqual(card.className, 'store-card');
