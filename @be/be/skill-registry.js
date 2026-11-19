@@ -25,7 +25,8 @@ const skillsResolve = require('./skills-resolve');
 const EOS_BOOTSTRAP = [
     '@be/word-of-the-day',
     '@be/surprises-date',
-    '@be/surprises-ota'
+    '@be/surprises-ota',
+    '@be/surprises-report'
 ];
 
 /** Prefer early warmup — usual next hop from idle. */

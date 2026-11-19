@@ -1,0 +1,60 @@
+{
+	"mim_type": "question",
+	"rule_name": "shared/yes_no",
+	"timeout": 4,
+	"barge_in": true,
+	"es_auto_tagging": true,
+	"notes": "Stock opt-in lines from the original report skill (PersonalReportOptInConfigured.mim).",
+	"prompts": [
+		{
+			"prompt_category": "Entry-Core",
+			"prompt_sub_category": "Q",
+			"index": 1,
+			"condition": "!!speaker",
+			"prompt": "${speaker} do you want your personal report now?",
+			"media": "TTS",
+			"prompt_id": "OfferPersonalReport_QN_01",
+			"weight": 1
+		},
+		{
+			"prompt_category": "Entry-Core",
+			"prompt_sub_category": "Q",
+			"index": 1,
+			"condition": "!speaker",
+			"prompt": "Oh hey, do you want your personal report?",
+			"media": "TTS",
+			"prompt_id": "OfferPersonalReport_QN_02",
+			"weight": 1
+		}
+	],
+	"gui": {
+		"type": "Menu",
+		"data": {
+			"title": "Want your personal report?",
+			"buttons": [
+				{
+					"label": "No",
+					"color": "cancel",
+					"icon": "jibo://resources/actionIcons/cancel.png",
+					"utterance": "No",
+					"notes": ""
+				},
+				{
+					"label": "Yes",
+					"color": "confirm",
+					"icon": "jibo://resources/actionIcons/ok.png",
+					"utterance": "yes",
+					"notes": ""
+				}
+			]
+		},
+		"pause": true
+	},
+	"no_matches_for_gui": 1,
+	"no_inputs_for_gui": 1,
+	"parse_all_asr": false,
+	"thanks_handling": "ignore",
+	"ignore_no_match": false,
+	"parse_launch": false,
+	"parse_yes_no": true
+}

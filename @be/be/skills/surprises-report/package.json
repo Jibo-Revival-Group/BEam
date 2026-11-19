@@ -1,0 +1,10 @@
+{
+  "name": "@be/surprises-report",
+  "version": "1.0.0",
+  "description": "Morning Element of Surprise: Jibo offers the personal report.",
+  "main": "index.js",
+  "config": { "standalone": true },
+  "jibo": { "main": "index.html", "type": "asset-pack", "display-name": "surprises-report" },
+  "engines": { "node": ">=6.0" },
+  "syncDependencies": ["jibo", "@be/be-framework"]
+}

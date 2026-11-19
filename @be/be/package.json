@@ -45,6 +45,7 @@
       "@be/recipe",
       "@be/surprises-date",
       "@be/surprises-ota",
+      "@be/surprises-report",
       "@be/greetings",
       "@be/who-am-i",
       "@be/tutorial",
