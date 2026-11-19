@@ -1900,6 +1900,8 @@ const TunableDebug_1 = require("./TunableDebug");
 const be_framework_1 = require("@be/be-framework");
 var cu = be_framework_1.libraries.jibo_cai_utils;
 const _ = require("lodash/lodash.min");
+let wakeTime = null;
+try { wakeTime = require('../../beacon/lib/wake-time'); } catch (err) { /* stock 6:45 wake-up */ }
 const ALERT_LED_COLOR = [1, 0, 0];
 const RELAXED_LED_COLOR = [0.1, 0.4, 0.2];
 const DAYTIME_NAP_LED_COLOR = [0.1, 0.1, 0.5];
@@ -2018,12 +2020,23 @@ class CircadianManager {
             this.attentionHandle = null;
         }
     }
+    // Overnight per the BEacon wake-up time; with none set, the stock part-of-day check on pod.
+    isNight(date, pod) {
+        const night = wakeTime ? wakeTime.isNight(date) : null;
+        return night === null ? (pod || cu.TimeUtils.getPartOfDay(date)).basic === cu.PartOfDayBasic.NIGHT : night;
+    }
     update() {
         const now = new Date();
         const newToD = cu.TimeUtils.getPartOfDay(now);
+        const minute = now.getHours() * 60 + now.getMinutes();
+        const customWake = wakeTime && wakeTime.minutes() !== null;
+        if (customWake && this.lastMinute !== undefined && wakeTime.crossed(this.lastMinute, minute)) {
+            this.circadianSM.events.dayStarts.emit();
+        }
+        this.lastMinute = minute;
         if (!_.isEqual(newToD, this.currentPoD)) {
             this.currentPoD = newToD;
-            if (this.currentPoD.basic === cu.PartOfDayBasic.MORNING && this.currentPoD.detail === cu.PartOfDayDetail.MID) {
+            if (!customWake && this.currentPoD.basic === cu.PartOfDayBasic.MORNING && this.currentPoD.detail === cu.PartOfDayDetail.MID) {
                 this.circadianSM.events.dayStarts.emit();
             }
             else if (this.currentPoD.basic === cu.PartOfDayBasic.NIGHT && this.currentPoD.detail === cu.PartOfDayDetail.EARLY) {
@@ -3047,7 +3060,7 @@ class ChooseTimeState extends sm.State {
             const skill = this.parent.parent.parent;
             skill.log.info(`Entering ${this.name}.`);
             const pod = this.parent.parent.currentPoD;
-            if (pod.basic === cu.PartOfDayBasic.NIGHT) {
+            if (this.parent.parent.isNight(new Date(), pod)) {
                 this.transitionTo(this.nighttimeState);
             }
             else {
@@ -3645,7 +3658,7 @@ class TurnAwayState extends sm.State {
                     this.skill.log.error('Failed to play turn back: ', error);
                 });
             }
-            else if (cu.TimeUtils.getPartOfDay(new Date()).basic === cu.PartOfDayBasic.NIGHT) {
+            else if (manager.isNight(new Date())) {
                 this.skill.log.info('Going into sleep state.');
                 this.transitionTo(this.parent.asleep);
             }

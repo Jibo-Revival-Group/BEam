@@ -336,7 +336,7 @@
     }
 
     function loadEtc () {
-        return Promise.all([loadCameraStreamSetting(), loadAutoUpdate(), loadJiboSync(), loadLanguage(), window.BEaconAgent ? window.BEaconAgent.load() : Promise.resolve()]);
+        return Promise.all([loadCameraStreamSetting(), loadAutoUpdate(), loadJiboSync(), loadLanguage(), loadWakeTime(), window.BEaconAgent ? window.BEaconAgent.load() : Promise.resolve()]);
     }
 
     // Jibo's speech language: saved as soon as it is chosen; on failure the switch goes back.
@@ -348,6 +348,15 @@
     });
     function loadLanguage () {
         return api('GET', '/api/language').then(function (data) { languageSaved = data.language; languageSwitch.set(languageSaved); });
+    }
+
+    function loadWakeTime () {
+        return api('GET', '/api/wake-time').then(function (data) { $('#wake-time').value = data.time; });
+    }
+    function saveWakeTime () {
+        return api('POST', '/api/wake-time', { time: $('#wake-time').value }).then(function (data) {
+            $('#wake-time').value = data.time; toast('Wake-up time saved.', 'ok');
+        }).catch(reportError);
     }
 
     var jiboSyncTimer = null;
@@ -1287,6 +1296,7 @@
         'save-hub': saveHub,
         'save-endpoint': saveEndpoint,
         'save-units': saveUnits,
+        'save-wake-time': saveWakeTime,
         'add-person': function () {
             var first = $('#people-new-first');
             var last = $('#people-new-last');
