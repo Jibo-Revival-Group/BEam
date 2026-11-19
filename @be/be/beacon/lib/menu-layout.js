@@ -115,8 +115,7 @@ function create(options) {
         if (title) { result.viewConfig.title = title; }
         return result;
     }
-    const back = { id: '__back', type: 'skill', label: 'Back', colors: ['#BBC6CA', '#434D55'], icon: 'resources/icons/back.png' };
-    // Kept separate from editable inventory: users cannot reorder/delete navigation.
+    // Folders go back with main-menu's top-left arrow (addBackIcon), not a list button.
     function configView(folderId) {
         if (!folderId) { return view(null); }
         const result = view(null), data = inventory(); let folder;
@@ -125,7 +124,7 @@ function create(options) {
         result.viewConfig.id += '-' + folder.id;
         const selected = Object.create(null); data.skills.forEach(s => { selected[s.id] = s; });
         result.viewConfig.title = folder.name;
-        result.viewConfig.list = [back].concat(folder.children.map(n => n.type === 'folder' ? { id: '__folder:' + n.id, label: n.name, colors: n.colors, icon: n.icon } : selected[n.id])).map(s => ({
+        result.viewConfig.list = folder.children.map(n => n.type === 'folder' ? { id: '__folder:' + n.id, label: n.name, colors: n.colors, icon: n.icon } : selected[n.id]).map(s => ({
             id: s.id, label: s.label, colors: s.colors.map(c => c.replace('#', '0x')), iconSrc: s.customId ? s.icon : s.icon.indexOf('custom-') === 0 ? icon(s.icon) : s.icon,
             action: { type: 'utterance', data: { utterance: { intent: 'loadMenu', entities: { destination: s.id } } } }
         })); return result;

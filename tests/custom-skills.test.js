@@ -50,8 +50,8 @@ async function run() {
     const one = tree.shift(), two = tree.shift();
     tree.unshift({ type: 'folder', id: 'folder-test', name: 'My folder', colors: ['#123456', '#234567'], icon: 'resources/icons/fun-stuff.png', children: [one, two] });
     layout.save(tree); assert.strictEqual(layout.view(null).viewConfig.list[0].id, '__folder:folder-test');
-    const folder = layout.view('folder-test'); assert.strictEqual(folder.viewConfig.list[0].id, '__back'); assert.strictEqual(folder.viewConfig.list[1].id, '@be/test-skill');
-    assert.deepStrictEqual(folder.viewConfig.list[1].colors, ['0x58586D', '0x282735']);
+    const folder = layout.view('folder-test'); assert.strictEqual(folder.viewConfig.list[0].id, '@be/test-skill', 'no Back button in the list');
+    assert.deepStrictEqual(folder.viewConfig.list[0].colors, ['0x58586D', '0x282735']);
     const skill = {}; assert.strictEqual(layout.choose(skill, '__folder:folder-test'), '__menu'); assert.deepStrictEqual(skill._beamMenuStack, ['folder-test']);
     assert.strictEqual(layout.choose(skill, '__back'), '__menu'); assert.deepStrictEqual(skill._beamMenuStack, []);
     assert.strictEqual(layout.choose(skill, '@be/test-skill'), '@be/test-skill');

@@ -1,5 +1,26 @@
 (function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.bemainMenu = f()}})(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 'use strict';
+// Folder back: a small arrow at the top left, drawn on the menu's stage after the list so
+// custom skill icons never cover it. A tap sends the loadMenu '__back' a menu button would.
+function addBackIcon(viewId, src) {
+    const views = require('jibo').face.views, PIXI = global.PIXI;
+    const stop = () => { clearTimeout(timer); views.events.view.removeListener(attach); };
+    const attach = () => {
+        // Wait for 'opened': before that the list isn't on the stage yet and would cover the icon.
+        const view = views.currentView;
+        if (!view || view.id !== viewId || !view.stage || view.state !== 'opened') { return; }
+        stop();
+        // back.png is 300 px with padding; at 0.45 the arrow matches the title's letters (centred on y 117)
+        const icon = PIXI.Sprite.fromImage(src);
+        icon.scale.set(0.45); icon.x = 24; icon.y = 50;
+        icon.interactive = true; icon.hitArea = new PIXI.Rectangle(-50, -50, 400, 400);
+        const press = () => view.actionHandler({ type: 'utterance', data: { utterance: { intent: 'loadMenu', entities: { destination: '__back' } } } });
+        icon.on('click', press); icon.on('tap', press);
+        view.stage.addChild(icon);
+    };
+    const timer = setTimeout(stop, 10000); // menu never showed: don't leave the listener behind
+    views.events.view.on(attach); attach();
+}
 module.exports = function (blackboard, notepad, result, emitter) {
     return {
         'meta': {
@@ -64,7 +85,9 @@ module.exports = function (blackboard, notepad, result, emitter) {
                     'getConfig': loadCallback => {
                         const layout = require('../../beacon/lib/menu-layout');
                         const stack = blackboard.skill._beamMenuStack || [];
-                        loadCallback(layout.view(stack[stack.length - 1] || null));
+                        const config = layout.view(stack[stack.length - 1] || null);
+                        loadCallback(config);
+                        if (stack.length) { addBackIcon(config.viewConfig.id, layout.icon('resources/icons/back.png')); }
                     },
                     'onMenuClosed': (wasTimeout, menu, overrideMenuTransition, exception) => {
                         overrideMenuTransition('remain');
