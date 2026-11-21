@@ -179,6 +179,7 @@
             api('GET', '/api/people').then(function (people) {
                 birthday.querySelector('.value').textContent = robotBirthday(people) || 'Not known yet';
             }, function () { birthday.querySelector('.value').textContent = 'Not known yet'; });
+            cards.appendChild(stat('Running skill', data.skill || 'Unknown')).id = 'status-skill';
             cards.appendChild(stat('Uptime', duration(data.uptimeSeconds)));
             cards.appendChild(stat('Theme', data.theme ? data.theme.name : 'None'));
 
@@ -1555,7 +1556,10 @@
     });
 
     setInterval(function () {
-        api('GET', '/api/status').then(function () { setLive(true); }).catch(function () { setLive(false); });
+        api('GET', '/api/status').then(function (data) {
+            setLive(true);
+            var skill = $('#status-skill .value'); if (skill) { skill.textContent = data.skill || 'Unknown'; }   // keep the running skill current
+        }).catch(function () { setLive(false); });
     }, 15000);
 
     bindScreenInput();

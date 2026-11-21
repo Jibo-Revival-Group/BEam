@@ -120,8 +120,17 @@ function status () {
             jetstreamConfig: paths.jetstreamConfig(),
             credentialsPath: paths.credentialsPath()
         },
-        theme: themeState
+        theme: themeState,
+        skill: runningSkill()
     };
+}
+
+// The skill Be has open right now, e.g. "idle" or "clock" (null when Be isn't running, as in development).
+function runningSkill () {
+    const host = global.be, current = host && host.currentSkill;
+    if (!current) { return null; }
+    if (current === host.idle) { return 'idle'; }
+    return String(current.assetPack || current.name || 'unknown').replace(/^@be\//, '');
 }
 
 function serverConfig () {
