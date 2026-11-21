@@ -9,6 +9,7 @@
  */
 
 const http = require('http');
+const services = require('./lib/services');
 const url = require('url');
 const path = require('path');
 const querystring = require('querystring');
@@ -243,6 +244,7 @@ const routes = {
         u.serveFile(req, res, themes.asset(query.id, query.name), { contentType: /\.svg$/.test(query.name) ? 'image/svg+xml' : 'image/png' });
     }),
 
+    'GET /api/services': guard((req, res) => services.list().then(list => u.sendJson(res, 200, { services: list }))),
     'GET /api/server': guard((req, res) => {
         u.sendJson(res, 200, system.serverConfig());
     }),
