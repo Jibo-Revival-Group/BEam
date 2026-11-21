@@ -157,6 +157,14 @@
         return card;
     }
 
+    // Jibo's birthday (read only): the day his own member joined the loop, the same date he says when asked.
+    function robotBirthday (people) {
+        var robot = ((people && people.members) || []).filter(function (m) { return m.isJibo && m.created; })[0];
+        if (!robot) { return null; }
+        var date = new Date(robot.created);
+        return isNaN(date) ? null : date.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
+    }
+
     function loadStatus () {
         return api('GET', '/api/status').then(function (data) {
             setLive(true);
@@ -167,6 +175,10 @@
             cards.innerHTML = '';
             cards.appendChild(stat('Version', 'BEam ' + (data.host.version || '?')));
             cards.appendChild(stat('This Jibo', data.robot ? data.hostname : 'Development (' + data.hostname + ')'));
+            var birthday = cards.appendChild(stat('Birthday', '…'));
+            api('GET', '/api/people').then(function (people) {
+                birthday.querySelector('.value').textContent = robotBirthday(people) || 'Not known yet';
+            }, function () { birthday.querySelector('.value').textContent = 'Not known yet'; });
             cards.appendChild(stat('Uptime', duration(data.uptimeSeconds)));
             cards.appendChild(stat('Theme', data.theme ? data.theme.name : 'None'));
 
