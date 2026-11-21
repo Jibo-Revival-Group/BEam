@@ -18,7 +18,7 @@ class Node {
 }
 function all(node) { return node.children.reduce((list, c) => list.concat(c, all(c)), []); }
 const ids = {}; const body = new Node('body');
-for (const id of ['store-content', 'themes-summary', 'theme-file', 'edit-main-menu', 'store-skill-list', 'upload-store-zip', 'store-sources', 'store-list', 'store-switch', 'store-tab-themes', 'store-tab-skills', 'store-themes', 'store-skills', 'store-options', 'store-options-menu', 'store-options-button', 'manage-storefronts', 'store-management', 'close-store-management', 'theme-details', 'theme-details-title', 'theme-details-meta', 'theme-details-readme', 'store-tab-voices', 'store-voices', 'store-voice-list', 'voices-summary', 'voice-offer', 'voice-offer-text', 'voice-offer-yes', 'voice-offer-no',
+for (const id of ['store-content', 'themes-summary', 'theme-file', 'edit-main-menu', 'store-skill-list', 'upload-store-zip', 'store-sources', 'store-list', 'store-switch', 'store-tab-themes', 'store-tab-skills', 'store-themes', 'store-skills', 'store-options', 'store-options-menu', 'store-options-button', 'manage-storefronts', 'store-management', 'close-store-management', 'theme-details', 'theme-details-title', 'theme-details-meta', 'theme-details-readme', 'theme-details-about', 'store-tab-voices', 'store-voices', 'store-voice-list', 'voices-summary', 'voice-offer', 'voice-offer-text', 'voice-offer-yes', 'voice-offer-no',
     'skill-notice', 'skill-notice-name', 'skill-notice-list', 'skill-notice-yes', 'skill-notice-no']) {
     ids[id] = body.appendChild(new Node('div'));
 }
@@ -45,6 +45,9 @@ const ui = window.BEaconThemes.create({ api: (method, url, data) => {
     if (url === '/api/skills/custom') return Promise.resolve({ skills: [] });
     if (url === '/api/voices') return Promise.resolve({ voices: [], active: null });
     if (url === '/api/store') return Promise.resolve(catalog);
+    if (url.indexOf('/api/store/details') === 0) return Promise.resolve(url.indexOf('e1') > 0
+        ? { url: 'https://github.com/someone/Spy', developer: 'someone', manifest: { type: 'skill', name: 'Spy', permissions: ['camera'] } }
+        : { url: 'https://github.com/ZaneThePython/Clock', developer: 'ZaneThePython', manifest: { type: 'skill', name: 'Clock' } });
     if (url.indexOf('/progress') >= 0) return Promise.resolve({ state: 'idle' });
     return Promise.resolve({});
 }, progressPollInterval: 5, toast: () => {}, reportError: err => { throw err; }, prompt: () => Promise.resolve(null) });
@@ -83,6 +86,15 @@ async function run() {
     ids['skill-notice-yes'].onclick(); await pending;
     const uploads = calls.filter(c => c.method === 'PUT');
     assert.strictEqual(uploads.length, 2); assert(!/accept=/.test(uploads[0].url) && /accept=$/.test(uploads[1].url), uploads.map(u => u.url).join(' '));
+    // Details: owner (trusted or not) and what the skill can do.
+    const detailsButton = name => all(ids['store-skill-list']).filter(n => n.tagName === 'button' && n.textContent === 'Details')
+        .find(n => { let p = n; while (p && !p.textContent.includes(name)) { p = p.parentNode; } return p && p !== ids['store-skill-list']; });
+    await detailsButton('Spy').onclick();
+    let about = ids['theme-details-about'].textContent;
+    assert(about.includes('By someone') && !about.includes('Trusted') && about.includes('take photos'), about);
+    await detailsButton('Clock').onclick();
+    about = ids['theme-details-about'].textContent;
+    assert(about.includes('By ZaneThePython') && about.includes('Trusted developer') && about.includes('doesn’t ask for any special access'), about);
     console.log('Skill install notice: unofficial source, permissions, no-op for plain 5x1 Store skills, ZIP confirm passed');
 }
 run().catch(e => { console.error(e); process.exitCode = 1; });

@@ -246,6 +246,8 @@
                 $('#theme-details-title').textContent = m.name || data.name || 'Theme';
                 $('#theme-details-meta').textContent = (m.version ? 'Version ' + m.version + ' · ' : '') +
                     (m.supported ? 'Needs version ' + m.supported + ' or newer' : 'No minimum version declared');
+                var owner = /^https:\/\/github\.com\/([^/]+)\//.exec(data.url || (data.origin && data.origin.url) || '');
+                aboutPackage($('#theme-details-about'), data.developer || (data.origin && data.origin.developer) || (owner && owner[1]), m);
                 markdown($('#theme-details-readme'), data.readme || 'No README is available.', {
                     baseUrl: data.readmeUrl || (data.origin && data.origin.readmeUrl) || data.bannerUrl, images: data.images,
                     assetBase: data.revision ? '/api/' + (KIND[m.type] || 'themes') + '/asset?id=' + encodeURIComponent(data.id) + '&name=' : null
@@ -434,6 +436,20 @@
             'read-jibo-files': 'read Jibo’s system files', 'edit-jibo-files': 'change Jibo’s system files',
             'read-kb': 'read what Jibo knows (people, photos, settings, other skills’ data)', 'edit-kb': 'change what Jibo knows (people, photos, settings, other skills’ data)',
             'run-programs': 'run its own programs — this gives it FULL ACCESS to Jibo' };
+        // GitHub accounts whose work 5x1 vouches for. The name comes from the repo's GitHub owner, so it can't be faked.
+        var TRUSTED_DEVELOPERS = ['zanethepython'];
+        // Details: who made it (and whether we trust them) and, for a skill, what it can do.
+        function aboutPackage(box, developer, manifest) {
+            box.textContent = '';
+            var by = box.appendChild(el('p', null, developer ? 'By ' + developer : 'Developer unknown'));
+            if (developer && TRUSTED_DEVELOPERS.indexOf(developer.toLowerCase()) >= 0) { by.appendChild(document.createTextNode(' · ')); by.appendChild(el('span', 'trusted-developer', '✓ Trusted developer')); }
+            if (manifest.type !== 'skill') { return; }
+            var asked = Array.isArray(manifest.permissions) ? manifest.permissions : [];
+            if (!asked.length) { box.appendChild(el('p', null, 'This skill doesn’t ask for any special access to Jibo.')); return; }
+            box.appendChild(el('p', null, 'This skill can:'));
+            var list = box.appendChild(el('ul'));
+            asked.forEach(function (p) { list.appendChild(el('li', null, PERMISSION_TEXT[p] || p)); });
+        }
         var OFFICIAL_STORE = 'https://store.5x1.com/manifest.json';
         var storeSources = [];
         // Where a listing comes from: null for the 5x1 Store, else the storefront's host.
