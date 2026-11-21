@@ -693,8 +693,8 @@ details.advanced[open] > summary::after { transform: rotate(-90deg); }
 .store-options-button:hover { background: var(--hover); }
 .store-options-menu { position: absolute; right: 0; top: calc(100% + 8px); min-width: 208px; z-index: 50; padding: 6px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg-card); box-shadow: 0 8px 28px rgba(35, 64, 85, .14); }
 .store-options-menu[hidden] { display: none; }
-.store-options-menu button { width: 100%; border: 0; background: var(--bg-card); padding: 12px; text-align: left; border-radius: 8px; font: inherit; color: var(--text); cursor: pointer; }
-.store-options-menu button:hover, .store-options-menu button:focus { background: var(--hover); }
+.store-options-menu button, .store-options-menu a { display: block; box-sizing: border-box; text-decoration: none; width: 100%; border: 0; background: var(--bg-card); padding: 12px; text-align: left; border-radius: 8px; font: inherit; color: var(--text); cursor: pointer; }
+.store-options-menu button:hover, .store-options-menu button:focus, .store-options-menu a:hover, .store-options-menu a:focus { background: var(--hover); }
 .store-switch-slider { position: absolute; top: 0; bottom: 0; left: 0; width: 50%; border-radius: 28px; background: #54b9e6; transform: translateX(0); transition: transform 240ms ease; pointer-events: none; }
 .store-switch.is-skills .store-switch-slider { transform: translateX(100%); }
 .store-switch-tab { position: relative; z-index: 1; width: 50%; padding: 13px 18px; border: 0; background: transparent; color: var(--text); font: inherit; font-weight: 600; cursor: pointer; transition: color 180ms ease; }
