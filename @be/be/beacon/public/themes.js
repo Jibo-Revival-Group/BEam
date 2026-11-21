@@ -441,13 +441,17 @@
         // Details: who made it (and whether we trust them) and, for a skill, what it can do.
         function aboutPackage(box, developer, manifest) {
             box.textContent = '';
-            var by = box.appendChild(el('p', null, developer ? 'By ' + developer : 'Developer unknown'));
-            if (developer && TRUSTED_DEVELOPERS.indexOf(developer.toLowerCase()) >= 0) { by.appendChild(document.createTextNode(' · ')); by.appendChild(el('span', 'trusted-developer', '✓ Trusted developer')); }
+            var who = box.appendChild(el('section', 'details-card'));
+            who.appendChild(el('h3', null, 'Developer'));
+            who.appendChild(el('p', null, developer || 'Unknown'));
+            if (developer && TRUSTED_DEVELOPERS.indexOf(developer.toLowerCase()) >= 0) { who.appendChild(el('p', 'trusted-developer', '✓ Trusted developer')); }
             if (manifest.type !== 'skill') { return; }
             var asked = Array.isArray(manifest.permissions) ? manifest.permissions : [];
-            if (!asked.length) { box.appendChild(el('p', null, 'This skill doesn’t ask for any special access to Jibo.')); return; }
-            box.appendChild(el('p', null, 'This skill can:'));
-            var list = box.appendChild(el('ul'));
+            var can = box.appendChild(el('section', 'details-card'));
+            can.appendChild(el('h3', null, 'Permissions'));
+            if (!asked.length) { can.appendChild(el('p', null, 'This skill doesn’t ask for any special access to Jibo.')); return; }
+            can.appendChild(el('p', null, 'This skill can:'));
+            var list = can.appendChild(el('ul'));
             asked.forEach(function (p) { list.appendChild(el('li', null, PERMISSION_TEXT[p] || p)); });
         }
         var OFFICIAL_STORE = 'https://store.5x1.com/manifest.json';

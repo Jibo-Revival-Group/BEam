@@ -1286,8 +1286,11 @@ dl.kv > dd:only-child { grid-column: 1 / -1; }
 .store-card .store-warning { margin: -8px 0 16px; padding: 8px 10px; border-radius: 8px; font-size: 13px; line-height: 1.4; color: #8a4b00; background: #fff3d6; border: 1px solid #f0c66b; }
 :root[data-appearance="dark"] .store-card .store-warning { color: #ffd88a; background: #3a2c10; border-color: #8a6a24; }
 
-/* Store details: who made it and what a skill can do */
-.details-about { margin: -6px 0 16px; font-size: 14px; line-height: 1.5; }
-.details-about p { margin: 0 0 6px; }
-.details-about ul { margin: 0; padding-left: 20px; }
-.trusted-developer { color: var(--accent); font-weight: 600; white-space: nowrap; }
+/* Store details: who made it and what a skill can do, as cards under the README */
+.details-about { clear: both; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-top: 24px; }
+.details-about:empty { display: none; }
+.details-card { border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; background: var(--bg); font-size: 14px; line-height: 1.5; }
+.details-card h3 { margin: 0 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.details-card p { margin: 0 0 4px; }
+.details-card ul { margin: 0; padding-left: 20px; }
+.trusted-developer { color: var(--readme-link); font-weight: 600; }

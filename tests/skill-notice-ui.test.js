@@ -91,10 +91,10 @@ async function run() {
         .find(n => { let p = n; while (p && !p.textContent.includes(name)) { p = p.parentNode; } return p && p !== ids['store-skill-list']; });
     await detailsButton('Spy').onclick();
     let about = ids['theme-details-about'].textContent;
-    assert(about.includes('By someone') && !about.includes('Trusted') && about.includes('take photos'), about);
+    assert(about.includes('Developer') && about.includes('someone') && !about.includes('Trusted') && about.includes('take photos'), about);
     await detailsButton('Clock').onclick();
     about = ids['theme-details-about'].textContent;
-    assert(about.includes('By ZaneThePython') && about.includes('Trusted developer') && about.includes('doesn’t ask for any special access'), about);
+    assert(about.includes('ZaneThePython') && about.includes('Trusted developer') && about.includes('doesn’t ask for any special access'), about);
     console.log('Skill install notice: unofficial source, permissions, no-op for plain 5x1 Store skills, ZIP confirm passed');
 }
 run().catch(e => { console.error(e); process.exitCode = 1; });
