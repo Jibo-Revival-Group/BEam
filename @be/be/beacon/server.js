@@ -203,7 +203,7 @@ const routes = {
         return u.readBody(req, themePackage.MAX_ZIP, 120000).then(buf => themePackage.unzip(buf, { skill: true })
             .then(files => themePackage.manifest(files['manifest.json']).type)
             .then(type => { if (type === 'voice' && !voices.ENABLED) { throw fail('Custom voices are turned off.'); } return type; })
-            .then(type => (type === 'skill' ? customSkills : type === 'voice' ? voices : themes).upload(buf, query.name, String(query.accept || '').split(',')).then(data => Object.assign({ type: type }, data))))
+            .then(type => (type === 'skill' ? customSkills : type === 'voice' ? voices : themes).upload(buf, query.name, String(query.accept || '').split(','), query.accept === undefined).then(data => Object.assign({ type: type }, data))))
             .then(data => u.sendJson(res, 200, data));
     }),
     'GET /api/voices': guard((req, res) => { u.sendJson(res, 200, voices.ENABLED ? Object.assign({ enabled: true }, voices.inventory()) : { enabled: false, voices: [], active: null }); }),

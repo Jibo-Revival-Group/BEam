@@ -69,6 +69,12 @@ async function run() {
     await service.upload(asking(['microphone']), 'x.zip', ['microphone']);
     await service.upload(asking(['microphone']));
     assert.strictEqual((await service.upload(asking(['microphone', 'camera'])).catch(e => e)).detail, 'camera');
+    // BEacon's ZIP button asks first ("Just so you know"): 409 with every permission, even ones agreed before, and nothing changes.
+    const before = service.inventory().skills.map(s => s.revision).join();
+    const ask = await service.upload(asking(['microphone', 'camera']), 'x.zip', [''], true).catch(e => e);
+    assert.strictEqual(ask.status, 409); assert.strictEqual(ask.detail, 'microphone,camera'); assert(/Confirm before installing/.test(ask.message));
+    assert.strictEqual((await service.upload(fixture.zip(files), 'x.zip', [''], true).catch(e => e)).status, 409, 'a skill without permissions is confirmed too');
+    assert.strictEqual(service.inventory().skills.map(s => s.revision).join(), before);
     await service.upload(fixture.zip(files)); layout.sync();
     // A voice-only skill (menuButton: false) leaves the menu, including a layout that already had its button.
     await service.upload(fixture.zip(Object.assign({}, files, { 'manifest.json': Buffer.from(JSON.stringify(Object.assign({}, manifest, { menuButton: false }))) })));

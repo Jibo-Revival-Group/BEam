@@ -129,6 +129,11 @@
         }
         function installTheme(entry, existing, content, button, accept) {
             var isSkill = entry.type === 'skill', kind = entry.type === 'voice' ? 'voice' : isSkill ? 'skill' : 'theme';
+            if (isSkill && !accept && !existing) {
+                return skillNotice(entry.manifest.name, entrySource(entry), (entry.manifest && entry.manifest.permissions) || []).then(function (ok) {
+                    if (ok) { return installTheme(entry, existing, content, button, ok); }
+                });
+            }
             var item = { kind: kind, id: kind + '-' + Date.now() + '-' + Math.random().toString(16).slice(2),
                 entryId: entry.id, themeId: existing && existing.id, accept: accept, nodes: [], buttons: [{ node: button, disabled: false }], stopped: false, timer: null, data: { state: 'resolving', percent: null } };
             Object.keys(downloads).forEach(function (id) {
@@ -152,8 +157,13 @@
                 stop({ state: 'complete', percent: 100 }); toast(isSkill ? 'Skill installed. It is now first in the main menu.' : kind === 'voice' ? 'Voice installed. Choose Use to give it to Jibo.' : 'Theme installed. Choose Apply to use it.', 'ok');
                 delete downloads[item.id]; return loadStore(false);
             }, function (err) {
-                var ok = isSkill && !item.accept && allowPermissions(err);
-                if (ok) { stop({ state: 'complete', percent: 0 }); delete downloads[item.id]; return installTheme(entry, existing, content, button, ok); }
+                // An update that asks for something new still needs a yes.
+                if (isSkill && !item.accept && err && err.status === 409) {
+                    stop({ state: 'complete', percent: 0 }); delete downloads[item.id];
+                    return skillNotice(entry.manifest.name, entrySource(entry), String(err.detail || '').split(',').filter(Boolean)).then(function (ok) {
+                        if (ok) { return installTheme(entry, existing, content, button, ok); }
+                    });
+                }
                 stop({ state: 'failed', percent: item.data.percent, error: err.message }); throw err;
             });
         }
@@ -263,6 +273,7 @@
             });
         }
         function renderStore(data) {
+            storeSources = data.sources || [];
             Object.keys(downloads).forEach(function (id) { downloads[id].nodes = []; downloads[id].buttons = []; });
             var sources = $('#store-sources'); sources.textContent = '';
             data.sources.forEach(function (source) {
@@ -423,12 +434,43 @@
             'read-jibo-files': 'read Jibo’s system files', 'edit-jibo-files': 'change Jibo’s system files',
             'read-kb': 'read what Jibo knows (people, photos, settings, other skills’ data)', 'edit-kb': 'change what Jibo knows (people, photos, settings, other skills’ data)',
             'run-programs': 'run its own programs — this gives it FULL ACCESS to Jibo' };
-        function allowPermissions(err) {
-            if (!err || err.status !== 409 || !err.detail) { return null; }
-            var asked = String(err.detail).split(',');
-            var text = 'This skill asks to:\n\n' + asked.map(function (p) { return '• ' + (PERMISSION_TEXT[p] || p); }).join('\n') +
-                '\n\nOnly allow this for skills you trust. Allow and install?';
-            return confirm(text) ? asked : null;
+        var OFFICIAL_STORE = 'https://store.5x1.com/manifest.json';
+        var storeSources = [];
+        // Where a listing comes from: null for the 5x1 Store, else the storefront's host.
+        function entrySource(entry) {
+            var source = storeSources.filter(function (s) { return s.id === entry.sourceId; })[0];
+            if (source && source.url === OFFICIAL_STORE) { return null; }
+            return source ? String(source.url).replace(/^https?:\/\/(www\.)?/, '').split('/').slice(0, source.url.indexOf('github.com') >= 0 ? 3 : 1).join('/') : 'another storefront';
+        }
+        // "Just so you know": before a skill installs, say where it comes from and what it can do. Resolves with the
+        // permissions to grant, or null. Nothing to say (5x1 Store, no permissions) installs straight away.
+        function skillNotice(name, source, asked) {
+            if (!source && !asked.length) { return Promise.resolve([]); }
+            return new Promise(function (resolve) {
+                var box = $('#skill-notice'), list = $('#skill-notice-list'), previous = document.activeElement;
+                $('#skill-notice-name').textContent = name ? 'Before you install ' + name : 'Before you install this skill';
+                list.textContent = '';
+                if (source) {
+                    list.appendChild(el('li', null, 'This skill isn’t official. ' + (source === 'zip' ? 'It comes from a ZIP file' : 'It comes from ' + source) +
+                        ', not the 5x1 Store, so nobody from 5x1 has checked it.'));
+                }
+                if (asked.length) {
+                    var can = list.appendChild(el('li', null, 'This skill can:')), sub = can.appendChild(el('ul'));
+                    asked.forEach(function (p) { sub.appendChild(el('li', null, PERMISSION_TEXT[p] || p)); });
+                    list.appendChild(el('li', null, 'Only install it if you trust whoever made it.'));
+                } else {
+                    list.appendChild(el('li', null, 'It doesn’t ask for any special access to Jibo.'));
+                }
+                function close(result) {
+                    box.hidden = true; box.onkeydown = null;
+                    if (previous && document.body.contains(previous)) { previous.focus(); }
+                    resolve(result);
+                }
+                $('#skill-notice-no').onclick = function () { close(null); };
+                $('#skill-notice-yes').onclick = function () { close(asked); };
+                box.onkeydown = function (event) { if (event.key === 'Escape') { close(null); } };
+                box.hidden = false; $('#skill-notice-no').focus();
+            });
         }
         function upload(file, accept) {
             if (uploading) { return; }
@@ -446,7 +488,14 @@
                 });
             }, 'ZIP upload')
                 .then(function (data) { uploading = false; toast(data && data.type === 'skill' ? 'Skill installed. It is now first in the main menu.' : data && data.type === 'voice' ? 'Voice installed. Choose Use in Store › Voices.' : 'Theme installed. Choose Apply to test it.', 'ok'); return loadStore(false); })
-                .catch(function (err) { uploading = false; var ok = !accept && allowPermissions(err); if (ok) { return upload(file, ok); } reportError(err); });
+                .catch(function (err) {
+                    uploading = false;
+                    // A skill ZIP answers 409 first so the owner sees "Just so you know"; their yes uploads it again.
+                    if (!accept && err.status === 409) {
+                        return skillNotice((/Confirm before installing (.+)$/.exec(err.message) || [])[1], 'zip', String(err.detail || '').split(',').filter(Boolean)).then(function (ok) { if (ok) { return upload(file, ok); } });
+                    }
+                    reportError(err);
+                });
         }
         function addSource() {
             return options.prompt({ title: 'Add storefront', placeholder: 'https://github.com/ZaneThePython/Astra', hint: 'A manifest URL or a single GitHub repository' })

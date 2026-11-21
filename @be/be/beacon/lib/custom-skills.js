@@ -94,7 +94,16 @@ function create(options) {
             return inventory();
         });
     }
-    function upload(buf, name, accept) { return mutate(operation => packages.unzip(buf, { skill: true }).then(files => installFiles(files, { kind: 'zip', name: String(name || 'skill.zip').slice(0, 180) }, operation, accept))); }
+    // confirmFirst: answer 409 with the skill's permissions so BEacon can show "Just so you know" before it installs.
+    function upload(buf, name, accept, confirmFirst) { return mutate(operation => packages.unzip(buf, { skill: true }).then(files => {
+        if (confirmFirst) {
+            return validate(files).then(skill => {
+                const err = packages.fail('Confirm before installing ' + skill.manifest.name);
+                err.status = 409; err.detail = (skill.manifest.permissions || []).join(','); throw err;
+            });
+        }
+        return installFiles(files, { kind: 'zip', name: String(name || 'skill.zip').slice(0, 180) }, operation, accept);
+    })); }
     function install(entryId, requestId, accept) {
         if (requestId !== undefined && (typeof requestId !== 'string' || !/^[A-Za-z0-9_-]{1,80}$/.test(requestId))) { return Promise.reject(packages.fail('Invalid request ID')); }
         if (downloading) { return Promise.reject(packages.fail('A skill download is already in progress')); }

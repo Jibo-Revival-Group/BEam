@@ -20,7 +20,10 @@ function request(server, method, url, body) { return new Promise((resolve, rejec
     const server = mod.exports.create(); await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
     try {
         assert.strictEqual((await request(server, 'PUT', '/api/skills/upload', Buffer.from('bad'))).status, 400);
-        const uploaded = await request(server, 'PUT', '/api/store/upload?name=test.zip', fixture.zip(files)); assert.strictEqual(uploaded.status, 200);
+        // Upload ZIP asks first (409, so BEacon can show "Just so you know"); the owner's yes sends accept.
+        const asked = await request(server, 'PUT', '/api/store/upload?name=test.zip', fixture.zip(files)); assert.strictEqual(asked.status, 409);
+        assert.strictEqual((await request(server, 'GET', '/api/skills/custom')).data.skills.length, 0, 'nothing installs before the yes');
+        const uploaded = await request(server, 'PUT', '/api/store/upload?name=test.zip&accept=', fixture.zip(files)); assert.strictEqual(uploaded.status, 200);
         assert.strictEqual(uploaded.data.type, 'skill', 'Upload ZIP detects a skill from its manifest');
         assert.strictEqual((await request(server, 'PUT', '/api/store/upload', Buffer.from('bad'))).status, 400);
         const id = uploaded.data.skills[0].id;

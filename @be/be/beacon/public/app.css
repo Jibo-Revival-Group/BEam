@@ -973,6 +973,9 @@ details.advanced[open] > summary::after { transform: rotate(-90deg); }
     border-color: var(--jibo-blue);
 }
 
+.skill-notice-list { margin: 12px 0 0; padding-left: 20px; line-height: 1.5; }
+.skill-notice-list li + li { margin-top: 6px; }
+.skill-notice-list ul { margin: 4px 0 0; padding-left: 18px; }
 .modal-actions {
     display: flex;
     justify-content: flex-end;
