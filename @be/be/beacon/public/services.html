@@ -34,7 +34,8 @@
     .view iframe.behind { opacity: 0; pointer-events: none; }
     .timeline { display: flex; align-items: center; gap: 10px; padding: 6px 14px; border-bottom: 1px solid var(--line); background: #10202f; }
     .timeline input { flex: 1; accent-color: var(--accent); }
-    .timeline output { min-width: 150px; text-align: right; color: var(--accent); }
+    /* fixed width: a label that changes size would resize the slider under the pointer while dragging */
+    .timeline output { flex: none; width: 17em; text-align: right; color: var(--accent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
     .paused-tag { color: #ffb347; font-weight: 700; }
     .bar { display: flex; align-items: center; gap: 10px; padding: 8px 14px; border-bottom: 1px solid var(--line); min-height: 42px; }
     .bar strong { font-size: 14px; }

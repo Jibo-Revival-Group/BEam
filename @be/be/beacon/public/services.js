@@ -55,7 +55,7 @@
     function timeLabel() {
         var s = selected(), t = sliderTime(), ago = Math.round((pausedAt - t) / 1000);
         $('when').textContent = (ago ? '−' + ago + ' s' : 'when paused') + ' · ' + new Date(t).toLocaleTimeString() +
-            (s && opened[s.port] > t ? ' (before this page was opened)' : '');
+            (s && opened[s.port] > t ? ' · not recorded' : '');
     }
     function loadReplay() {   // a fresh copy of the page, so it rebuilds its state from the recording up to that moment
         var s = selected(), rec = s && recordings[s.port];
