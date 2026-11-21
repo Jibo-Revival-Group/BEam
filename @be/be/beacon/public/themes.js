@@ -439,20 +439,32 @@
         // GitHub accounts whose work 5x1 vouches for. The name comes from the repo's GitHub owner, so it can't be faked.
         var TRUSTED_DEVELOPERS = ['zanethepython'];
         // Details: who made it (and whether we trust them) and, for a skill, what it can do.
+        var RISKY_PERMISSIONS = ['run-programs', 'edit-jibo-files', 'edit-kb'];
         function aboutPackage(box, developer, manifest) {
             box.textContent = '';
-            var who = box.appendChild(el('section', 'details-card'));
-            who.appendChild(el('h3', null, 'Developer'));
-            who.appendChild(el('p', null, developer || 'Unknown'));
-            if (developer && TRUSTED_DEVELOPERS.indexOf(developer.toLowerCase()) >= 0) { who.appendChild(el('p', 'trusted-developer', '✓ Trusted developer')); }
+            var who = box.appendChild(el('section', 'details-card details-developer'));
+            if (developer) {
+                var avatar = who.appendChild(el('img', 'details-avatar'));
+                avatar.alt = ''; avatar.width = 56; avatar.height = 56; avatar.loading = 'lazy';
+                avatar.onerror = function () { avatar.hidden = true; };
+                avatar.src = 'https://github.com/' + encodeURIComponent(developer) + '.png?size=112';
+            }
+            var text = who.appendChild(el('div'));
+            text.appendChild(el('h3', null, 'Developer'));
+            if (developer) {
+                var link = text.appendChild(el('a', 'details-developer-name', developer));
+                link.href = 'https://github.com/' + encodeURIComponent(developer); link.target = '_blank'; link.rel = 'noopener noreferrer';
+            } else { text.appendChild(el('p', 'details-developer-name', 'Unknown')); }
+            var trusted = developer && TRUSTED_DEVELOPERS.indexOf(developer.toLowerCase()) >= 0;
+            text.appendChild(el('p', trusted ? 'trusted-developer' : 'details-hint', trusted ? '✓ Trusted developer' : 'Independent developer'));
             if (manifest.type !== 'skill') { return; }
             var asked = Array.isArray(manifest.permissions) ? manifest.permissions : [];
             var can = box.appendChild(el('section', 'details-card'));
             can.appendChild(el('h3', null, 'Permissions'));
-            if (!asked.length) { can.appendChild(el('p', null, 'This skill doesn’t ask for any special access to Jibo.')); return; }
-            can.appendChild(el('p', null, 'This skill can:'));
-            var list = can.appendChild(el('ul'));
-            asked.forEach(function (p) { list.appendChild(el('li', null, PERMISSION_TEXT[p] || p)); });
+            if (!asked.length) { can.appendChild(el('p', 'details-safe', 'This skill doesn’t ask for any special access to Jibo.')); return; }
+            can.appendChild(el('p', 'details-hint', 'This skill can:'));
+            var list = can.appendChild(el('ul', 'details-permissions'));
+            asked.forEach(function (p) { list.appendChild(el('li', RISKY_PERMISSIONS.indexOf(p) >= 0 ? 'risky' : null, PERMISSION_TEXT[p] || p)); });
         }
         var OFFICIAL_STORE = 'https://store.5x1.com/manifest.json';
         var storeSources = [];
