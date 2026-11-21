@@ -47,7 +47,7 @@
     }
     // Pause: every opened page hands over what it received in the last minute, and a replay copy of the real page
     // runs on that recording at the slider's moment (nothing it sends reaches Jibo). Like a cassette: drag to rewind,
-    // Resume plays forward and goes live when it catches up, Cancel throws the recording away and goes live.
+    // Resume plays forward and pauses at the end, Cancel throws the recording away and goes live.
     var opened = {}, playing = null, seekTimer = null, replayAt = 0;
     var origin = function (port) { return location.protocol + '//' + location.hostname + ':' + port; };
     function selected() { return services.filter(function (s) { return s.name === current; })[0]; }
@@ -113,7 +113,7 @@
         var last = Date.now();
         playing = setInterval(function () {
             var now = Date.now(), at = Number($('scrub').value) + (now - last) / 1000; last = now;
-            if (at >= 60) { goLive(false); return; }   // caught up with the moment of pausing: back to the live pages
+            if (at >= 60) { $('scrub').value = 60; timeLabel(); pause(); return; }   // end of the recording: stop there, paused
             $('scrub').value = at; timeLabel();
         }, 100);
     }
