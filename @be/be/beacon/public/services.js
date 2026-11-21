@@ -41,6 +41,15 @@
             $('summary').textContent = 'Could not read the service list: ' + err.message;
         });
     }
+    // Two warnings in a row before anything loads; Back to BEacon (or Escape) leaves.
+    function warn(id) {
+        return new Promise(function (resolve) {
+            var d = $(id);
+            d.querySelector('button').onclick = function () { d.close(); resolve(); };
+            d.oncancel = function (event) { event.preventDefault(); location.href = '/#etc'; };
+            d.showModal();
+        });
+    }
     $('refresh').onclick = load;
-    load();
+    warn('warn-1').then(function () { return warn('warn-2'); }).then(load);
 }());

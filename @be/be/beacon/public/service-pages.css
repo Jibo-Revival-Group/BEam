@@ -47,3 +47,13 @@ canvas:not(:only-child), #location canvas, .flot-base { background: #eef3f8; }  
 .legend table, .legend > div { background: transparent !important; }      /* flot chart legends */
 .flot-tick-label, .tickLabel { color: var(--muted) !important; }
 .list-group-item, .navbar, .panel-heading, .panel-body { background: var(--panel) !important; color: var(--text) !important; border-color: var(--line) !important; }
+
+/* Skills Manager (Bootstrap): keep button groups joined and rows aligned */
+.btn-group { display: inline-flex; }
+.btn-group > .btn { margin: 0 !important; float: none; }
+.btn-group > .btn:not(:last-child) { border-top-right-radius: 0 !important; border-bottom-right-radius: 0 !important; }
+.btn-group > .btn:not(:first-child) { border-top-left-radius: 0 !important; border-bottom-left-radius: 0 !important; border-left: 0 !important; }
+.running { display: flex !important; } .running .btn { flex: 1; }
+.list-group-item h4 { margin: 7px 0 !important; }
+.container > .row > div { padding: 16px 18px; border-radius: 12px; }
+h1.pull-left { margin-top: 0 !important; }

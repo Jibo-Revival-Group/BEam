@@ -34,6 +34,12 @@
     iframe { width: 100%; height: 100%; border: 0; background: #fff; }
     .empty { display: grid; place-items: center; color: var(--muted); padding: 24px; text-align: center; }
     [hidden] { display: none !important; }
+    dialog { max-width: 480px; border: 1px solid #a33a3f; border-radius: 12px; background: var(--panel); color: var(--text); padding: 20px 22px; font: 14px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif; }
+    dialog::backdrop { background: rgba(0, 0, 0, .75); }
+    dialog h2 { margin: 0 0 8px; font-size: 17px; color: #ff8a80; }
+    dialog .step { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
+    dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+    dialog .danger { border-color: #a33a3f; background: #5a1d22; }
     @media (max-width: 700px) { main { grid-template-columns: 1fr; grid-template-rows: 40vh 1fr; } nav { border-right: 0; border-bottom: 1px solid var(--line); } }
 </style>
 </head>
@@ -53,6 +59,18 @@
         <div class="empty" id="empty">Pick a service on the left to see its built-in page.<br>This list is only checked when you open the page or press Refresh.</div>
     </section>
 </main>
+<dialog id="warn-1" aria-labelledby="warn-1-title">
+    <p class="step">Warning 1 of 2</p>
+    <h2 id="warn-1-title">This page can break your Jibo</h2>
+    <p>These are Jibo's internal developer pages. They control his motors, microphones, speech and skills directly, with no safety checks, and a wrong click can leave him stuck, silent or unable to start.</p>
+    <div class="actions"><a class="btn" href="/#etc">Back to BEacon</a><button class="btn danger" type="button" value="next">Continue</button></div>
+</dialog>
+<dialog id="warn-2" aria-labelledby="warn-2-title">
+    <p class="step">Warning 2 of 2</p>
+    <h2 id="warn-2-title">Only continue if you know what you're doing</h2>
+    <p>Nothing here can be undone with a button. If something goes wrong you may need to restart Jibo, or reinstall his software. If you're not sure what a service does, leave it alone.</p>
+    <div class="actions"><a class="btn" href="/#etc">Back to BEacon</a><button class="btn danger" type="button" value="next">I understand, continue</button></div>
+</dialog>
 <script src="services.js"></script>
 </body>
 </html>
