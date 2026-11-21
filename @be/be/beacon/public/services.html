@@ -33,10 +33,17 @@
     /* Pages you've opened stay loaded underneath (not display:none) so they keep running and recording */
     .view iframe.behind { opacity: 0; pointer-events: none; }
     .timeline { display: flex; align-items: center; gap: 10px; padding: 6px 14px; border-bottom: 1px solid var(--line); background: #10202f; }
+    /* layers, bottom to top: the line, the red unrecorded band, then the slider (transparent track) so its knob is on top */
     .track { position: relative; flex: 1; display: flex; align-items: center; }
-    .timeline input { flex: 1; margin: 0; accent-color: var(--accent); }
+    .track::before { content: ''; position: absolute; left: 0; right: 0; top: 50%; height: 4px; margin-top: -2px; border-radius: 2px; background: #2a3a4f; }
+    .timeline input { position: relative; z-index: 2; flex: 1; height: 20px; margin: 0; background: transparent; -webkit-appearance: none; appearance: none; cursor: pointer; }
+    .timeline input::-webkit-slider-runnable-track { height: 20px; background: transparent; }
+    .timeline input::-moz-range-track { height: 20px; background: transparent; }
+    .timeline input::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; margin-top: 2px; border-radius: 50%; background: var(--accent); border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.5); }
+    .timeline input::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: var(--accent); border: 2px solid #fff; }
+    .timeline input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
     /* the part of the minute before this page was opened (or before Cancel): the slider can't go there */
-    .unrecorded { position: absolute; left: 0; top: 50%; height: 18px; transform: translateY(-50%); border-radius: 4px;
+    .unrecorded { position: absolute; z-index: 1; left: 0; top: 50%; height: 18px; transform: translateY(-50%); border-radius: 4px;
         background: repeating-linear-gradient(135deg, #8f2a2f 0 6px, #a33a3f 6px 12px); pointer-events: none; overflow: hidden;
         display: flex; align-items: center; justify-content: center; }
     .unrecorded span { color: #fff; font-size: 9px; font-weight: 700; letter-spacing: .06em; white-space: nowrap; padding: 0 4px; }
