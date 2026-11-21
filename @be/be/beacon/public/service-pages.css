@@ -1,0 +1,49 @@
+/* Shared look for Jibo's built-in service pages (body, LPS, audio, TTS, ...). Each page links this from BEacon
+   (BEnch adds one line to every service index.html), so the pages match BEacon's Services console. */
+:root { color-scheme: dark; --bg: #0b1017; --panel: #121a24; --field: #0f1620; --line: #233041; --text: #dbe6f3; --muted: #7d8da1; --accent: #4cc3ff; }
+html, body { background: var(--bg) !important; color: var(--text) !important; }
+body { margin: 0; padding: 18px 22px; font: 13px/1.45 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important; }
+h1, h2, h3, h4, h5, legend { color: #fff !important; font-weight: 600 !important; letter-spacing: .01em; margin: 18px 0 8px; }
+h1 { font-size: 20px !important; } h2 { font-size: 16px !important; } h3, h4, h5, legend { font-size: 14px !important; }
+h1:first-child, h2:first-child { margin-top: 0; }
+p, label, li, td, th, span, div { color: inherit; }
+a { color: var(--accent) !important; }
+hr { border: 0; border-top: 1px solid var(--line); }
+
+button, input[type=button], input[type=submit], input[type=reset], input[type=file]::file-selector-button {
+    background: #182231 !important; color: var(--text) !important; border: 1px solid var(--line) !important; border-radius: 6px !important;
+    padding: 5px 11px !important; margin: 2px 4px 2px 0; font: 12px/1.3 inherit; cursor: pointer; box-shadow: none !important; background-image: none !important; }
+button:hover, input[type=button]:hover, input[type=submit]:hover, button:focus-visible { border-color: var(--accent) !important; color: #fff !important; outline: none; }
+button:disabled, input:disabled { opacity: .45; cursor: default; }
+
+input:not([type]), input[type=text], input[type=number], input[type=password], input[type=url], input[type=search], select, textarea {
+    background: var(--field) !important; color: var(--text) !important; border: 1px solid var(--line) !important; border-radius: 6px !important;
+    padding: 4px 7px !important; font: 12px/1.4 inherit; }
+input:focus, select:focus, textarea:focus { border-color: var(--accent) !important; outline: none; }
+select[multiple], select[size] { padding: 2px !important; }
+textarea, pre, code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace !important; font-size: 12px !important; }
+pre { background: var(--field) !important; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; overflow: auto; }
+input[type=range], input[type=checkbox], input[type=radio], progress { accent-color: var(--accent); }
+
+table { border-collapse: collapse; }
+th, td { border-color: var(--line) !important; padding: 4px 8px; }
+th { color: var(--muted); font-weight: 600; text-align: left; }
+tr:nth-child(n) { background: transparent !important; }
+tr:hover { background: #172130 !important; }
+fieldset { border: 1px solid var(--line); border-radius: 10px; }
+canvas, img, svg { border-radius: 6px; }
+
+/* Panels that pages painted grey/white/cyan become dark cards */
+div[style*="background"], .panel, .well, .container > .row > div { background-color: var(--panel) !important; border-color: var(--line) !important; }
+
+/* Per-page fixes */
+#locationState, font[color], [style*="color: blue"], [style*="color:blue"] { color: var(--accent) !important; }
+td[bgcolor], th[bgcolor], table[bgcolor], tr[bgcolor] { background: var(--panel) !important; }   /* ASR's grey table cells */
+table[border] { border-color: var(--line) !important; }
+canvas:not(:only-child), #location canvas, .flot-base { background: #eef3f8; }   /* 2D plots draw dark marks on a clear canvas */
+.btn-danger { background: #5a1d22 !important; border-color: #a33a3f !important; }
+.btn-success { background: #173d2a !important; border-color: #2f7a52 !important; }
+#ProcessListTable, #systemInfoTable { width: 100%; }
+.legend table, .legend > div { background: transparent !important; }      /* flot chart legends */
+.flot-tick-label, .tickLabel { color: var(--muted) !important; }
+.list-group-item, .navbar, .panel-heading, .panel-body { background: var(--panel) !important; color: var(--text) !important; border-color: var(--line) !important; }
