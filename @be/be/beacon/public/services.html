@@ -33,7 +33,13 @@
     /* Pages you've opened stay loaded underneath (not display:none) so they keep running and recording */
     .view iframe.behind { opacity: 0; pointer-events: none; }
     .timeline { display: flex; align-items: center; gap: 10px; padding: 6px 14px; border-bottom: 1px solid var(--line); background: #10202f; }
-    .timeline input { flex: 1; accent-color: var(--accent); }
+    .track { position: relative; flex: 1; display: flex; align-items: center; }
+    .timeline input { flex: 1; margin: 0; accent-color: var(--accent); }
+    /* the part of the minute before this page was opened (or before Cancel): the slider can't go there */
+    .unrecorded { position: absolute; left: 0; top: 50%; height: 18px; transform: translateY(-50%); border-radius: 4px;
+        background: repeating-linear-gradient(135deg, #8f2a2f 0 6px, #a33a3f 6px 12px); pointer-events: none; overflow: hidden;
+        display: flex; align-items: center; justify-content: center; }
+    .unrecorded span { color: #fff; font-size: 9px; font-weight: 700; letter-spacing: .06em; white-space: nowrap; padding: 0 4px; }
     /* fixed width: a label that changes size would resize the slider under the pointer while dragging */
     .timeline output { flex: none; width: 17em; text-align: right; color: var(--accent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
     .paused-tag { color: #ffb347; font-weight: 700; }
@@ -64,7 +70,7 @@
     <nav id="list" aria-label="Services"></nav>
     <section>
         <div class="bar"><strong id="title">Pick a service</strong><span class="grow" id="meta"></span><button class="btn" id="pause" type="button" title="Freeze every open page and look back through its last minute">Pause</button><button class="btn" id="cancel" type="button" title="Throw away the recording and go back to the live pages" hidden>Cancel</button><a class="btn" id="open" target="_blank" rel="noopener" hidden>Open in new tab</a></div>
-        <div class="timeline" id="timeline" hidden><span class="paused-tag" id="state">PAUSED</span><input type="range" id="scrub" min="0" max="60" step="0.1" value="60" aria-label="Time in the last minute"><output id="when"></output></div>
+        <div class="timeline" id="timeline" hidden><span class="paused-tag" id="state">PAUSED</span><div class="track"><input type="range" id="scrub" min="0" max="60" step="0.1" value="60" aria-label="Time in the last minute"><div class="unrecorded" id="unrecorded" hidden><span>PAGE NOT OPEN AT THIS TIME</span></div></div><output id="when"></output></div>
         <div class="view"><div id="frames"></div><iframe id="still" title="Replay of the recorded page" hidden></iframe>
         <div class="empty" id="empty">Pick a service on the left to see its built-in page.<br>This list is only checked when you open the page or press Refresh.</div></div>
     </section>

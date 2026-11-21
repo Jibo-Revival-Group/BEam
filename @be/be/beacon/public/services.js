@@ -16,7 +16,7 @@
         Object.keys(frames).forEach(function (port) { frames[port].classList.toggle('behind', Number(port) !== s.port || !!recordings); });
         if (s.page) { $('open').href = pageUrl(s); }
         else { $('empty').textContent = s.up ? 'This service runs, but it has no web page of its own.' : 'This service is registered but did not answer.'; }
-        if (recordings) { timeLabel(); loadReplay(); }
+        if (recordings) { fence(); timeLabel(); loadReplay(); }
         history.replaceState(null, '', '#' + s.name);
     }
     function render() {
@@ -54,8 +54,7 @@
     function sliderTime() { return pausedAt - (60 - Number($('scrub').value)) * 1000; }
     function timeLabel() {
         var s = selected(), t = sliderTime(), ago = Math.round((pausedAt - t) / 1000);
-        $('when').textContent = (ago ? '−' + ago + ' s' : 'when paused') + ' · ' + new Date(t).toLocaleTimeString() +
-            (s && opened[s.port] > t ? ' · not recorded' : '');
+        $('when').textContent = (ago ? '−' + ago + ' s' : 'when paused') + ' · ' + new Date(t).toLocaleTimeString();
     }
     function loadReplay() {   // a fresh copy of the page, so it rebuilds its state from the recording up to that moment
         var s = selected(), rec = s && recordings[s.port];
@@ -69,7 +68,17 @@
         var s = selected();
         if (s && recordings[s.port] && $('still').contentWindow) { $('still').contentWindow.postMessage({ type: 'beacon-replay', at: sliderTime(), play: play }, origin(s.port)); }
     }
-    function scrub() { timeLabel(); clearTimeout(seekTimer); seekTimer = setTimeout(loadReplay, 200); }
+    function earliest() {   // slider value where this page's recording starts
+        var s = selected();
+        return s && opened[s.port] ? Math.min(60, Math.max(0, 60 - (pausedAt - opened[s.port]) / 1000)) : 0;
+    }
+    function fence() {
+        var min = earliest(), band = $('unrecorded');
+        band.hidden = min <= 0; band.style.width = (min / 60 * 100) + '%';
+        band.querySelector('span').hidden = band.offsetWidth < 150;   // too narrow for the words
+        if (Number($('scrub').value) < min) { $('scrub').value = min; }
+    }
+    function scrub() { fence(); timeLabel(); clearTimeout(seekTimer); seekTimer = setTimeout(loadReplay, 200); }
     window.addEventListener('message', function (event) {
         var m = event.data, s = selected();
         if (!recordings || !m || event.origin !== origin(m.port)) { return; }
@@ -83,7 +92,7 @@
         stopPlaying(); recordings = null; clearTimeout(seekTimer);
         $('timeline').hidden = true; $('still').hidden = true; $('still').src = 'about:blank';
         $('pause').textContent = 'Pause'; $('cancel').hidden = true;
-        if (clear) { Object.keys(frames).forEach(function (port) { frames[port].contentWindow.postMessage({ type: 'beacon-recording-clear' }, origin(port)); }); }
+        if (clear) { Object.keys(frames).forEach(function (port) { frames[port].contentWindow.postMessage({ type: 'beacon-recording-clear' }, origin(port)); opened[port] = Date.now(); }); }
         var s = selected(); if (s) { show(s); }
     }
     function pause() {
@@ -96,7 +105,7 @@
             frames[port].classList.add('behind');
             frames[port].contentWindow.postMessage({ type: 'beacon-recording' }, origin(port));
         });
-        timeLabel(); loadReplay();
+        fence(); timeLabel(); loadReplay();
     }
     function resume() {
         $('state').textContent = 'PLAYING'; $('pause').textContent = 'Pause';
