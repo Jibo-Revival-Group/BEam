@@ -363,14 +363,17 @@
                 var different = existing && entry.manifest && (entry.release && installedRelease ? entry.release.id > installedRelease.id :
                     existing.manifest.version !== entry.manifest.version || !!entry.release);
                 var remove = existing && !different;
+                function removeExisting() {
+                    if (!confirm('Remove ' + existing.manifest.name + '?')) { return; }
+                    return action('DELETE', '/api/' + KIND[category] + '?id=' + encodeURIComponent(existing.id));
+                }
                 var install = button(actions, remove ? 'Remove' : existing ? 'Update' : 'Install', function () {
-                    if (remove) {
-                        if (!confirm('Remove ' + existing.manifest.name + '?')) { return; }
-                        return action('DELETE', '/api/' + KIND[category] + '?id=' + encodeURIComponent(existing.id));
-                    }
+                    if (remove) { return removeExisting(); }
                     return installTheme(entry, existing, content, install);
                 }, !remove && (!!entry.error || (entry.compatibility && entry.compatibility.status === 'incompatible')));
                 install.className = 'btn btn-primary store-install';
+                // An update can be blocked (it needs a newer version), so an installed item can always be removed.
+                if (existing && different) { button(actions, 'Remove', removeExisting).className = 'btn btn-danger store-remove'; }
                 if (download && !remove) {
                     download.buttons.push({ node: install, disabled: !!entry.error || !!(entry.compatibility && entry.compatibility.status === 'incompatible') });
                     if (!download.stopped) { install.disabled = true; }

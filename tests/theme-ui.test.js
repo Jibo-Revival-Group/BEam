@@ -95,6 +95,16 @@ async function run() {
     theme.origin = Object.assign({}, theme.origin, { release: { id: 10, tag: 'v1.0.0' } });
     await ui.loadStore(false);
     assert(all(ids['store-list']).some(n => n.textContent === 'Update'), 'New release offers Update without a manifest-version change');
+    // An update that can't install (needs a newer version) still leaves a working Remove button.
+    catalog.entries[0].compatibility = { status: 'incompatible' };
+    await ui.loadStore(false);
+    const blockedUpdate = all(ids['store-list']).find(n => n.tagName === 'button' && n.textContent === 'Update');
+    const removeBeside = all(ids['store-list']).find(n => n.tagName === 'button' && n.textContent === 'Remove');
+    assert(blockedUpdate && blockedUpdate.disabled, 'Blocked update is disabled');
+    assert(removeBeside && !removeBeside.disabled, 'Remove is offered next to a blocked update');
+    const deletesBefore = calls.filter(c => c.method === 'DELETE').length;
+    await removeBeside.onclick(); assert.strictEqual(calls.filter(c => c.method === 'DELETE').length, deletesBefore + 1, 'Remove deletes the installed item');
+    delete catalog.entries[0].compatibility;
     theme.origin.release = { id: 20, tag: 'v2.0.0' };
     await ui.loadStore(false);
     assert(all(ids['store-list']).some(n => n.textContent === 'Remove'), 'Current installed release does not offer Update');
