@@ -27,8 +27,8 @@
     nav .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     nav .port { color: var(--muted); }
     nav .nopage .name { color: var(--muted); }
-    section { display: grid; grid-template-rows: auto auto 1fr; min-width: 0; }
-    .view { position: relative; min-height: 0; }
+    section { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+    .view { position: relative; flex: 1; min-height: 0; }
     .view iframe { position: absolute; inset: 0; }
     /* Pages you've opened stay loaded underneath (not display:none) so they keep running and recording */
     .view iframe.behind { opacity: 0; pointer-events: none; }
@@ -64,7 +64,7 @@
     <section>
         <div class="bar"><strong id="title">Pick a service</strong><span class="grow" id="meta"></span><button class="btn" id="pause" type="button" title="Freeze every open page and look back through its last minute">Pause</button><button class="btn" id="cancel" type="button" title="Throw away the recording and go back to the live pages" hidden>Cancel</button><a class="btn" id="open" target="_blank" rel="noopener" hidden>Open in new tab</a></div>
         <div class="timeline" id="timeline" hidden><span class="paused-tag" id="state">PAUSED</span><input type="range" id="scrub" min="0" max="60" step="0.1" value="60" aria-label="Time in the last minute"><output id="when"></output></div>
-        <div class="view"><div id="frames"></div><iframe id="still" title="Recorded page" sandbox hidden></iframe>
+        <div class="view"><div id="frames"></div><iframe id="still" title="Replay of the recorded page" hidden></iframe>
         <div class="empty" id="empty">Pick a service on the left to see its built-in page.<br>This list is only checked when you open the page or press Refresh.</div></div>
     </section>
 </main>
