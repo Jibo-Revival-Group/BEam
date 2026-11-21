@@ -27,12 +27,20 @@
     nav .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     nav .port { color: var(--muted); }
     nav .nopage .name { color: var(--muted); }
-    section { display: grid; grid-template-rows: auto 1fr; min-width: 0; }
+    section { display: grid; grid-template-rows: auto auto 1fr; min-width: 0; }
+    .view { position: relative; min-height: 0; }
+    .view iframe { position: absolute; inset: 0; }
+    /* Pages you've opened stay loaded underneath (not display:none) so they keep running and recording */
+    .view iframe.behind { opacity: 0; pointer-events: none; }
+    .timeline { display: flex; align-items: center; gap: 10px; padding: 6px 14px; border-bottom: 1px solid var(--line); background: #10202f; }
+    .timeline input { flex: 1; accent-color: var(--accent); }
+    .timeline output { min-width: 150px; text-align: right; color: var(--accent); }
+    .paused-tag { color: #ffb347; font-weight: 700; }
     .bar { display: flex; align-items: center; gap: 10px; padding: 8px 14px; border-bottom: 1px solid var(--line); min-height: 42px; }
     .bar strong { font-size: 14px; }
     .bar .grow { flex: 1; color: var(--muted); }
-    iframe { width: 100%; height: 100%; border: 0; background: #fff; }
-    .empty { display: grid; place-items: center; color: var(--muted); padding: 24px; text-align: center; }
+    iframe { width: 100%; height: 100%; border: 0; background: var(--bg); }
+    .empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); padding: 24px; text-align: center; }
     [hidden] { display: none !important; }
     dialog { max-width: 480px; border: 1px solid #a33a3f; border-radius: 12px; background: var(--panel); color: var(--text); padding: 20px 22px; font: 14px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif; }
     dialog::backdrop { background: rgba(0, 0, 0, .75); }
@@ -54,9 +62,10 @@
 <main>
     <nav id="list" aria-label="Services"></nav>
     <section>
-        <div class="bar"><strong id="title">Pick a service</strong><span class="grow" id="meta"></span><a class="btn" id="open" target="_blank" rel="noopener" hidden>Open in new tab</a></div>
-        <iframe id="frame" title="Service page" hidden></iframe>
-        <div class="empty" id="empty">Pick a service on the left to see its built-in page.<br>This list is only checked when you open the page or press Refresh.</div>
+        <div class="bar"><strong id="title">Pick a service</strong><span class="grow" id="meta"></span><button class="btn" id="pause" type="button" title="Freeze every open page and look back through its last minute">Pause</button><button class="btn" id="cancel" type="button" title="Throw away the recording and go back to the live pages" hidden>Cancel</button><a class="btn" id="open" target="_blank" rel="noopener" hidden>Open in new tab</a></div>
+        <div class="timeline" id="timeline" hidden><span class="paused-tag" id="state">PAUSED</span><input type="range" id="scrub" min="0" max="60" step="0.1" value="60" aria-label="Time in the last minute"><output id="when"></output></div>
+        <div class="view"><div id="frames"></div><iframe id="still" title="Recorded page" sandbox hidden></iframe>
+        <div class="empty" id="empty">Pick a service on the left to see its built-in page.<br>This list is only checked when you open the page or press Refresh.</div></div>
     </section>
 </main>
 <dialog id="warn-1" aria-labelledby="warn-1-title">
