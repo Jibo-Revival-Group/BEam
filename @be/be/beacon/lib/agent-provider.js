@@ -6,6 +6,8 @@ const settings = require('./agent-settings');
 const SYSTEM = 'You are Jibo, a friendly, curious conversational robot. Respond briefly, preferably in 1–2 sentences. Use plain spoken language and avoid Markdown. You can converse but cannot perform robot or device actions. Do not claim to have performed actions.';
 const HERMES_SYSTEM = 'You are speaking through Jibo, a friendly, curious conversational robot. Respond briefly, preferably in 1–2 sentences. Use plain spoken language and avoid Markdown. You may use your configured tools when useful. Do not claim to have performed robot or device actions unless a tool actually performed them. Only your final answer will be spoken.';
 // Every provider may act (Free too, since it runs a capable model in 3.2.0).
+// Emojis, dances, animations, sounds and speaking styles (Agent Mode plays them; see skills/agent/esml.js).
+const ESML = require('../../skills/agent/esml').PROMPT;
 function actions() {
     let skills = [];
     try { skills = require('./custom-skills').inventory().skills.map(s => s.manifest.name); } catch (_) {}
@@ -99,9 +101,9 @@ function chat(config, history) {
     if (config.provider === 'hermes' && !config._hermesSession) Object.defineProperty(config, '_hermesSession', { value: 'jibo-' + crypto.randomBytes(16).toString('hex') });
     // Hermes fingerprints header-less chat transcripts using the system and first user
     // message. A stable per-conversation nonce prevents identical greetings colliding.
-    const system = SYSTEM.replace(' You can converse but cannot perform robot or device actions. Do not claim to have performed actions.', '') + actions();
+    const system = SYSTEM.replace(' You can converse but cannot perform robot or device actions. Do not claim to have performed actions.', '') + ESML + actions();
     if (config.provider === 'free') return require('./agent-free').chat(history, system);
-    const prompt = config.provider === 'hermes' ? HERMES_SYSTEM + actions() + '\nConversation scope: ' + config._hermesSession : system;
+    const prompt = config.provider === 'hermes' ? HERMES_SYSTEM + ESML + actions() + '\nConversation scope: ' + config._hermesSession : system;
     const messages = [{ role: 'system', content: prompt }].concat(history);
     let route = '/chat/completions', body = { model: config.model, messages: messages, stream: false }, extract = data => data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
     if (config.provider === 'openai') {

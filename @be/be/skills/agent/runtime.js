@@ -1,5 +1,5 @@
 'use strict';
-const ThinkingEye = require('./thinking-eye');
+const ThinkingEye = require('./thinking-eye'), esml = require('./esml');
 
 const STOP = new Set(['stop', 'stop chatting', 'exit ai mode', 'end conversation', 'cancel', 'goodbye', 'good bye', 'bye', 'bye bye']);
 function isStop(text) {
@@ -8,18 +8,6 @@ function isStop(text) {
         .replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
     normalized = normalized.replace(/^(?:okay|ok|alright) /, '').replace(/^(?:hey )?jibo /, '').replace(/ jibo$/, '');
     return STOP.has(normalized);
-}
-function speechChunks(text) {
-    // Escape provider text before giving it to the SLIM-capable TTS engine.
-    const words = String(text).replace(/[*`#]/g, '').split(/\s+/), chunks = []; let chunk = '';
-    words.forEach(word => {
-        // Bound individual tokens as well as sentences for the native TTS limit.
-        const safe = word.slice(0, 200).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        if ((chunk + ' ' + safe).length > 450) { chunks.push(chunk); chunk = ''; }
-        chunk += (chunk ? ' ' : '') + safe;
-    });
-    if (chunk) chunks.push(chunk);
-    return chunks;
 }
 class Runtime {
     constructor(jibo, PIXI, settings, provider, exit, act) {
@@ -99,10 +87,11 @@ class Runtime {
     }
     speak(text) {
         this.phase = 'speaking';
-        return speechChunks(text).reduce((chain, chunk) => chain.then(() => {
+        // Embodied speech plays the reply's ESML (emojis, dances, animations); plain TTS would skip it.
+        return esml.chunks(text).reduce((chain, chunk) => chain.then(() => {
             if (!this.active || this.private()) return;
             this.speaking = true;
-            return Promise.resolve(this.jibo.tts.speak(chunk)).then(() => { this.speaking = false; });
+            return Promise.resolve(this.jibo.embodied.speech.speak(chunk)).then(() => { this.speaking = false; });
         }), this.thinkingEye.stop());
     }
     listen() {
@@ -137,8 +126,10 @@ class Runtime {
                     if (!this.active || this.operation !== operation) return;
                     this.operation = null; this.history.push({ role: 'assistant', content: reply });
                     const match = /^\s*DO:\s*(.+?)\s*$/im.exec(reply), spoken = reply.replace(/^\s*DO:.*$/gim, '').trim();
-                    const command = match && this.act ? match[1] : null;
+                    const command = match && this.act ? match[1] : null, dance = esml.danceFor(command);
                     return (spoken ? this.speak(spoken) : Promise.resolve()).then(() => {
+                        // A dance plays here, not through the cloud's dance (no "Watch this"), then he listens again.
+                        if (dance) return this.speak(dance).then(() => this.listen());
                         if (!command) return this.listen();
                         if (!this.active || this.private()) return;
                         const history = this.history.slice();
@@ -170,7 +161,7 @@ class Runtime {
         if (this.gesture) jibo.face.gestures.removeStageGesture(this.gesture);
         if (this.operation) this.operation.cancel(); this.operation = null;
         if (this.turn) cleanup.push(Promise.resolve(this.turn.cancel())); this.turn = null;
-        if (this.speaking) cleanup.push(Promise.resolve(jibo.tts.stop())); this.speaking = false;
+        if (this.speaking) cleanup.push(Promise.resolve(jibo.embodied.speech.stop())); this.speaking = false;
         if (this.attention) cleanup.push(Promise.resolve(this.attention.release())); this.attention = null;
         if (this.hotword) cleanup.push(Promise.resolve(this.hotword.release())); this.hotword = null;
         this.removeFilter();
@@ -201,5 +192,5 @@ Runtime.resumeHistory = (history, said) => {
     else copy.push({ role: 'assistant', content: note });
     return copy;
 };
-Runtime.isStop = isStop; Runtime.speechChunks = speechChunks;
+Runtime.isStop = isStop; Runtime.speechChunks = text => esml.chunks(text);
 module.exports = Runtime;

@@ -26,6 +26,7 @@ function fixture(providerName) {
             startLocalTurn: options => { const pending = deferred(); const turn = { promise: pending.promise, options, pending, cancel: () => { turn.cancelled = true; pending.resolve({ status: types.CANCELED }); return Promise.resolve(); } }; turns.push(turn); return Promise.resolve(turn); }
         }
     };
+    jibo.embodied.speech = jibo.tts; // Agent Mode speaks through embodied speech (it plays ESML)
     const settings = { resolve: () => ({ provider: providerName || 'custom', model: 'test' }), ready: () => true }, acts = [];
     const provider = { chat: (config, history) => {
         const pending = deferred(), operation = { promise: pending.promise, cancel: () => { operation.cancelled = true; pending.reject(new Error('cancelled')); }, pending, history: JSON.parse(JSON.stringify(history)) };

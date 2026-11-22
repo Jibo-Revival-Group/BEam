@@ -11,6 +11,13 @@ again after each complete reply. His system prompt asks for short replies,
 preferably one or two sentences. When you ask Jibo to do something, the AI can end its
 reply with a `DO:` line; Jibo then closes the chat and runs that command or opens that skill.
 
+Replies can also animate Jibo with a little ESML: emojis on his screen (`<anim cat='emoji' filter='pizza'/>`),
+dances in a chosen style (`<anim cat='dance' filter='carlton'/>`), body animations (`<anim cat='happy'/>`),
+sounds (`<ssa cat='laughing'/>`), speaking styles (`<style set='enthusiastic'>…</style>`) and pauses
+(`<break size='0.5'/>`). Only tags and names Jibo has are played (rebuilt from checked parts); anything else
+is spoken as words. A `DO:` dance ("DO: do the robot") also plays right in Agent Mode, without the cloud's
+"Watch this", and Jibo keeps listening afterwards.
+
 The ring glows green while waiting or speaking. While listening, the ring and
 eye turn blue. While a provider generates an answer, Jibo plays his native
 `Thinking_Eye_Loop_01` animation. It stops before speech and when the session

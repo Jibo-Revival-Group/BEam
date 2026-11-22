@@ -15,6 +15,7 @@ const jibo = {
     animDB: { getAnimByName: name => { assert.strictEqual(name, 'Thinking_Eye_Loop_01'); return { createFromConfig: config => { assert.strictEqual(config.loops, 0); return load.promise; } }; } },
     tts: { speak: text => { calls.push('speak:' + text); return spoken.promise; }, stop: () => { spoken.resolve(); } }
 };
+jibo.embodied.speech = jibo.tts;
 const runtime = new Runtime(jibo, { filters: { ColorMatrixFilter: class {} } }, {}, { chat: () => ({ promise: reply.promise, cancel: () => {} }) }, () => {});
 runtime.active = true; runtime.config = {};
 runtime.listen();

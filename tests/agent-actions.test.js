@@ -3,27 +3,37 @@ const assert = require('assert');
 const Runtime = require('../@be/be/skills/agent/runtime');
 const { fixture, flush, listening } = require('./agent-runtime.test');
 async function reply(env, text) {
-    env.turns[0].pending.resolve({ status: env.types.SUCCEEDED, result: { text: 'Can you dance?' } }); await flush();
+    env.turns[0].pending.resolve({ status: env.types.SUCCEEDED, result: { text: 'Can you help?' } }); await flush();
     env.requests[0].pending.resolve(text); await flush();
 }
 async function run() {
     const paid = fixture('claude'); await listening(paid);
-    await reply(paid, 'Sure, watch this!\nDO: do a dance');
-    assert.strictEqual(paid.speech[1].text, 'Sure, watch this!', 'the DO line is not spoken');
+    await reply(paid, "Sure, here's the weather!\nDO: what's the weather");
+    assert.strictEqual(paid.speech[1].text, "Sure, here's the weather!", 'the DO line is not spoken');
     paid.speech[1].pending.resolve(); await flush();
-    assert.deepStrictEqual(paid.acts, ['do a dance']); assert(!paid.runtime.active, 'chat closed before the command runs');
+    assert.deepStrictEqual(paid.acts, ["what's the weather"]); assert(!paid.runtime.active, 'chat closed before the command runs');
     assert.strictEqual(paid.turns.length, 1, 'no more listening'); assert.strictEqual(paid.exits(), 0, 'the launched skill replaces Agent Mode');
 
     const free = fixture('free'); await listening(free);
-    await reply(free, 'Okay!\nDO: do a dance');
+    await reply(free, 'Okay!\nDO: open the clock');
     assert.strictEqual(free.speech[1].text, 'Okay!'); free.speech[1].pending.resolve(); await flush();
-    assert.deepStrictEqual(free.acts, ['do a dance'], 'Free acts like paid models (3.2.0)'); assert.strictEqual(free.turns.length, 1, 'the launched skill takes over');
+    assert.deepStrictEqual(free.acts, ['open the clock'], 'Free acts like paid models (3.2.0)'); assert.strictEqual(free.turns.length, 1, 'the launched skill takes over');
     await free.runtime.close();
+
+    // A dance plays right in Agent Mode (no cloud "Watch this"), in the style asked for, then he listens again.
+    const dancer = fixture('free'); await listening(dancer);
+    await reply(dancer, 'Here I go!\nDO: do the carlton');
+    assert.strictEqual(dancer.speech[1].text, 'Here I go!'); dancer.speech[1].pending.resolve(); await flush();
+    assert.strictEqual(dancer.speech[2].text, "<anim cat='dance' filter='carlton' />");
+    assert.deepStrictEqual(dancer.acts, [], 'no command leaves Agent Mode'); assert(dancer.runtime.active);
+    dancer.speech[2].pending.resolve(); await flush();
+    assert.strictEqual(dancer.turns.length, 2, 'listening again after the dance');
+    await dancer.runtime.close();
 
     const skills = [{ packageName: '@be/soundmachine', manifest: { name: 'Sound Machine' } }];
     assert.strictEqual(Runtime.storeSkill('open the Sound Machine', skills), '@be/soundmachine');
     assert.strictEqual(Runtime.storeSkill('open sound-machine', skills), '@be/soundmachine');
     assert.strictEqual(Runtime.storeSkill('tell me about the weather', skills), null);
-    console.log('Agent actions: paid models run DO commands after speaking; Free never does; Store skills match by name.');
+    console.log('Agent actions: DO commands run after speaking (paid and Free); dances play in Agent Mode and he keeps listening; Store skills match by name.');
 }
 run().catch(error => { console.error(error); process.exitCode = 1; });

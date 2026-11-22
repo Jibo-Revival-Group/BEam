@@ -8,7 +8,7 @@ const settings = require(root + '/beacon/lib/agent-settings');
 function load(file, dependencies) {
     const loaded = { exports: {} };
     new Function('require', 'module', 'exports', '__dirname', fs.readFileSync(file, 'utf8'))(
-        id => Object.prototype.hasOwnProperty.call(dependencies, id) ? dependencies[id] : require(id), loaded, loaded.exports, path.dirname(file));
+        id => Object.prototype.hasOwnProperty.call(dependencies, id) ? dependencies[id] : require(id.charAt(0) === '.' ? path.resolve(path.dirname(file), id) : id), loaded, loaded.exports, path.dirname(file));
     return loaded.exports;
 }
 function providerTest() {
@@ -97,7 +97,7 @@ async function run() {
     assert(chunks.every(chunk => chunk.length <= 450 && !chunk.includes('<')));
     await providerTest();
     const acorn = require(root + '/node_modules/acorn');
-    ['beacon/lib/agent-settings.js', 'beacon/lib/agent-provider.js', 'beacon/public/agent.js', 'skills/agent/index.js', 'skills/agent/runtime.js'].forEach(name => acorn.parse(fs.readFileSync(path.join(root, name), 'utf8'), { ecmaVersion: 6 }));
+    ['beacon/lib/agent-settings.js', 'beacon/lib/agent-provider.js', 'beacon/public/agent.js', 'skills/agent/index.js', 'skills/agent/runtime.js', 'skills/agent/esml.js'].forEach(name => acorn.parse(fs.readFileSync(path.join(root, name), 'utf8'), { ecmaVersion: 6 }));
     console.log('Agent settings, seven provider adapters, model discovery, errors, cancellation, speech escaping, and Node 6 syntax passed.');
 }
 run().catch(error => { console.error(error); process.exitCode = 1; }).then(() => {
