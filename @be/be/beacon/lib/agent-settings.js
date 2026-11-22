@@ -15,7 +15,8 @@ function resolve(input, requireModel) {
     input = input || {};
     const saved = read(), provider = input.provider === undefined ? saved.provider : input.provider;
     if (providers.indexOf(provider) === -1) throw fail('Choose a supported provider.');
-    if (provider === 'free') return { provider: 'free', endpoint: '', model: 'gemma3:4b', apiKey: '' };
+    // BEefy picks Free's model (5x1 can switch it any time); "free" just means "whatever Free uses now".
+    if (provider === 'free') return { provider: 'free', endpoint: '', model: 'free', apiKey: '' };
     const endpoint = local(provider) ? String(input.endpoint === undefined ? saved.endpoint || '' : input.endpoint).trim() : '';
     if (local(provider)) {
         const parsed = url.parse(endpoint);

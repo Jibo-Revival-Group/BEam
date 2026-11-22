@@ -1,15 +1,15 @@
 # Agent Mode
 
 Open **BEacon → Etc → Agent Mode**, choose a provider, enter credentials if required,
-load models (or enter a model ID), and save. Free uses the fixed `gemma3:4b`
-model and needs no personal API key or endpoint.
+load models (or enter a model ID), and save. Free uses whatever model 5x1 runs
+for it (shown in BEacon, currently Claude Sonnet 5.5) and needs no personal API key or endpoint.
 Settings apply to the next conversation.
 
 Say **“Hey Jibo, let's chat,” “let's have a conversation,” “AI mode,”** or
 **“agent mode.”** Jibo speaks with his existing voice and automatically listens
 again after each complete reply. His system prompt asks for short replies,
-preferably one or two sentences. Agent Mode does not execute Jibo skills or
-device commands; phrases such as “play a song” become conversation text.
+preferably one or two sentences. When you ask Jibo to do something, the AI can end its
+reply with a `DO:` line; Jibo then closes the chat and runs that command or opens that skill.
 
 The ring glows green while waiting or speaking. While listening, the ring and
 eye turn blue. While a provider generates an answer, Jibo plays his native
@@ -27,17 +27,16 @@ is not supported; wait until Jibo finishes his reply.
 
 Choose **Free** and save. The robot sends its recent text conversation to the
 fixed `https://api.5x1.com` Free endpoint over verified HTTPS, without robot credentials or enrollment.
-BEefy relays the request over its existing authenticated outbound BEefyER worker
-connection. The worker calls **`http://localhost:11434/api/chat` on the BEefyER
-machine**, using **`gemma3:4b`**. This localhost is not Jibo and not necessarily
-the BEefy host. The robot cannot override the worker URL/model or obtain its secret.
+BEefy answers with Anthropic's API and 5x1's key, using the model in
+`/var/lib/5x1/free-agent-model` on the BEefy host (default `claude-sonnet-5-5`; the key is in
+`/var/lib/5x1/anthropic-key`). Both files are read on every request, so the operator can switch
+the model or key any time without a restart. BEacon's Free model list comes from
+`GET https://api.5x1.com/api/agent/free/models`. The robot cannot choose the model.
 
-The backend must have Free enabled and a worker advertising Free-chat support.
-Absent workers,
-busy capacity, or unavailable models produce an error, not another provider or
-paid fallback. Older BEefy/BEefyER versions do not support this route. Operators
-must install the model themselves; the application does not pull models or
-start Ollama automatically.
+Free gets the same instructions as paid models, including the `DO:` actions, so it can make
+Jibo do things. Each reply names the model that answered; BEacon 3.1.9 and older accept only
+`gemma3:4b`, so they can't use Free from 3.2.0's backend on. A missing key or an Anthropic error
+produces an error, not another provider or paid fallback.
 
 **Only Free** has the hosted quota: **50 requests per rolling 30 minutes per self-reported robot ID
 and 200 per hour per client IP**, checked independently at BEefy. Robot IDs are

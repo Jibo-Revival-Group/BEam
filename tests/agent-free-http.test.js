@@ -9,12 +9,13 @@ function load(file, dependencies) {
 async function run() {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'free-agent-tls-'));
     cp.execFileSync('openssl', ['req','-x509','-newkey','rsa:2048','-nodes','-keyout',dir+'/key.pem','-out',dir+'/cert.pem','-days','1','-subj','/CN=api.5x1.com','-addext','subjectAltName=DNS:api.5x1.com'], { stdio:'ignore' });
-    const ca = fs.readFileSync(dir+'/cert.pem'), seen=[]; let status=200, hold=false, reply=null;
+    const ca = fs.readFileSync(dir+'/cert.pem'), seen=[]; let status=200, hold=false, reply=null, badModel=false;
     const server=https.createServer({ key:fs.readFileSync(dir+'/key.pem'),cert:ca },(req,res)=>{
         let raw='';req.on('data',c=>{raw+=c;});req.on('end',()=>{
-            const body=JSON.parse(raw);seen.push({req,res,body,raw});if(hold)return;
+            const body=raw?JSON.parse(raw):{};seen.push({req,res,body,raw});if(hold)return;
             res.statusCode=status;res.setHeader('Content-Type','application/json');
-            res.end(JSON.stringify(reply || (status===200?{requestId:body.requestId,text:'A free answer.',model:'gemma3:4b'}:{error:'private upstream secret must not be spoken'})));
+            if(req.method==='GET'){res.end(JSON.stringify(reply||{models:[{id:'claude-sonnet-5-5',name:'x'},{id:'bad id;',name:'y'}]}));return;}
+            res.end(JSON.stringify(reply || (status===200?{requestId:body.requestId,text:'A free answer.',model:badModel?'bad model; x':'claude-sonnet-5-5'}:{error:'private upstream secret must not be spoken'})));
         });
     });
     await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
@@ -30,10 +31,17 @@ async function run() {
         assert.strictEqual(sent.req.headers.host,'api.5x1.com'); assert.strictEqual(sent.req.headers.authorization,undefined); assert.strictEqual(sent.req.headers['x-amz-target'],undefined); assert.strictEqual(sent.req.headers['x-amz-date'],undefined);
         assert(/^[a-f0-9]{32}$/.test(sent.body.requestId));
         assert.deepStrictEqual(sent.body.messages,history);assert.strictEqual(sent.body.robotId,'robot-fixture');assert.deepStrictEqual(Object.keys(sent.body).sort(),['messages','requestId','robotId']);
+        // 3.2.0: Jibo's instructions (with the DO: actions) go along; any model BEefy names is accepted, junk is not.
+        assert.strictEqual(await client.chat(history,'You are Jibo.\nDO: ...').promise,'A free answer.');
+        assert.strictEqual(seen[seen.length-1].body.system,'You are Jibo.\nDO: ...');
+        badModel=true;await assert.rejects(client.chat(history).promise,/invalid/i,'a junk model name is refused');badModel=false;
+        assert.deepStrictEqual(await client.models(),{models:[{id:'claude-sonnet-5-5',name:'claude-sonnet-5-5 (Free)'}]},'the Free model list comes from BEefy');
+        assert.strictEqual(seen[seen.length-1].req.url,'/api/agent/free/models');
+        reply={models:[]};await assert.rejects(client.models(),/Could not load the Free model/);reply=null;
         status=429;await assert.rejects(client.chat(history).promise,/limit/i);
         status=403;await assert.rejects(client.chat(history).promise,/could not complete|unavailable/i);
         status=503;await assert.rejects(client.chat(history).promise,/unavailable|busy/i);
-        status=200;reply={requestId:'0'.repeat(32),text:'Wrong request',model:'gemma3:4b'};
+        status=200;reply={requestId:'0'.repeat(32),text:'Wrong request',model:'claude-sonnet-5-5'};
         await assert.rejects(client.chat(history).promise,/invalid/i);
         reply=null;hold=true;const operation=client.chat(history);operation.cancel();await assert.rejects(operation.promise,/cancelled/i);
         const count=seen.length;await assert.rejects(client.chat([{role:'system',content:'override'}]).promise,/invalid|history/i);assert.strictEqual(seen.length,count);

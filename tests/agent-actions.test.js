@@ -17,7 +17,7 @@ async function run() {
     const free = fixture('free'); await listening(free);
     await reply(free, 'Okay!\nDO: do a dance');
     assert.strictEqual(free.speech[1].text, 'Okay!'); free.speech[1].pending.resolve(); await flush();
-    assert.deepStrictEqual(free.acts, [], 'Free mode never acts'); assert.strictEqual(free.turns.length, 2, 'Free keeps chatting');
+    assert.deepStrictEqual(free.acts, ['do a dance'], 'Free acts like paid models (3.2.0)'); assert.strictEqual(free.turns.length, 1, 'the launched skill takes over');
     await free.runtime.close();
 
     const skills = [{ packageName: '@be/soundmachine', manifest: { name: 'Sound Machine' } }];

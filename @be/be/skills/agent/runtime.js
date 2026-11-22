@@ -137,7 +137,7 @@ class Runtime {
                     if (!this.active || this.operation !== operation) return;
                     this.operation = null; this.history.push({ role: 'assistant', content: reply });
                     const match = /^\s*DO:\s*(.+?)\s*$/im.exec(reply), spoken = reply.replace(/^\s*DO:.*$/gim, '').trim();
-                    const command = match && this.config.provider !== 'free' && this.act ? match[1] : null;
+                    const command = match && this.act ? match[1] : null;
                     return (spoken ? this.speak(spoken) : Promise.resolve()).then(() => {
                         if (!command) return this.listen();
                         if (!this.active || this.private()) return;
