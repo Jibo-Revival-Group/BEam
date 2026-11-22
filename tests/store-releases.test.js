@@ -58,6 +58,7 @@ attached.store.catalog(repo).then(function(items){
         if(value===api){return Promise.resolve(Buffer.from('{}'));}
         if(value===api+'/releases/latest'){return Promise.resolve(Buffer.from(JSON.stringify(release({assets:[zip('widget.zip')]}))));}
         if(value===base+'manifest.json'){return Promise.resolve(files['manifest.json']);}
+        if(value!==assetUrl){return Promise.reject(Object.assign(new Error('Unexpected request: '+value),{remoteStatus:404}));}
         const changed=Object.assign({},files);const manifest=JSON.parse(files['manifest.json']);manifest.version='9.9.9';changed['manifest.json']=Buffer.from(JSON.stringify(manifest));
         return Promise.resolve(fixture.zip(changed));
     });return rejects(mismatch.download(repo),/does not match/);
@@ -69,11 +70,19 @@ attached.store.catalog(repo).then(function(items){
         if(value===mirror){return Promise.resolve(Buffer.from(JSON.stringify({owner:{login:'example'},stargazers_count:8})));}
         if(value===mirror+'/releases/latest'){return Promise.resolve(Buffer.from(JSON.stringify(release({assets:[zip('widget.zip')]}))));}
         if(value===assetUrl){return Promise.resolve(fixture.zip(files));}
-        if(value.indexOf(base)===0&&files[value.slice(base.length)]){return Promise.resolve(files[value.slice(base.length)]);}
+        // Manifest and README come from BEaker's copy of the repository's files, not raw.githubusercontent.com.
+        const raw=stores.MIRROR+'raw/example/widget/'+tag+'/';
+        if(value.indexOf(raw)===0&&files[value.slice(raw.length)]){return Promise.resolve(files[value.slice(raw.length)]);}
+        if(value===stores.MIRROR+'manifest.json'){return Promise.resolve(Buffer.from(JSON.stringify({themes:['Widget',{url:repo}]})));}
         return Promise.reject(Object.assign(new Error('Unexpected request: '+value),{remoteStatus:404}));
     });
-    return mirrored.catalog(repo).then(function(items){assert.strictEqual(items[0].stars,8);return mirrored.download(repo);}).then(function(download){
+    return mirrored.catalog(stores.DEFAULT_SOURCE).then(function(items){
+        assert.strictEqual(items[0].stars,8);assert.strictEqual(items[0].name,'Astra');
+        assert.deepStrictEqual(asked.filter(u=>u.indexOf(stores.MIRROR)!==0),[],'the Store list and everything it shows come from BEaker: '+asked);
+        return mirrored.download(repo);
+    }).then(function(download){
         assert.strictEqual(download.release.id,12);assert(!asked.some(u=>u.indexOf('https://api.github.com/')===0),'BEaker answered; GitHub API not asked');
+        assert(asked.indexOf(assetUrl)>=0,'the package itself comes from GitHub');
         // A repository BEaker does not carry (someone's own storefront) is asked from GitHub, logged out.
         assert.strictEqual(attached.requests[0],mirror);assert.strictEqual(attached.requests[1],api);
     });

@@ -18,10 +18,11 @@ class Node {
 }
 function all(node) { return node.children.reduce((list, c) => list.concat(c, all(c)), []); }
 const ids = {}; const body = new Node('body');
-for (const id of ['store-content', 'themes-summary', 'theme-file', 'edit-main-menu', 'store-skill-list', 'upload-store-zip', 'store-sources', 'store-list', 'store-switch', 'store-tab-themes', 'store-tab-skills', 'store-themes', 'store-skills', 'store-options', 'store-options-menu', 'store-options-button', 'manage-storefronts', 'store-management', 'close-store-management', 'theme-details', 'theme-details-title', 'theme-details-meta', 'theme-details-readme', 'theme-details-about', 'store-tab-voices', 'store-voices', 'store-voice-list', 'voices-summary', 'voice-offer', 'voice-offer-text', 'voice-offer-yes', 'voice-offer-no',
+for (const id of ['store-sort-field', 'store-sort-order', 'store-content', 'themes-summary', 'theme-file', 'edit-main-menu', 'store-skill-list', 'upload-store-zip', 'store-sources', 'store-list', 'store-switch', 'store-tab-themes', 'store-tab-skills', 'store-themes', 'store-skills', 'store-options', 'store-options-menu', 'store-options-button', 'manage-storefronts', 'store-management', 'close-store-management', 'theme-details', 'theme-details-title', 'theme-details-meta', 'theme-details-readme', 'theme-details-about', 'store-tab-voices', 'store-voices', 'store-voice-list', 'voices-summary', 'voice-offer', 'voice-offer-text', 'voice-offer-yes', 'voice-offer-no',
     'skill-notice', 'skill-notice-name', 'skill-notice-list', 'skill-notice-yes', 'skill-notice-no']) {
     ids[id] = body.appendChild(new Node('div'));
 }
+ids['store-sort-field'].value = 'votes';
 ids['skill-notice'].hidden = true;
 const document = { body, activeElement: body, createElement: tag => new Node(tag), createTextNode: text => Object.assign(new Node('#text'), { textContent: text }),
     addEventListener: () => {}, querySelectorAll: () => [], querySelector: selector => ids[selector.slice(1)] || new Node('div') };

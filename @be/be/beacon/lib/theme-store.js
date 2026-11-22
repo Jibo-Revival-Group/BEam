@@ -21,6 +21,13 @@ function certificateAuthorities() {
     if (!authorities) { authorities = fs.readFileSync(path.join(__dirname, '../certs/mozilla-ca.pem'), 'utf8'); }
     return authorities;
 }
+// BEaker also serves the 5x1 Store's list and the files the Store shows from its repositories (manifest,
+// README, banner), so only packages come from GitHub. Null for anything BEaker doesn't copy.
+function mirrored(value) {
+    if (value === DEFAULT_SOURCE) { return MIRROR + 'manifest.json'; }
+    const raw = /^https:\/\/raw\.githubusercontent\.com\/(.+)$/.exec(value);
+    return raw ? MIRROR + 'raw/' + raw[1] : null;
+}
 function hash(value) { return crypto.createHash('sha256').update(value).digest('hex').slice(0, 24); }
 function normalize(value) {
     if (typeof value !== 'string' || value.length > 2048) { throw pkg.fail('Enter a manifest or GitHub repository URL'); }
@@ -126,7 +133,12 @@ function create(fetcher) {
     function fetch(value, limit, operation) {
         return Promise.resolve().then(() => { if (operation) { operation.check(); } return network(value, limit, 0, operation); });
     }
-    const opt = (value, operation) => fetch(value, MAX_METADATA, operation).catch(err => { if (err.remoteStatus === 404) { return null; } throw err; });
+    // Store metadata: BEaker's copy first; the original address covers when BEaker can't (down, or not in the Store).
+    function meta(value, limit, operation) {
+        const copy = mirrored(value);
+        return copy ? fetch(copy, limit, operation).catch(() => { if (operation) { operation.check(); } return fetch(value, limit, operation); }) : fetch(value, limit, operation);
+    }
+    const opt = (value, operation) => meta(value, MAX_METADATA, operation).catch(err => { if (err.remoteStatus === 404) { return null; } throw err; });
     function cached(cache, key, ttl, operation) {
         const existing = cache[key];
         if (existing && Date.now() - existing.time < ttl) { return Promise.resolve(existing.data); }
@@ -134,7 +146,7 @@ function create(fetcher) {
     }
     function resolve(value, operation) {
         value = normalize(value); const gh = github(value);
-        if (!gh) { return fetch(value, MAX_METADATA, operation).then(buf => ({ url: value, base: value, data: json(buf), manifest: buf })); }
+        if (!gh) { return meta(value, MAX_METADATA, operation).then(buf => ({ url: value, base: value, data: json(buf), manifest: buf })); }
         const api = 'repos/' + encodeURIComponent(gh.owner) + '/' + encodeURIComponent(gh.repo);
         // BEaker first; it answers 404 for repositories outside the 5x1 Store, and GitHub covers for it when it is down.
         const ask = (cache, suffix, ttl) => cached(cache, MIRROR + api + suffix, ttl, operation).catch(err => {
@@ -165,7 +177,7 @@ function create(fetcher) {
             const origin = { id: release.id, tag: release.tag_name, name: release.name || release.tag_name,
                 url: release.html_url || value + '/releases/tag/' + tag, publishedAt: release.published_at || null,
                 asset: asset ? asset.name : null };
-            return fetch(base + 'manifest.json', MAX_METADATA, operation).then(buf => ({
+            return meta(base + 'manifest.json', MAX_METADATA, operation).then(buf => ({
                 url: value, base: base + 'manifest.json', data: json(buf), manifest: buf, release: origin,
                 archive: normalize(archive), developer: repo.owner && repo.owner.login || gh.owner,
                 stars: typeof repo.stargazers_count === 'number' ? repo.stargazers_count : null
@@ -254,10 +266,12 @@ function create(fetcher) {
         });
     }
     function banner(value, operation) {
-        return fetch(normalize(value), 2 * 1024 * 1024, operation).then(buf => pkg.png(buf).then(() => buf))
+        return meta(normalize(value), 2 * 1024 * 1024, operation).then(buf => pkg.png(buf).then(() => buf))
             .catch(err => { if (err.remoteStatus === 404) { return null; } throw err; });
     }
-    return { catalog: catalog, detail: detail, download: download, banner: banner };
+    // After a star the cached repository answers hold the old count; the next refresh asks BEaker again.
+    function forget() { Object.keys(repoCache).forEach(key => { delete repoCache[key]; }); }
+    return { catalog: catalog, detail: detail, download: download, banner: banner, forget: forget };
 }
 module.exports = { create: create, normalize: normalize, hash: hash, paragraph: paragraph,
-    DEFAULT_SOURCE: DEFAULT_SOURCE, MIRROR: MIRROR, entries: entries, request: request };
+    DEFAULT_SOURCE: DEFAULT_SOURCE, MIRROR: MIRROR, entries: entries, request: request, mirrored: mirrored };

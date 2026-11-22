@@ -184,6 +184,26 @@
         document.addEventListener('click', function (event) {
             if (!$('#store-options').contains(event.target)) { closeOptions(); }
         });
+        // "Sort by <field> going <order>"; each field names its own orders, and a new field starts at its usual one.
+        var SORT_ORDERS = { votes: [['desc', 'highest to lowest'], ['asc', 'lowest to highest']], name: [['asc', 'A to Z'], ['desc', 'Z to A']] };
+        var lastStore = null;
+        function sortOrders() {
+            var order = $('#store-sort-order'); order.textContent = '';
+            SORT_ORDERS[$('#store-sort-field').value].forEach(function (o) { var option = el('option', null, o[1]); option.value = o[0]; order.appendChild(option); });
+        }
+        function sortEntries(list) {
+            var byName = $('#store-sort-field').value === 'name', dir = $('#store-sort-order').value === 'asc' ? 1 : -1;
+            function stars(e) { return typeof e.stars === 'number' ? e.stars : -1; }
+            function name(e) { return String(e.name || e.url || ''); }
+            // Stock choices (None, 3D Eye, Jibo's voice) stay first, in their own order.
+            return list.map(function (e, i) { return { e: e, i: i }; }).sort(function (a, b) {
+                if (a.e.stock || b.e.stock) { return a.e.stock && b.e.stock ? a.i - b.i : a.e.stock ? -1 : 1; }
+                return dir * (byName ? name(a.e).localeCompare(name(b.e)) : stars(a.e) - stars(b.e)) || name(a.e).localeCompare(name(b.e));
+            }).map(function (x) { return x.e; });
+        }
+        $('#store-sort-field').onchange = function () { sortOrders(); if (lastStore) { renderStore(lastStore); } };
+        $('#store-sort-order').onchange = function () { if (lastStore) { renderStore(lastStore); } };
+        sortOrders();
         $('#manage-storefronts').onclick = function () {
             managementOpener = $('#store-options-button'); closeOptions();
             $('#store-management').hidden = false; $('#close-store-management').focus();
@@ -275,7 +295,7 @@
             });
         }
         function renderStore(data) {
-            storeSources = data.sources || [];
+            lastStore = data; storeSources = data.sources || [];
             Object.keys(downloads).forEach(function (id) { downloads[id].nodes = []; downloads[id].buttons = []; });
             var sources = $('#store-sources'); sources.textContent = '';
             data.sources.forEach(function (source) {
@@ -308,6 +328,7 @@
                 var key = (entry.name || entry.url).toLowerCase();
                 if (!seen[key]) { entries.push(entry); seen[key] = true; }
             });
+            entries = sortEntries(entries);
             entries.forEach(function (entry) {
                 var card = el('article', 'store-card'), media = el('div', 'store-card-banner');
                 var fallback = el('span', 'store-banner-fallback', (entry.name || 'J').charAt(0).toUpperCase());
@@ -332,7 +353,15 @@
                 card.appendChild(media);
                 var content = el('div', 'store-card-content'); content.appendChild(el('h3', 'store-card-name', entry.name || entry.url));
                 if (!entry.stock) {
-                    var publisher = el('p', 'store-publisher'); publisher.appendChild(el('span', null, entry.developer || 'Local package')); publisher.appendChild(el('span', null, '★ ' + (typeof entry.stars === 'number' ? entry.stars.toLocaleString() : '—'))); content.appendChild(publisher);
+                    var publisher = el('p', 'store-publisher'), count = typeof entry.stars === 'number' ? entry.stars.toLocaleString() : '—';
+                    publisher.appendChild(el('span', null, entry.developer || 'Local package'));
+                    // 5x1 Store listings can be starred here (BEaker counts one star per robot); others just show GitHub's count.
+                    if (entry.id && entrySource(entry) === null && /^https:\/\/github\.com\//i.test(entry.url || '')) {
+                        var starButton = button(publisher, (entry.starred ? '★ ' : '☆ ') + count, function () { return action('POST', '/api/store/star', { id: entry.id, starred: !entry.starred }); });
+                        starButton.className = 'store-star'; starButton.setAttribute('aria-pressed', String(!!entry.starred));
+                        starButton.setAttribute('aria-label', (entry.starred ? 'Unstar ' : 'Star ') + (entry.name || 'this') + ' (' + count + ' stars)');
+                    } else { publisher.appendChild(el('span', null, '★ ' + count)); }
+                    content.appendChild(publisher);
                 }
                 content.appendChild(el('p', 'store-description', entry.builtin ? 'Jibo’s eye as a real 3D ball that moves, blinks and changes shape in 3D. Built in.' :
                     entry.stock ? (isVoice ? 'Jibo’s own, normal voice.' : 'Jibo’s stock face and menus.') : entry.description || entry.error || (isSkill ? 'A new skill for Jibo.' : isVoice ? 'A new voice for Jibo.' : 'A new look for Jibo.')));

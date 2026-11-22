@@ -17,9 +17,10 @@ class Node {
 }
 function all(node) { return node.children.reduce((list, c) => list.concat(c, all(c)), []); }
 const ids = {}; const body = new Node('body');
-for (const id of ['store-content', 'themes-summary', 'theme-file', 'edit-main-menu', 'store-skill-list', 'upload-store-zip', 'store-sources', 'store-list', 'store-switch', 'store-tab-themes', 'store-tab-skills', 'store-themes', 'store-skills', 'store-options', 'store-options-menu', 'store-options-button', 'manage-storefronts', 'store-management', 'close-store-management', 'theme-details', 'theme-details-title', 'theme-details-meta', 'theme-details-readme', 'theme-details-about', 'store-tab-voices', 'store-voices', 'store-voice-list', 'voices-summary', 'voice-offer', 'voice-offer-text', 'voice-offer-yes', 'voice-offer-no']) {
+for (const id of ['store-sort-field', 'store-sort-order', 'store-content', 'themes-summary', 'theme-file', 'edit-main-menu', 'store-skill-list', 'upload-store-zip', 'store-sources', 'store-list', 'store-switch', 'store-tab-themes', 'store-tab-skills', 'store-themes', 'store-skills', 'store-options', 'store-options-menu', 'store-options-button', 'manage-storefronts', 'store-management', 'close-store-management', 'theme-details', 'theme-details-title', 'theme-details-meta', 'theme-details-readme', 'theme-details-about', 'store-tab-voices', 'store-voices', 'store-voice-list', 'voices-summary', 'voice-offer', 'voice-offer-text', 'voice-offer-yes', 'voice-offer-no']) {
     ids[id] = body.appendChild(new Node('div'));
 }
+ids['store-sort-field'].value = 'votes';
 const close = ids['theme-details'].appendChild(new Node('button'));
 ids['store-options-menu'].hidden = true; ids['store-management'].hidden = true;
 ids['store-options'].appendChild(ids['store-options-button']); ids['store-options'].appendChild(ids['store-options-menu']);
@@ -252,6 +253,26 @@ async function run() {
     const css = fs.readFileSync(path.join(__dirname, '../@be/be/beacon/public/app.css'), 'utf8');
     assert(css.includes('transform: translateX(100%)') && css.includes('prefers-reduced-motion'));
     assert(css.includes('main.is-store { max-width: none') && app.includes("classList.toggle('is-store', name === 'store')"));
+    // 5x1 Store listings: a star button (BEaker counts it), and "Sort by <field> going <order>".
+    catalog.sources = [{ id: 'official', url: 'https://store.5x1.com/manifest.json', refreshedAt: '2026-10-10T12:00:00Z' }];
+    catalog.entries = [{ id: 'few', sourceId: 'official', name: 'Few', url: 'https://github.com/a/few', stars: 2, starred: true, manifest: { name: 'Few', version: '1.0.0' }, compatibility: { status: 'compatible' } },
+        { id: 'many', sourceId: 'official', name: 'Many', url: 'https://github.com/a/many', stars: 9, manifest: { name: 'Many', version: '1.0.0' }, compatibility: { status: 'compatible' } }];
+    inventory = { active: null, live: { live: true }, themes: [] };
+    await ui.loadStore(false);
+    const names = () => ids['store-list'].children.map(c => (all(c).find(n => n.className === 'store-card-name') || {}).textContent).filter(Boolean);
+    assert.deepStrictEqual(ids['store-sort-order'].children.map(o => o.textContent), ['highest to lowest', 'lowest to highest']);
+    ids['store-sort-order'].value = 'desc';
+    await ui.loadStore(false); assert.deepStrictEqual(names().slice(0, 4), ['None', '3D Eye', 'Many', 'Few'], 'votes, highest first; stock choices stay first');
+    ids['store-sort-order'].value = 'asc'; ids['store-sort-order'].onchange(); assert.deepStrictEqual(names().slice(2, 4), ['Few', 'Many']);
+    ids['store-sort-field'].value = 'name'; ids['store-sort-field'].onchange();
+    assert.deepStrictEqual(ids['store-sort-order'].children.map(o => o.textContent), ['A to Z', 'Z to A'], 'name has its own orders');
+    ids['store-sort-order'].value = 'desc'; ids['store-sort-order'].onchange(); assert.deepStrictEqual(names().slice(2, 4), ['Many', 'Few']);
+    const stars = all(ids['store-list']).filter(n => n.className === 'store-star');
+    assert.strictEqual(stars.length, 2); assert.strictEqual(stars[0].textContent, '☆ 9'); assert.strictEqual(stars[1].textContent, '★ 2');
+    assert.strictEqual(stars[1].attrs['aria-pressed'], 'true'); assert.strictEqual(stars[0].attrs['aria-label'], 'Star Many (9 stars)');
+    calls.length = 0; await stars[0].onclick();
+    assert.deepStrictEqual(calls.filter(c => c.url === '/api/store/star').map(c => c.data), [{ id: 'many', starred: true }]);
+    ids['store-sort-field'].value = 'votes';
     console.log('Theme/store UI flows, separate upload/apply, source input, README sanitization and modal dismissal passed');
 }
 run().catch(e => { console.error(e); process.exitCode = 1; });

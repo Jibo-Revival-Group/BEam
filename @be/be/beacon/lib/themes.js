@@ -40,6 +40,11 @@ function tbdVersion() {
     return null;
 }
 const LOCAL_SOURCE = 'local:added';
+// "owner/repo" (lowercase) of a GitHub listing, the key BEaker counts stars under.
+function repoName(value) {
+    const m = /^https?:\/\/github\.com\/([^/]+)\/([^/?#]+?)(?:\.git)?\/?$/i.exec(value || '');
+    return m ? (m[1] + '/' + m[2]).toLowerCase() : null;
+}
 function removeTree(dir) {
     if (!fs.existsSync(dir)) { return; }
     fs.readdirSync(dir).forEach(n => { const f = path.join(dir, n); if (fs.lstatSync(f).isDirectory()) { removeTree(f); } else { fs.unlinkSync(f); } });
@@ -48,6 +53,8 @@ function removeTree(dir) {
 function create(options) {
     const opts = options || {}; const root = opts.root || path.join(paths.dataDir(), 'themes');
     const store = opts.store || stores.create(); const renderer = opts.runtime || runtime; const builtinEye = opts.eye3d || eye3d;
+    // Stars go to BEaker signed as this robot (one star per robot), like BEacon's calendar settings.
+    const vote = opts.vote || ((repo, starred) => require('./calendars').callCloud('StoreVote', { repo: repo, starred: starred }));
     const version = opts.version || tbdVersion; let queue = Promise.resolve(); let downloading = false;
     let downloadProgress = { state: 'idle' };
     function progress(id) { return Object.assign({}, !id || downloadProgress.id === id ? downloadProgress : { id: id, state: 'idle' }); }
@@ -92,7 +99,7 @@ function create(options) {
         s.sources.forEach(source => (source.entries || []).forEach(e => {
             if (e.stock) { return; }
             const id = stores.hash(source.id + ':' + e.url);
-            entries.push(Object.assign({}, e, { id: id, sourceId: source.id,
+            entries.push(Object.assign({}, e, { id: id, sourceId: source.id, starred: (s.starred || []).indexOf(repoName(e.url)) >= 0,
                 compatibility: e.manifest ? compat(e.manifest) : null }));
         }));
         return { sources: s.sources, entries: entries, jiboTbdVersion: version(), catalogVersion: s.catalogVersion || 1 };
@@ -158,6 +165,18 @@ function create(options) {
             }
             if (!source.entries.some(e => e.url === u)) { source.entries.push(Object.assign({ type: d.manifest.type, url: u }, d, { name: d.manifest.name })); }
             save(s); return catalog();
+        }));
+    }
+    // Star (or unstar) a 5x1 Store listing from BEacon, no GitHub account needed.
+    function star(id, starred) {
+        const entry = catalog().entries.filter(v => v.id === id)[0]; const repo = entry && repoName(entry.url);
+        if (!repo) { return Promise.reject(packages.fail('Only GitHub listings can be starred')); }
+        return Promise.resolve().then(() => vote(repo, starred === true)).catch(err => {
+            throw packages.fail(err.status === 404 ? 'Only listings in the 5x1 Store can be starred' : 'Couldn’t save your star. Try again later.');
+        }).then(result => mutate(() => {
+            const s = read(); s.starred = (s.starred || []).filter(r => r !== repo).concat(starred === true ? [repo] : []);
+            s.sources.forEach(source => (source.entries || []).forEach(e => { if (repoName(e.url) === repo && typeof result.stars === 'number') { e.stars = result.stars; } }));
+            save(s); if (store.forget) { store.forget(); } return catalog();
         }));
     }
     function removeSource(id) { return mutate(() => { const s = read(); s.sources = s.sources.filter(v => v.id !== id); save(s); return catalog(); }); }
@@ -387,7 +406,7 @@ function create(options) {
             });
         }));
     }
-    return { inventory: inventory, catalog: catalog, addSource: addSource, removeSource: removeSource, addLocalEntry: addLocalEntry,
+    return { inventory: inventory, catalog: catalog, addSource: addSource, removeSource: removeSource, addLocalEntry: addLocalEntry, star: star,
         refresh: refreshSources, details: details, banner: banner, upload: upload, install: install,
         activate: activate, remove: remove, asset: asset, start: start, compatibility: compat, progress: progress };
 }

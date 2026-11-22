@@ -20,8 +20,8 @@ const ids = {}, body = new Node('body');
 ['store-content', 'themes-summary', 'theme-file', 'edit-main-menu', 'store-skill-list', 'upload-store-zip', 'store-sources', 'store-list',
     'store-switch', 'store-tab-themes', 'store-tab-skills', 'store-themes', 'store-skills', 'store-options', 'store-options-menu', 'store-options-button', 'manage-storefronts',
     'store-management', 'close-store-management', 'theme-details', 'theme-details-title', 'theme-details-meta', 'theme-details-readme',
-    'store-tab-voices', 'store-voices', 'store-voice-list', 'voices-summary', 'voice-offer', 'voice-offer-text', 'voice-offer-yes', 'voice-offer-no'].forEach(id => { ids[id] = body.appendChild(new Node('div')); });
-ids['voice-offer'].hidden = true;
+    'store-tab-voices', 'store-voices', 'store-voice-list', 'voices-summary', 'voice-offer', 'voice-offer-text', 'voice-offer-yes', 'voice-offer-no', 'store-sort-field', 'store-sort-order'].forEach(id => { ids[id] = body.appendChild(new Node('div')); });
+ids['voice-offer'].hidden = true; ids['store-sort-field'].value = 'votes';
 const document = { body, activeElement: null, createElement: tag => new Node(tag), addEventListener() {}, querySelectorAll: () => [], querySelector: s => ids[s.slice(1)] };
 const store = {}; global.localStorage = { getItem: k => store[k] || null, setItem: (k, v) => { store[k] = String(v); } };
 const window = { clearInterval() {}, setInterval() { return 1; } };

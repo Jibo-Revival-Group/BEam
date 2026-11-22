@@ -187,6 +187,9 @@ const routes = {
     'POST /api/store/refresh': guard((req, res) => {
         return u.readJson(req, 4096).then(body => themes.refresh(body.id, body.automatic)).then(data => u.sendJson(res, 200, data));
     }),
+    'POST /api/store/star': guard((req, res) => {
+        return u.readJson(req, 4096).then(body => themes.star(body.id, body.starred)).then(data => u.sendJson(res, 200, data));
+    }),
     'GET /api/store/sources': guard((req, res) => { u.sendJson(res, 200, themes.catalog().sources); }),
     'POST /api/store/sources': guard((req, res) => {
         return u.readJson(req, 4096).then(body => themes.addSource(body.url)).then(data => u.sendJson(res, 200, data));
