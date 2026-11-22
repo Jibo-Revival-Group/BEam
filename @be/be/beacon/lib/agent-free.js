@@ -33,7 +33,7 @@ function models() {
         } catch (_) { failed(); }
     });
 }
-function prepare(history, robotId, system) {
+function prepare(history, robotId, system, image) {
     if (!Array.isArray(history) || !history.length || history.length > 21 || history.length % 2 !== 1) throw fail('Free conversation history is invalid. Start a new conversation.');
     const messages = history.map((message, index) => {
         if (!message || message.role !== (index % 2 ? 'assistant' : 'user') || typeof message.content !== 'string' || !message.content.trim() || message.content.length > 12000) throw fail('Free conversation history is invalid. Start a new conversation.');
@@ -42,14 +42,15 @@ function prepare(history, robotId, system) {
     const request = { requestId: crypto.randomBytes(16).toString('hex'), messages: messages, robotId: robotId };
     // Jibo's instructions, including the "DO:" actions and installed skills, as paid models get them.
     if (typeof system === 'string' && system.trim()) request.system = system.slice(0, 8000);
+    if (image) request.image = image; // base64 JPEG for the last user message (BEefy allows a bigger request with one)
     const requestId = request.requestId, body = JSON.stringify(request);
-    if (Buffer.byteLength(body, 'utf8') > 30000) throw fail('Free conversation history is too long. Start a new conversation.');
+    if (Buffer.byteLength(body, 'utf8') > 30000 + (image ? image.length : 0)) throw fail('Free conversation history is too long. Start a new conversation.');
     const options = url.parse(ENDPOINT);
     const headers = { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body, 'utf8'), Accept: 'application/json' };
     options.method = 'POST'; options.headers = headers; secure(options);
     return { options: options, body: body, requestId: requestId };
 }
-function chat(history, system) {
+function chat(history, system, image) {
     let request, timer, settled = false, rejectPending;
     const promise = new Promise((resolve, reject) => {
         rejectPending = reject;
@@ -67,7 +68,7 @@ function chat(history, system) {
             const validId = id => typeof id === 'string' && !!id.trim() && id.length <= 128 && !/[\x00-\x1f\x7f-\x9f]/.test(id);
             const robotId = validId(snapshot && snapshot.robot) ? snapshot.robot : os.hostname();
             if (!validId(robotId)) throw fail('Free AI could not identify this robot.');
-            const prepared = prepare(history, robotId, system);
+            const prepared = prepare(history, robotId, system, image);
             request = https.request(prepared.options, response => {
                 let bytes = 0, chunks = [];
                 response.on('data', chunk => {

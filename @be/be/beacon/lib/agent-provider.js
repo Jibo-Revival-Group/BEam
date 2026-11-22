@@ -97,13 +97,29 @@ function models(input) {
     }
     return page(null, [], 1).then(list => ({ models: list.sort((a, b) => a.id.localeCompare(b.id)) }));
 }
-function chat(config, history) {
+// The AI asks for a photo by replying LOOK (any provider can do that, unlike native tool calls); Agent Mode then
+// sends the same history again with one photo on the last user message. Old photos are never resent.
+const LOOK = ' You have a camera. If you need to see something to answer (what the user is holding or doing, how many' +
+    ' fingers, what is around you), reply with only the word LOOK and nothing else; you will then get a photo from your' +
+    ' camera and answer from it. Only look when seeing is needed.';
+// image: base64 JPEG for the last user message, in each API's own format.
+function withImage(provider, history, image) {
+    if (!image) return history;
+    const last = history[history.length - 1], text = last.content, url = 'data:image/jpeg;base64,' + image;
+    const content = provider === 'openai' ? [{ type: 'input_text', text: text }, { type: 'input_image', image_url: url }]
+        : provider === 'claude' ? [{ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: image } }, { type: 'text', text: text }]
+        : [{ type: 'text', text: text }, { type: 'image_url', image_url: { url: url } }];
+    return history.slice(0, -1).concat(provider === 'ollama' ? { role: last.role, content: text, images: [image] } : { role: last.role, content: content });
+}
+function chat(config, history, image) {
     if (config.provider === 'hermes' && !config._hermesSession) Object.defineProperty(config, '_hermesSession', { value: 'jibo-' + crypto.randomBytes(16).toString('hex') });
     // Hermes fingerprints header-less chat transcripts using the system and first user
     // message. A stable per-conversation nonce prevents identical greetings colliding.
-    const system = SYSTEM.replace(' You can converse but cannot perform robot or device actions. Do not claim to have performed actions.', '') + ESML + actions();
-    if (config.provider === 'free') return require('./agent-free').chat(history, system);
-    const prompt = config.provider === 'hermes' ? HERMES_SYSTEM + ESML + actions() + '\nConversation scope: ' + config._hermesSession : system;
+    const system = SYSTEM.replace(' You can converse but cannot perform robot or device actions. Do not claim to have performed actions.', '') + LOOK + ESML + actions();
+    if (config.provider === 'free') return require('./agent-free').chat(history, system, image);
+    const plain = history;
+    history = withImage(config.provider, history, image);
+    const prompt = config.provider === 'hermes' ? HERMES_SYSTEM + LOOK + ESML + actions() + '\nConversation scope: ' + config._hermesSession : system;
     const messages = [{ role: 'system', content: prompt }].concat(history);
     let route = '/chat/completions', body = { model: config.model, messages: messages, stream: false }, extract = data => data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
     if (config.provider === 'openai') {
@@ -114,7 +130,8 @@ function chat(config, history) {
         extract = data => (data.content || []).filter(part => part.type === 'text').map(part => part.text).join('\n');
     } else if (config.provider === 'gemini') {
         route = '/models/' + encodeURIComponent(config.model.replace(/^models\//, '')) + ':generateContent';
-        body = { systemInstruction: { parts: [{ text: system }] }, contents: history.map(message => ({ role: message.role === 'assistant' ? 'model' : 'user', parts: [{ text: message.content }] })) };
+        body = { systemInstruction: { parts: [{ text: system }] }, contents: plain.map((message, i) => ({ role: message.role === 'assistant' ? 'model' : 'user',
+            parts: (image && i === plain.length - 1 ? [{ inline_data: { mime_type: 'image/jpeg', data: image } }] : []).concat({ text: message.content }) })) };
         extract = data => (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts || []).filter(part => !part.thought && typeof part.text === 'string').map(part => part.text).join('\n');
     } else if (config.provider === 'ollama') route = '/api/chat';
     if (config.provider === 'ollama') extract = data => data.message && data.message.content;

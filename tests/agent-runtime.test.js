@@ -28,8 +28,8 @@ function fixture(providerName) {
     };
     jibo.embodied.speech = jibo.tts; // Agent Mode speaks through embodied speech (it plays ESML)
     const settings = { resolve: () => ({ provider: providerName || 'custom', model: 'test' }), ready: () => true }, acts = [];
-    const provider = { chat: (config, history) => {
-        const pending = deferred(), operation = { promise: pending.promise, cancel: () => { operation.cancelled = true; pending.reject(new Error('cancelled')); }, pending, history: JSON.parse(JSON.stringify(history)) };
+    const provider = { chat: (config, history, image) => {
+        const pending = deferred(), operation = { promise: pending.promise, cancel: () => { operation.cancelled = true; pending.reject(new Error('cancelled')); }, pending, history: JSON.parse(JSON.stringify(history)), image };
         requests.push(operation); return operation;
     } };
     let exits = 0;

@@ -18,6 +18,12 @@ sounds (`<ssa cat='laughing'/>`), speaking styles (`<style set='enthusiastic'>â€
 is spoken as words. A `DO:` dance ("DO: do the robot") also plays right in Agent Mode, without the cloud's
 "Watch this", and Jibo keeps listening afterwards.
 
+Jibo can look. When seeing is needed ("How many fingers am I holding up?"), the AI replies only `LOOK`;
+Jibo plays his camera-shutter sound, takes one 640x360 photo and sends the same question again with it,
+then speaks the answer. The photo goes only with that one request (later turns never resend it), none is
+taken in privacy mode, and other questions cost nothing extra. A model without image support returns an
+error for that question.
+
 The ring glows green while waiting or speaking. While listening, the ring and
 eye turn blue. While a provider generates an answer, Jibo plays his native
 `Thinking_Eye_Loop_01` animation. It stops before speech and when the session

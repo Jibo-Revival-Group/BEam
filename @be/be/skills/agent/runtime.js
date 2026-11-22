@@ -1,5 +1,6 @@
 'use strict';
 const ThinkingEye = require('./thinking-eye'), esml = require('./esml');
+const LOOK = /^\s*LOOK\W*$/i;
 
 const STOP = new Set(['stop', 'stop chatting', 'exit ai mode', 'end conversation', 'cancel', 'goodbye', 'good bye', 'bye', 'bye bye']);
 function isStop(text) {
@@ -121,9 +122,15 @@ class Runtime {
                 this.phase = 'thinking'; this.history.push({ role: 'user', content: text.trim().slice(0, 12000) });
                 this.thinkingEye.start();
                 while (this.history.length > 21 || (this.history.length > 1 && JSON.stringify(this.history).length > 24000)) this.history.splice(0, 2);
-                const operation = this.operation = this.provider.chat(this.config, this.history);
-                return operation.promise.then(reply => {
-                    if (!this.active || this.operation !== operation) return;
+                const ask = image => {
+                    const operation = this.operation = this.provider.chat(this.config, this.history, image);
+                    return operation.promise.then(reply => this.active && this.operation === operation ? reply : null);
+                };
+                // "LOOK": the AI wants to see. One photo, sent only with this request (later turns don't resend it).
+                return ask().then(reply => !reply || !LOOK.test(reply) ? reply : this.look().then(image =>
+                    image ? ask(image).then(again => again && LOOK.test(again) ? "Sorry, I couldn't make that out." : again)
+                        : "Sorry, I couldn't take a picture.")).then(reply => {
+                    if (!reply || !this.active) return;
                     this.operation = null; this.history.push({ role: 'assistant', content: reply });
                     const match = /^\s*DO:\s*(.+?)\s*$/im.exec(reply), spoken = reply.replace(/^\s*DO:.*$/gim, '').trim();
                     const command = match && this.act ? match[1] : null, dance = esml.danceFor(command);
@@ -138,6 +145,25 @@ class Runtime {
                 });
             });
         }).catch(error => this.fail(error));
+    }
+    // The shutter sound and a 640-px photo (about 300 tokens) as base64 JPEG; null if there is none (or privacy is on).
+    look() {
+        const jibo = this.jibo;
+        if (this.private()) return Promise.resolve(null);
+        const shutter = Promise.resolve(jibo.embodied.speech.speak("<anim name='ds_shutter_release_01' />")).catch(() => {});
+        const photo = new Promise(resolve => jibo.media.takePhoto((error, taken) => {
+            if (error || !taken || !this.active || this.private()) return resolve(null);
+            const image = new Image();
+            image.onload = () => {
+                const canvas = document.createElement('canvas');
+                canvas.width = 640; canvas.height = Math.round(image.height * 640 / image.width);
+                canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
+                resolve(canvas.toDataURL('image/jpeg', 0.7).split(',')[1]);
+            };
+            image.onerror = () => resolve(null);
+            image.src = taken.url;
+        }));
+        return Promise.all([photo, shutter]).then(results => results[0]);
     }
     fail(error) {
         if (!this.active) return;

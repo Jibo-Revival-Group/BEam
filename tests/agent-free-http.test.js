@@ -34,7 +34,10 @@ async function run() {
         // 3.2.0: Jibo's instructions (with the DO: actions) go along; any model BEefy names is accepted, junk is not.
         assert.strictEqual(await client.chat(history,'You are Jibo.\nDO: ...').promise,'A free answer.');
         assert.strictEqual(seen[seen.length-1].body.system,'You are Jibo.\nDO: ...');
-        badModel=true;await assert.rejects(client.chat(history).promise,/invalid/i,'a junk model name is refused');badModel=false;
+        const photo='A'.repeat(60000);assert.strictEqual(await client.chat(history,'s',photo).promise,'A free answer.');
+        assert.strictEqual(seen[seen.length-1].body.image,photo,'a photo goes along, past the usual 30 KB cap');
+        assert.strictEqual(seen[seen.length-1].body.messages[0].content,history[0].content);
+                badModel=true;await assert.rejects(client.chat(history).promise,/invalid/i,'a junk model name is refused');badModel=false;
         assert.deepStrictEqual(await client.models(),{models:[{id:'claude-sonnet-5-5',name:'claude-sonnet-5-5 (Free)'}]},'the Free model list comes from BEefy');
         assert.strictEqual(seen[seen.length-1].req.url,'/api/agent/free/models');
         reply={models:[]};await assert.rejects(client.models(),/Could not load the Free model/);reply=null;

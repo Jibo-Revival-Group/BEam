@@ -46,6 +46,14 @@ function providerTest() {
             assert(JSON.stringify(sent.body).includes('1–2 sentences'));
             assert.strictEqual(sent.options.headers[name === 'claude' ? 'x-api-key' : name === 'gemini' ? 'x-goog-api-key' : 'Authorization'], name === 'claude' || name === 'gemini' ? 'private-key' : 'Bearer private-key');
             if (name === 'openai') assert.strictEqual(sent.body.store, false);
+            assert(JSON.stringify(sent.body).includes('reply with only the word LOOK'), 'the AI is told it can look');
+            // A photo goes on the last user message in each API's own format.
+            return provider.chat({ provider: name, model: 'example', endpoint: 'http://test/v1', apiKey: 'private-key' }, [{ role: 'user', content: 'Hi' }], 'UEhPVE8=').promise.then(() => {
+                const body = JSON.stringify(requests[requests.length - 1].body);
+                const shape = { openai: '{"type":"input_image","image_url":"data:image/jpeg;base64,UEhPVE8="}', claude: '{"type":"image","source":{"type":"base64","media_type":"image/jpeg","data":"UEhPVE8="}}',
+                    gemini: '{"inline_data":{"mime_type":"image/jpeg","data":"UEhPVE8="}}', ollama: '"images":["UEhPVE8="]' }[name] || '{"type":"image_url","image_url":{"url":"data:image/jpeg;base64,UEhPVE8="}}';
+                assert(body.includes(shape), name + ' image: ' + body.slice(-300)); assert(body.includes('Hi'));
+            });
         });
     }), Promise.resolve()).then(() => {
         next = { models: [{ name: 'models/chat', supportedGenerationMethods: ['generateContent'] }, { name: 'models/embed', supportedGenerationMethods: ['embedContent'] }] };
