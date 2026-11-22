@@ -12,16 +12,18 @@ preferably one or two sentences. When you ask Jibo to do something, the AI can e
 reply with a `DO:` line; Jibo then closes the chat and runs that command or opens that skill.
 
 Replies can also animate Jibo with a little ESML: emojis on his screen (`<anim cat='emoji' filter='pizza'/>`),
-dances in a chosen style (`<anim cat='dance' filter='carlton'/>`), body animations (`<anim cat='happy'/>`),
+the dances "Hey Jibo, dance" plays (`<anim cat='dance' filter='silly'/>`: upbeat, ballroom, silly, slowdance,
+electronic or twerk; any other style picks one at random), body animations (`<anim cat='happy'/>`),
 sounds (`<ssa cat='laughing'/>`), speaking styles (`<style set='enthusiastic'>…</style>`) and pauses
 (`<break size='0.5'/>`). Only tags and names Jibo has are played (rebuilt from checked parts); anything else
-is spoken as words. A `DO:` dance ("DO: do the robot") also plays right in Agent Mode, without the cloud's
+is spoken as words. A `DO:` dance ("DO: do a silly dance") also plays right in Agent Mode, without the cloud's
 "Watch this", and Jibo keeps listening afterwards.
 
 Jibo can look. When seeing is needed ("How many fingers am I holding up?"), the AI replies only `LOOK`;
 Jibo plays his camera-shutter sound, takes one 640x360 photo and sends the same question again with it,
 then speaks the answer. The photo goes only with that one request (later turns never resend it), none is
-taken in privacy mode, and other questions cost nothing extra. A model without image support returns an
+taken in privacy mode, and other questions cost nothing extra. That question is marked in the history
+("[You looked: ...]") so the AI remembers later that it really saw. A model without image support returns an
 error for that question.
 
 The ring glows green while waiting or speaking. While listening, the ring and

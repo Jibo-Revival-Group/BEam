@@ -8,8 +8,10 @@ const one = text => esml.chunks(text, db).join(' | ');
 assert.strictEqual(one("Nice! <anim cat='emoji' filter='trophy' /> You win."),
     "Nice! <anim cat='emoji' filter='trophy, !hf' layers='!audio' /> You win.", 'the emoji plays in full');
 assert.strictEqual(one('<anim cat="emoji" filter="unicorn"/>Hi'), 'Hi', 'an emoji Jibo does not have is dropped');
-assert.strictEqual(one("<anim cat='dance' filter='carlton'/>"), "<anim cat='dance' filter='carlton' />", 'the dance asked for');
-assert.strictEqual(one("<anim cat='dance' filter='moonwalk'/>"), "<anim cat='dance' filter='music' />", 'an unknown dance style is still a dance');
+assert.strictEqual(one("<anim cat='dance' filter='ballroom'/>"), "<anim cat='dance' filter='music, rom-ballroom' />", 'the dance asked for');
+assert.strictEqual(one("<anim cat='dance' filter='music, rom-twerk'/>"), "<anim cat='dance' filter='music, rom-twerk' />");
+const random = new Set(); for (let i = 0; i < 200; i++) random.add(one("<anim cat='dance' filter='carlton'/>"));
+assert.deepStrictEqual([...random].sort(), esml.DANCES.map(d => "<anim cat='dance' filter='music, rom-" + d + "' />").sort(), 'other styles: one of the Hey Jibo, dance ones');
 assert.strictEqual(one("<anim cat='happy'/> Yay"), "<anim cat='happy' nonBlocking='true' /> Yay");
 assert.strictEqual(one("<anim cat='system-states' filter='shutdown'/> Bye"), 'Bye', 'only expressive animations');
 assert.strictEqual(one("<anim cat='emoji' filter='trophy' onload='x' layers='body'/>"), "<anim cat='emoji' filter='trophy, !hf' layers='!audio' />", 'attributes rebuilt, not copied');
@@ -25,11 +27,17 @@ assert(long.every(chunk => chunk.split('<style').length === chunk.split('</style
 assert(long[long.length - 1].indexOf("<style set='sheepish'>") === 0);
 assert.strictEqual(one("<style set='sheepish'>a <style set='confident'>b</style> c"), "<style set='sheepish'> a b </style> c", 'styles do not nest');
 
-assert.strictEqual(esml.danceFor('do a dance', db), "<anim cat='dance' filter='music' />");
-assert.strictEqual(esml.danceFor('do the carlton', db), "<anim cat='dance' filter='carlton' />");
-assert.strictEqual(esml.danceFor('dance the twist', db), "<anim cat='dance' filter='the-twist' />");
+assert(/filter='music, rom-(upbeat|ballroom|silly|slowdance|electronic|twerk)'/.test(esml.danceFor('do a dance')));
+assert.strictEqual(esml.danceFor('do an electronic dance'), "<anim cat='dance' filter='music, rom-electronic' />");
+assert.strictEqual(esml.danceFor('slow dance with me'), "<anim cat='dance' filter='music, rom-slowdance' />");
 assert.strictEqual(esml.danceFor("what's the weather", db), null);
 assert.strictEqual(esml.danceFor(null, db), null);
 // The real animation database has what the prompt offers.
-assert(esml.chunks("<anim cat='emoji' filter='trophy'/><anim cat='dance' filter='carlton'/>")[0].split('<anim').length === 3);
+assert(esml.chunks("<anim cat='emoji' filter='trophy'/><anim cat='dance' filter='silly'/>")[0].split('<anim').length === 3);
+const real = {}, all = require('../@be/be/node_modules/jibo-anim-db-animations/animdb.json');
+Object.keys(all).forEach(k => all[k].categories.forEach(c => { real[c] = real[c] || new Set(); (all[k].metaTerms || []).forEach(t => real[c].add(t)); }));
+esml.EMOJI_EXAMPLES.forEach(w => assert(real.emoji.has(w), 'emoji ' + w));
+esml.DANCES.forEach(w => assert(real.dance.has('rom-' + w), 'dance ' + w));
+esml.CATEGORIES.forEach(c => assert(real[c], 'animation ' + c));
+assert(/ballroom/.test(esml.PROMPT) && !/carlton/.test(esml.PROMPT) && esml.PROMPT.length < 2000);
 console.log('agent esml ok');

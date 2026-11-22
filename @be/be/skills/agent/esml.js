@@ -6,8 +6,13 @@ const CATEGORIES = ['emoji', 'dance', 'happy', 'laughing', 'excited', 'proud', '
     'question', 'confused', 'dontknow', 'yes', 'no', 'sad', 'worried', 'scared', 'oops', 'embarrassed', 'frustrated', 'disgusted', 'sleep'];
 const SOUNDS = ['happy', 'affection', 'worried', 'oops', 'proud', 'sad', 'confused', 'laughing', 'question', 'embarrassed', 'scared', 'disgusted'];
 const STYLES = ['enthusiastic', 'sheepish', 'confused', 'confident'];
-// A dance whose style Jibo doesn't have becomes one of his music dances.
-const ANY_DANCE = 'music';
+// The dances "Hey Jibo, dance" plays (BEefy's music + rom-* styles); any other or no style picks one at random.
+const DANCES = ['upbeat', 'ballroom', 'silly', 'slowdance', 'electronic', 'twerk'];
+function dance(style) {
+    style = String(style || '').toLowerCase().replace(/^.*rom-/, ''); // 'silly', 'rom-silly' or 'music, rom-silly'
+    if (DANCES.indexOf(style) === -1) style = DANCES[Math.floor(Math.random() * DANCES.length)];
+    return "<anim cat='dance' filter='music, rom-" + style + "' />";
+}
 
 let terms = null;
 // category -> Set of the filter words Jibo's animations answer to (from his animation database).
@@ -35,20 +40,21 @@ function tag(raw, open, db) {
     if (!m) return null;
     const closing = !!m[1], name = m[2].toLowerCase(), a = attributes(m[3]);
     if (name === 'anim' && !closing) {
+        if (a.cat === 'dance') return dance(a.filter); // dances play in full before he goes on
         const known = CATEGORIES.indexOf(a.cat) !== -1 && db[a.cat];
         if (!known) return '';
         let filter = (a.filter || '').split(',').map(word => word.trim()).filter(Boolean);
         if (filter.some(word => !known.has(word))) {
             if (a.cat === 'emoji') return '';
-            filter = a.cat === 'dance' ? [ANY_DANCE] : [];
+            filter = [];
         }
         if (a.cat === 'emoji' && !filter.length) return '';
         // Not the hot-frame emojis: they only blink unless timed to speech (Jibo's replies use '!hf' too).
         if (a.cat === 'emoji') filter = filter.concat('!hf');
-        // Emojis and dances play in full before he goes on (like Jibo's own replies; a non-blocking emoji got cut
-        // off by whatever came next); body animations play while he talks.
+        // Emojis play in full before he goes on (like Jibo's own replies; a non-blocking emoji got cut off by
+        // whatever came next); body animations play while he talks.
         return "<anim cat='" + a.cat + "'" + (filter.length ? " filter='" + filter.join(', ') + "'" : '') +
-            (a.cat === 'emoji' ? " layers='!audio'" : a.cat === 'dance' ? '' : " nonBlocking='true'") + ' />';
+            (a.cat === 'emoji' ? " layers='!audio'" : " nonBlocking='true'") + ' />';
     }
     if (name === 'ssa' && !closing) return SOUNDS.indexOf(a.cat) !== -1 ? "<ssa cat='" + a.cat + "' />" : '';
     if (name === 'break' && !closing) {
@@ -83,23 +89,18 @@ function chunks(text, db) {
     if (chunk) out.push(chunk);
     return out;
 }
-// "DO: do the carlton" -> a dance right here instead of the cloud's ("Watch this", and Agent Mode would end).
-function danceFor(command, db) {
-    if (!/\bdanc(e|ing)\b|\bdo the\b/i.test(command || '')) return null;
-    const known = animationTerms(db).dance || new Set();
-    const words = String(command).toLowerCase().replace(/[^a-z0-9\s-]/g, ' ').split(/\s+/);
-    const pairs = words.map((word, i) => word + '-' + (words[i + 1] || ''));
-    const style = pairs.concat(words).filter(word => known.has(word) && ['dance', 'do', 'the', 'a'].indexOf(word) === -1)[0];
-    return "<anim cat='dance' filter='" + (style || ANY_DANCE) + "' />";
+// "DO: do a silly dance" -> a dance right here instead of the cloud's ("Watch this", and Agent Mode would end).
+function danceFor(command) {
+    if (!/\bdanc(e|ing)\b/i.test(command || '')) return null;
+    const words = String(command).toLowerCase().replace(/slow dance/g, 'slowdance').split(/[^a-z]+/);
+    return dance(DANCES.filter(style => words.indexOf(style) !== -1)[0]);
 }
 // What the AI is told (every provider's system prompt). Every name here is checked against Jibo's animations in tests.
 const EMOJI_EXAMPLES = ['trophy', 'pizza', 'heart', 'cat', 'dog', 'star', 'fireworks', 'music', 'sun', 'cake', 'gift', 'ghost', 'rainbow', 'idea', 'thumbs-up'];
-const DANCES = ['carlton', 'disco', 'robotic', 'twerk', 'waltz', 'tango', 'samba', 'flamenco', 'charleston', 'the-twist', 'headbanger',
-    'belly-dancing', 'smooth-jazz', 'reggae', 'country', 'techno', 'pigeon', 'seaweed', 'roxbury', 'prom-night', 'cabbage-patch', 'dab'];
 const BODY = CATEGORIES.filter(category => category !== 'emoji' && category !== 'dance' && category !== 'sleep');
 const PROMPT = ' You can also animate yourself with Jibo\'s speech markup inside a reply:' +
     " <anim cat='emoji' filter='WORD'/> shows an emoji on your screen (WORD is one simple word, like " + EMOJI_EXAMPLES.join(', ') + ');' +
-    " <anim cat='dance' filter='STYLE'/> dances (STYLE: " + DANCES.join(', ') + ', or ' + ANY_DANCE + ' for any);' +
+    " <anim cat='dance' filter='STYLE'/> dances (STYLE: " + DANCES.join(', ') + ', or leave it out for any);' +
     " <anim cat='happy'/> plays a body animation (" + BODY.join(', ') + ');' +
     " <ssa cat='laughing'/> makes a sound (" + SOUNDS.join(', ') + ');' +
     " <style set='enthusiastic'>words</style> changes how you say them (" + STYLES.join(', ') + ");" +

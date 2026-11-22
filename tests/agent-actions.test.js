@@ -22,9 +22,9 @@ async function run() {
 
     // A dance plays right in Agent Mode (no cloud "Watch this"), in the style asked for, then he listens again.
     const dancer = fixture('free'); await listening(dancer);
-    await reply(dancer, 'Here I go!\nDO: do the carlton');
+    await reply(dancer, 'Here I go!\nDO: do a silly dance');
     assert.strictEqual(dancer.speech[1].text, 'Here I go!'); dancer.speech[1].pending.resolve(); await flush();
-    assert.strictEqual(dancer.speech[2].text, "<anim cat='dance' filter='carlton' />");
+    assert.strictEqual(dancer.speech[2].text, "<anim cat='dance' filter='music, rom-silly' />", 'a Hey Jibo, dance style');
     assert.deepStrictEqual(dancer.acts, [], 'no command leaves Agent Mode'); assert(dancer.runtime.active);
     dancer.speech[2].pending.resolve(); await flush();
     assert.strictEqual(dancer.turns.length, 2, 'listening again after the dance');
@@ -42,7 +42,9 @@ async function run() {
     assert.deepStrictEqual(looker.requests[1].history, looker.requests[0].history, 'same question, now with the photo');
     looker.requests[1].pending.resolve("You're holding up three fingers."); await flush();
     assert.strictEqual(looker.speech[2].text, "You're holding up three fingers."); looker.speech[2].pending.resolve(); await flush();
-    assert.deepStrictEqual(looker.runtime.history.map(m => m.content), ['Can you help?', "You're holding up three fingers."], 'LOOK is not kept');
+    assert.deepStrictEqual(looker.runtime.history.map(m => m.content), ['Can you help? [You looked: Jibo took a photo for this message and you answered from it.]',
+        "You're holding up three fingers."], 'LOOK is not kept, but that it looked is');
+    assert.strictEqual(looker.requests[1].history[0].content, 'Can you help?', 'the question went out as asked');
     assert.strictEqual(looker.turns.length, 2, 'listening again');
     await looker.runtime.close();
     // Privacy mode: no photo.

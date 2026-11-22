@@ -1,6 +1,6 @@
 'use strict';
 const ThinkingEye = require('./thinking-eye'), esml = require('./esml');
-const LOOK = /^\s*LOOK\W*$/i;
+const LOOK = /^\s*LOOK\W*$/i, LOOKED = ' [You looked: Jibo took a photo for this message and you answered from it.]';
 
 const STOP = new Set(['stop', 'stop chatting', 'exit ai mode', 'end conversation', 'cancel', 'goodbye', 'good bye', 'bye', 'bye bye']);
 function isStop(text) {
@@ -127,9 +127,13 @@ class Runtime {
                     return operation.promise.then(reply => this.active && this.operation === operation ? reply : null);
                 };
                 // "LOOK": the AI wants to see. One photo, sent only with this request (later turns don't resend it).
+                const asked = this.history[this.history.length - 1];
                 return ask().then(reply => !reply || !LOOK.test(reply) ? reply : this.look().then(image =>
-                    image ? ask(image).then(again => again && LOOK.test(again) ? "Sorry, I couldn't make that out." : again)
-                        : "Sorry, I couldn't take a picture.")).then(reply => {
+                    image ? ask(image).then(again => {
+                        if (!again || LOOK.test(again)) return again && "Sorry, I couldn't make that out.";
+                        asked.content += LOOKED; // so later turns know it really saw (the photo itself isn't kept)
+                        return again;
+                    }) : "Sorry, I couldn't take a picture.")).then(reply => {
                     if (!reply || !this.active) return;
                     this.operation = null; this.history.push({ role: 'assistant', content: reply });
                     const match = /^\s*DO:\s*(.+?)\s*$/im.exec(reply), spoken = reply.replace(/^\s*DO:.*$/gim, '').trim();

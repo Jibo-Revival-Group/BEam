@@ -101,7 +101,8 @@ function models(input) {
 // sends the same history again with one photo on the last user message. Old photos are never resent.
 const LOOK = ' You have a camera. If you need to see something to answer (what the user is holding or doing, how many' +
     ' fingers, what is around you), reply with only the word LOOK and nothing else; you will then get a photo from your' +
-    ' camera and answer from it. Only look when seeing is needed.';
+    ' camera and answer from it. Only look when seeing is needed. Photos are not kept in the conversation; a' +
+    ' message marked [You looked: ...] is one you did see, so never say you did not look.';
 // image: base64 JPEG for the last user message, in each API's own format.
 function withImage(provider, history, image) {
     if (!image) return history;
