@@ -53,8 +53,12 @@ function removeTree(dir) {
 function create(options) {
     const opts = options || {}; const root = opts.root || path.join(paths.dataDir(), 'themes');
     const store = opts.store || stores.create(); const renderer = opts.runtime || runtime; const builtinEye = opts.eye3d || eye3d;
-    // Stars go to BEaker signed as this robot (one star per robot), like BEacon's calendar settings.
-    const vote = opts.vote || ((repo, starred) => require('./calendars').callCloud('StoreVote', { repo: repo, starred: starred }));
+    // Stars go to BEaker signed as this robot and named the way BEefy knows it (like BEacon's calendar settings);
+    // BEaker and BEefy check it's a real robot before counting it.
+    const vote = opts.vote || ((repo, starred) => {
+        const calendars = require('./calendars');
+        return require('./people').list().then(snapshot => calendars.callCloud('StoreVote', { repo: repo, starred: starred }, calendars.robotIdFrom(snapshot)));
+    });
     const version = opts.version || tbdVersion; let queue = Promise.resolve(); let downloading = false;
     let downloadProgress = { state: 'idle' };
     function progress(id) { return Object.assign({}, !id || downloadProgress.id === id ? downloadProgress : { id: id, state: 'idle' }); }
@@ -171,9 +175,7 @@ function create(options) {
     function star(id, starred) {
         const entry = catalog().entries.filter(v => v.id === id)[0]; const repo = entry && repoName(entry.url);
         if (!repo) { return Promise.reject(packages.fail('Only GitHub listings can be starred')); }
-        return Promise.resolve().then(() => vote(repo, starred === true)).catch(err => {
-            throw packages.fail(err.status === 404 ? 'Only listings in the 5x1 Store can be starred' : 'Couldn’t save your star. Try again later.');
-        }).then(result => mutate(() => {
+        return Promise.resolve().then(() => vote(repo, starred === true)).catch(() => { throw packages.fail('Unable to star'); }).then(result => mutate(() => {
             const s = read(); s.starred = (s.starred || []).filter(r => r !== repo).concat(starred === true ? [repo] : []);
             s.sources.forEach(source => (source.entries || []).forEach(e => { if (repoName(e.url) === repo && typeof result.stars === 'number') { e.stars = result.stars; } }));
             save(s); if (store.forget) { store.forget(); } return catalog();

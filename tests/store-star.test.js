@@ -24,10 +24,11 @@ async function run() {
     entry = after.entries.filter(e => e.id === astra.id)[0];
     assert.strictEqual(entry.starred, false); assert.strictEqual(entry.stars, 5);
     await assert.rejects(manager.star(other.id, true), /Only GitHub listings/);
-    answer = Object.assign(new Error('x'), { status: 404 });
-    await assert.rejects(manager.star(astra.id, true), /Only listings in the 5x1 Store/);
-    answer = Object.assign(new Error('x'), { status: 502 });
-    await assert.rejects(manager.star(astra.id, true), /Couldn’t save your star/);
+    // BEaker refused (not a real robot, per BEaker's and BEefy's checks), or couldn't be reached: one message.
+    for (const status of [403, 404, 502]) {
+        answer = Object.assign(new Error('x'), { status });
+        await assert.rejects(manager.star(astra.id, true), err => err.message === 'Unable to star');
+    }
     assert.strictEqual(manager.catalog().entries.filter(e => e.id === astra.id)[0].starred, false, 'a failed star changes nothing');
     console.log('store stars ok');
 }
