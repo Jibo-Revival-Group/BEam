@@ -55,6 +55,12 @@ async function run() {
     assert.strictEqual(shy.requests.length, 1); assert.strictEqual(photos.length, 1);
     await shy.runtime.close();
 
+    // BYE: the AI ends the chat; Jibo says the rest and leaves Agent Mode.
+    const leaver = fixture('free'); await listening(leaver);
+    await reply(leaver, 'Bye! Talk soon.\nBYE');
+    assert.strictEqual(leaver.speech[1].text, 'Bye! Talk soon.'); leaver.speech[1].pending.resolve(); await flush();
+    assert(!leaver.runtime.active); assert.strictEqual(leaver.exits(), 1); assert.strictEqual(leaver.turns.length, 1, 'no more listening');
+
     const skills = [{ packageName: '@be/soundmachine', manifest: { name: 'Sound Machine' } }];
     assert.strictEqual(Runtime.storeSkill('open the Sound Machine', skills), '@be/soundmachine');
     assert.strictEqual(Runtime.storeSkill('open sound-machine', skills), '@be/soundmachine');

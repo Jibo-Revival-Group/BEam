@@ -102,7 +102,9 @@ function models(input) {
 const LOOK = ' You have a camera. If you need to see something to answer (what the user is holding or doing, how many' +
     ' fingers, what is around you), reply with only the word LOOK and nothing else; you will then get a photo from your' +
     ' camera and answer from it. Only look when seeing is needed. Photos are not kept in the conversation; a' +
-    ' message marked [You looked: ...] is one you did see, so never say you did not look.';
+    ' message marked [You looked: ...] is one you did see, so never say you did not look.' +
+    ' When the conversation is over (the user says goodbye or is done), end your reply with a final line BYE and' +
+    ' Jibo will stop listening.';
 // image: base64 JPEG for the last user message, in each API's own format.
 function withImage(provider, history, image) {
     if (!image) return history;

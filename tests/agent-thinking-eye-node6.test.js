@@ -10,7 +10,7 @@ const jibo = {
     privacyController: { enabled: false },
     face: { eye: {} },
     expression: { setLEDColor: () => {} },
-    embodied: { listen: { disableOnce: () => {} } },
+    embodied: { listen: {} },
     jetstream: { types: { TurnResultType: {} }, startLocalTurn: () => Promise.resolve({ promise: turn.promise, cancel: () => {} }) },
     animDB: { getAnimByName: name => { assert.strictEqual(name, 'Thinking_Eye_Loop_01'); return { createFromConfig: config => { assert.strictEqual(config.loops, 0); return load.promise; } }; } },
     tts: { speak: text => { calls.push('speak:' + text); return spoken.promise; }, stop: () => { spoken.resolve(); } }

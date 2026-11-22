@@ -1,6 +1,6 @@
 'use strict';
 const ThinkingEye = require('./thinking-eye'), esml = require('./esml');
-const LOOK = /^\s*LOOK\W*$/i, LOOKED = ' [You looked: Jibo took a photo for this message and you answered from it.]';
+const BYE = /^\s*BYE\W*$/im, LOOK = /^\s*LOOK\W*$/i, LOOKED = ' [You looked: Jibo took a photo for this message and you answered from it.]';
 
 const STOP = new Set(['stop', 'stop chatting', 'exit ai mode', 'end conversation', 'cancel', 'goodbye', 'good bye', 'bye', 'bye bye']);
 function isStop(text) {
@@ -64,27 +64,10 @@ class Runtime {
     }
     render() {
         if (!this.active || this.private()) return;
-        const jibo = this.jibo, listening = this.phase === 'listening';
+        const jibo = this.jibo;
         if (this.dot && !this.dot.parent) jibo.face.views.addWatermark(this.dot);
-        jibo.expression.setLEDColor(listening ? [0, 0.45, 1] : [0, 1, 0]);
-        const eye = jibo.face.eye;
-        if (this.eye !== eye) {
-            this.removeFilter(); this.eye = eye;
-            this.filter = new this.PIXI.filters.ColorMatrixFilter();
-        }
-        const filters = (eye.filters || []).filter(filter => filter !== this.filter);
-        if (listening) {
-            this.filter.matrix = [0.64,0,0,0,0, 0,0.85,0,0,0, 0,0,1,0,0, 0,0,0,1,0];
-            filters.push(this.filter);
-        }
-        eye.filters = filters.length ? filters : null;
-    }
-    removeFilter() {
-        if (this.eye && this.filter) {
-            const remaining = (this.eye.filters || []).filter(filter => filter !== this.filter);
-            this.eye.filters = remaining.length ? remaining : null;
-        }
-        this.eye = null; this.filter = null;
+        // While listening, Jibo's own listening eye and light ring show (embodied listen); otherwise green.
+        if (this.phase !== 'listening') jibo.expression.setLEDColor([0, 1, 0]);
     }
     speak(text) {
         this.phase = 'speaking';
@@ -103,7 +86,6 @@ class Runtime {
         const remaining = this.listenDeadline - Date.now();
         if (remaining <= 0) { this.leave(); return; }
         clearTimeout(this.silence); this.silence = setTimeout(() => this.leave(), remaining);
-        jibo.embodied.listen.disableOnce();
         return jibo.jetstream.startLocalTurn({ nluRules: ['agent/conversation'], sosTimeout: remaining / 1000, ignoreGlobalRules: true, ignoreHJ: true }).then(turn => {
             if (!this.active || this.private()) return turn.cancel();
             this.turn = turn;
@@ -136,12 +118,13 @@ class Runtime {
                     }) : "Sorry, I couldn't take a picture.")).then(reply => {
                     if (!reply || !this.active) return;
                     this.operation = null; this.history.push({ role: 'assistant', content: reply });
-                    const match = /^\s*DO:\s*(.+?)\s*$/im.exec(reply), spoken = reply.replace(/^\s*DO:.*$/gim, '').trim();
+                    const match = /^\s*DO:\s*(.+?)\s*$/im.exec(reply), bye = BYE.test(reply);
+                    const spoken = reply.replace(/^\s*DO:.*$/gim, '').replace(BYE, '').trim();
                     const command = match && this.act ? match[1] : null, dance = esml.danceFor(command);
                     return (spoken ? this.speak(spoken) : Promise.resolve()).then(() => {
                         // A dance plays here, not through the cloud's dance (no "Watch this"), then he listens again.
-                        if (dance) return this.speak(dance).then(() => this.listen());
-                        if (!command) return this.listen();
+                        if (dance) return this.speak(dance).then(() => bye ? this.leave() : this.listen());
+                        if (!command) return bye ? this.leave() : this.listen(); // BYE: the AI ended the chat
                         if (!this.active || this.private()) return;
                         const history = this.history.slice();
                         return this.close().then(() => this.act(command, history));
@@ -190,11 +173,16 @@ class Runtime {
         if (this.draw) jibo.timer.off('update', this.draw);
         if (this.gesture) jibo.face.gestures.removeStageGesture(this.gesture);
         if (this.operation) this.operation.cancel(); this.operation = null;
-        if (this.turn) cleanup.push(Promise.resolve(this.turn.cancel())); this.turn = null;
+        if (this.turn) {
+            cleanup.push(Promise.resolve(this.turn.cancel()));
+            // A cancelled turn sends no result, so Jibo's listening eye and ring would linger; end them as a result does.
+            const listen = jibo.embodied._embodied && jibo.embodied._embodied.listen;
+            if (listen) listen.eventsIn.cloudFinished.emit();
+        }
+        this.turn = null;
         if (this.speaking) cleanup.push(Promise.resolve(jibo.embodied.speech.stop())); this.speaking = false;
         if (this.attention) cleanup.push(Promise.resolve(this.attention.release())); this.attention = null;
         if (this.hotword) cleanup.push(Promise.resolve(this.hotword.release())); this.hotword = null;
-        this.removeFilter();
         if (this.dot) {
             // Privacy may already own the watermark slot; never remove its red dot.
             if (jibo.face.views._waterMark === this.dot) jibo.face.views.removeWatermark();

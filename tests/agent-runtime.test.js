@@ -20,7 +20,7 @@ function fixture(providerName) {
             views: { addWatermark(dot) { this._waterMark = dot; dot.parent = parent; }, removeWatermark() { this._waterMark.parent = null; this._waterMark = null; } } },
         expression: { AttentionMode: { OFF: 'OFF' }, pushAttentionMode: () => Promise.resolve({ release: () => { releases.push('attention'); return Promise.resolve(); } }), setLEDColor: color => colors.push(color) },
         tts: { speak: text => { const pending = deferred(); speech.push({ text, pending }); return pending.promise; }, stop: () => { speech.forEach(item => item.pending.resolve()); releases.push('speech'); return Promise.resolve(); } },
-        embodied: { listen: { disableOnce() {} } },
+        embodied: { listen: { disableOnce() { assert.fail('Jibo\'s own listening eye and light ring must show'); } }, _embodied: { listen: { eventsIn: { cloudFinished: { emit: () => releases.push('listening') } } } } },
         jetstream: { types: { TurnResultType: types, HotwordListenMode: { Disabled: 0 } }, events: { sos: event(), eos: event(), skillSwitch: event(), globalTurnStarted: event() },
             setHotwordMode: () => ({ activated: Promise.resolve(), release: () => { releases.push('hotword'); return Promise.resolve(); } }),
             startLocalTurn: options => { const pending = deferred(); const turn = { promise: pending.promise, options, pending, cancel: () => { turn.cancelled = true; pending.resolve({ status: types.CANCELED }); return Promise.resolve(); } }; turns.push(turn); return Promise.resolve(turn); }
@@ -43,8 +43,9 @@ async function run() {
     const { runtime, jibo, turns, speech, requests, types } = env;
     assert.strictEqual(turns[0].options.nluRules[0], 'agent/conversation');
     assert(turns[0].options.ignoreGlobalRules); assert.strictEqual(runtime.phase, 'listening');
-    assert.deepStrictEqual(env.colors[env.colors.length - 1], [0, 0.45, 1]);
-    assert(runtime.dot.parent); assert.strictEqual(jibo.face.eye.filters.length, 1);
+    const green = env.colors.length; runtime.render();
+    assert.strictEqual(env.colors.length, green, 'listening leaves the light ring to Jibo\'s listening');
+    assert(runtime.dot.parent); assert(!jibo.face.eye.filters, 'no tint over the listening eye');
     jibo.jetstream.events.sos.emit(); assert.strictEqual(runtime.silence, null);
     jibo.jetstream.events.eos.emit(); runtime.render(); assert.deepStrictEqual(env.colors[env.colors.length - 1], [0, 1, 0]);
     turns[0].pending.resolve({ status: types.SUCCEEDED, result: { asr: { text: 'My name is Alex.' } } }); await flush();
@@ -120,6 +121,8 @@ async function run() {
         await longGeneration.runtime.close();
         global.setTimeout = realSetTimeout; global.clearTimeout = realClearTimeout;
     }
+    const quitter = fixture(); await listening(quitter); await quitter.runtime.close();
+    assert(quitter.releases.includes('listening'), 'closing while listening ends the listening eye and ring');
     console.log('Agent runtime: follow-ups, conversation history, colors, TTS sequencing, cancellation, privacy, swipe, failures and stalled transcription recovery passed.');
 }
 module.exports = { fixture, flush, listening };

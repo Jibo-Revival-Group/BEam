@@ -23,7 +23,11 @@ Jibo can look. When seeing is needed ("How many fingers am I holding up?"), the 
 Jibo plays his camera-shutter sound, takes one 640x360 photo and sends the same question again with it,
 then speaks the answer. The photo goes only with that one request (later turns never resend it), none is
 taken in privacy mode, and other questions cost nothing extra. That question is marked in the history
-("[You looked: ...]") so the AI remembers later that it really saw. A model without image support returns an
+("[You looked: ...]") so the AI remembers later that it really saw.
+
+While Jibo listens he shows his own listening eye and light ring, as after "Hey Jibo". The AI can end the
+conversation itself: when the user is done (goodbye, gotta go) it ends its reply with a line `BYE`, and Jibo
+says the rest of the reply and leaves Agent Mode. A model without image support returns an
 error for that question.
 
 The ring glows green while waiting or speaking. While listening, the ring and
