@@ -7,7 +7,8 @@ class ThinkingEye {
         const token = this.token = {};
         Promise.resolve().then(() => {
             if (this.token !== token || !this.allowed()) return;
-            const asset = this.jibo.animDB.getAnimByName('Thinking_Dots_Loop_01') // Jibo's three-dots processing loop and its sound;
+            // Jibo's silent "pondering / searching" thinking; it starts and ends neutral, so it loops smoothly.
+            const asset = this.jibo.animDB.getAnimByName('Thinking_11');
             if (!asset) return;
             // 'global' is the cache Nimbus preloads it into; with cache: null the load never finishes on the robot.
             return asset.createFromConfig({ loops: 0, cache: 'global' });

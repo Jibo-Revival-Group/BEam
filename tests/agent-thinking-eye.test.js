@@ -21,7 +21,7 @@ async function run() {
     try {
         await thinking(env);
         assert.strictEqual(env.runtime.phase, 'thinking');
-        assert.deepStrictEqual(env.calls[0], ['lookup', 'Thinking_Dots_Loop_01'], 'Generation must load the native thinking-eye animation');
+        assert.deepStrictEqual(env.calls[0], ['lookup', 'Thinking_11'], 'Generation must load the native thinking-eye animation');
         assert.strictEqual(env.calls[1][1].loops, 0);
         assert.strictEqual(env.calls[1][1].cache, 'global', 'Load from the global cache Nimbus preloads; cache: null never finishes on the robot');
         env.load.resolve(env.playback); await fixtures.flush();

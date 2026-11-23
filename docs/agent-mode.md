@@ -35,8 +35,8 @@ scared of water and every liquid, heights, thunder and ghosts). In BEacon's Agen
 conversations (a `REMEMBER:` line, never spoken) and gets them back in later ones. Turning memory off keeps the
 notes but stops him reading or adding them. Under "What Jibo remembers" BEacon lists every note, with Delete for each
 and Clear all. A `SHOW: emperor penguin` line looks up a picture the way "Hey Jibo, show me a picture of ___" does
-(SafeSearch strict) and shows it on his face while he talks. While the AI is thinking he plays his three-dots
-processing animation and sound. A model without image support returns an
+(SafeSearch strict) and shows it on his face while he talks. While the AI is thinking he plays his silent
+"pondering" thinking animation. A model without image support returns an
 error for that question.
 
 The ring glows green while waiting or speaking. While listening, the ring and
