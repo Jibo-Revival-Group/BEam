@@ -443,7 +443,7 @@
                     entry.stock ? (isVoice ? 'Jibo’s own, normal voice.' : 'Jibo’s stock face and menus.') : entry.description || entry.error || (isSkill ? 'A new skill for Jibo.' : isVoice ? 'A new voice for Jibo.' : 'A new look for Jibo.')));
                 if (entry.burnInWarning) { content.appendChild(el('p', 'store-warning', 'This theme has been tested and may cause burn-in or ghosting on certain screens.')); }
                 if (entry.compatibility && entry.compatibility.status === 'incompatible') {
-                    content.appendChild(el('p', 'hint', 'Needs version ' + entry.manifest.supported + ' or newer'));
+                    content.appendChild(el('p', 'hint', entry.compatibility.message || 'Needs version ' + entry.manifest.supported + ' or newer'));
                 }
                 var actions = el('div', 'theme-actions'), existing = entry.local, download = downloadFor(entry);
                 if (download) { attachProgress(content, download); }
@@ -460,7 +460,7 @@
                     content.appendChild(el('p', 'hint', 'Installed v' + existing.manifest.version + (existing.pending ? ' · New version ready to apply' : '')));
                     if (existing.compatibility.status === 'unverified') { content.appendChild(el('p', 'hint', 'Compatibility unverified')); }
                     if (existing.compatibility.status === 'incompatible' && (!entry.compatibility || entry.compatibility.status !== 'incompatible')) {
-                        content.appendChild(el('p', 'hint', 'Needs version ' + existing.manifest.supported + ' or newer'));
+                        content.appendChild(el('p', 'hint', existing.compatibility.message || 'Needs version ' + existing.manifest.supported + ' or newer'));
                     }
                 }
                 var installedRelease = existing && existing.origin && existing.origin.release;

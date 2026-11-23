@@ -251,7 +251,7 @@ function sourceMtime (id) {
 
 function loadSkill (be, id) {
     const custom = require('./beacon/lib/custom-skills').inventory().skills.filter(s => s.packageName === id)[0];
-    if (custom && custom.compatibility.status === 'incompatible') { throw new Error(custom.manifest.name + ' needs version ' + custom.manifest.supported + ' or newer'); }
+    if (custom && custom.compatibility.status === 'incompatible') { throw new Error(custom.compatibility.message || custom.manifest.name + ' needs version ' + custom.manifest.supported + ' or newer'); }
     if (be.skills[id]) {
         return be.skills[id];
     }
@@ -341,7 +341,7 @@ function currentSkillId (be) {
 function prepareForOpen (be, id) {
     require('./runtime-state').ensureBeam();
     const custom = require('./beacon/lib/custom-skills').inventory().skills.filter(s => s.packageName === id)[0];
-    if (custom && custom.compatibility.status === 'incompatible') { throw new Error(custom.manifest.name + ' needs version ' + custom.manifest.supported + ' or newer'); }
+    if (custom && custom.compatibility.status === 'incompatible') { throw new Error(custom.compatibility.message || custom.manifest.name + ' needs version ' + custom.manifest.supported + ' or newer'); }
     if (!id) {
         throw new Error('prepareForOpen: missing skill id');
     }

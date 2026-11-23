@@ -36,7 +36,7 @@ formats and single-repository sources. Bad Apple is the reference package:
 {
   "name": "Bad Apple",
   "version": "1.0.0",
-  "supported": "3.1.6",
+  "supported": "3.2.0",
   "type": "skill",
   "themes": false,
   "buttonColor": "#58586D #282735"
@@ -122,6 +122,9 @@ never runs npm, build commands, or package lifecycle scripts. Skill JavaScript
 runs in the robot process when loaded; this is intentionally executable content.
 Theme ZIPs retain their prohibition on executable files.
 
+A skill must set `supported` to **3.2.0 or newer**. Skills with an older or missing `supported` are turned off
+(no menu button, no launch phrases, no background script, can't be opened or installed) and BEacon says their
+developer needs to update them. Themes and voices are not affected.
 `supported` remains the minimum installed **jibo-tbd package version**. Equal
 and newer versions are accepted; known older versions block installation and
 launch. Missing version metadata is shown as unverified. User-facing messages

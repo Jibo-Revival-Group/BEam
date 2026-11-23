@@ -14,6 +14,7 @@ const eye3d = require('./eye3d');
 
 // Storefront listings refresh every 30 minutes (background timer in index.js and an open Store tab).
 const REFRESH_MS = 30 * 60 * 1000;
+const SKILL_MINIMUM = '3.2.0'; // custom skills must declare "supported" of at least this
 function compare(a, b) {
     function parts(v) { const p = v.split('+')[0].split('-'); return { nums: p[0].split('.').map(Number), pre: p.slice(1).join('-') }; }
     const x = parts(a); const y = parts(b);
@@ -89,6 +90,11 @@ function create(options) {
     }
     function compat(manifest) {
         const current = version(); const minimum = manifest.supported;
+        // Skills made for 3.2.0 (permissions, settings) or later only: older ones stay installed but turned off.
+        if (manifest.type === 'skill' && (!minimum || compare(minimum, SKILL_MINIMUM) < 0)) {
+            return { current: current, minimum: minimum || null, status: 'incompatible', outdated: true,
+                message: manifest.name + ' was made for an older Jibo and is turned off. Its developer needs to update it for ' + SKILL_MINIMUM + ' or newer.' };
+        }
         return { current: current, minimum: minimum, status: !minimum ? 'compatible' : !current ? 'unverified' : compare(current, minimum) >= 0 ? 'compatible' : 'incompatible' };
     }
     function check(m) { const c = compat(m); if (c.status === 'incompatible') { throw packages.fail(m.name + ' needs version ' + c.minimum + ' or newer (installed: ' + c.current + ')'); } }
@@ -413,4 +419,4 @@ function create(options) {
         activate: activate, remove: remove, asset: asset, start: start, compatibility: compat, progress: progress };
 }
 const instance = create();
-module.exports = Object.assign(instance, { create: create, compare: compare, tbdVersion: tbdVersion, REFRESH_MS: REFRESH_MS });
+module.exports = Object.assign(instance, { create: create, compare: compare, SKILL_MINIMUM: SKILL_MINIMUM, tbdVersion: tbdVersion, REFRESH_MS: REFRESH_MS });

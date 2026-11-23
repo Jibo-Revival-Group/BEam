@@ -70,7 +70,7 @@ function create(options) {
                 err.status = 409; err.detail = missing.join(','); throw err;
             }
             const compat = compatibility(skill.manifest);
-            if (compat.status === 'incompatible') { throw packages.fail(skill.manifest.name + ' needs version ' + compat.minimum + ' or newer'); }
+            if (compat.status === 'incompatible') { throw packages.fail(compat.message || skill.manifest.name + ' needs version ' + compat.minimum + ' or newer'); }
             const state = read(), previous = state.skills.slice(), old = state.skills.filter(s => s.id === skill.id)[0];
             if (old && old.origin.url && origin.url && old.origin.url !== origin.url) { throw packages.fail('This skill is installed from another source; remove it first'); }
             const revision = crypto.randomBytes(12).toString('hex');

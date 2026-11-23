@@ -20,7 +20,8 @@ function create(options) {
         if (!folders[destination(b)] && !built.some(s => s.id === destination(b))) { built.push(Object.assign({}, b, { id: destination(b), type: 'skill', icon: b.iconSrc, colors: (b.colors || c.viewConfig.listDefault.colors || ['0x58BCEB', '0x246487']).map(color => color.replace(/^0x/i, '#')) })); }
     }));
     function available() {
-        return built.concat(customSkills.inventory().skills.filter(s => s.manifest.menuButton !== false).map(s => ({ id: s.packageName, type: 'skill', label: s.manifest.name,
+        // Turned-off (incompatible) custom skills get no menu button.
+        return built.concat(customSkills.inventory().skills.filter(s => s.manifest.menuButton !== false && s.compatibility.status !== 'incompatible').map(s => ({ id: s.packageName, type: 'skill', label: s.manifest.name,
             colors: s.manifest.buttonColor, icon: customSkills.asset(s.id, 'icon.png'), customId: s.id })));
     }
     function initial() {

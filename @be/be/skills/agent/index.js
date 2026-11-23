@@ -14,7 +14,7 @@ class AgentSkill extends BeSkill {
     }
     act(command, history) {
         let skills = [];
-        try { skills = require('../../beacon/lib/custom-skills').inventory().skills; } catch (_) {}
+        try { skills = require('../../beacon/lib/custom-skills').inventory().skills.filter(s => s.compatibility.status !== 'incompatible'); } catch (_) {}
         const pkg = Runtime.storeSkill(command, skills);
         if (pkg) { this.redirect(pkg, { nlu: { entities: { domain: pkg }, intent: 'menu' } }); return; }
         if (history && comeback.RETURNS.test(command)) try {
