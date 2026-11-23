@@ -298,7 +298,7 @@
             function draw(values) {
                 fields.textContent = ''; inputs = {};
                 skill.manifest.settings.forEach(function (s) {
-                    var row = el('div', 'form-row skill-setting'), fieldId = 'skill-setting-' + s.id, label = el('label', null, s.label), input;
+                    var row = el('div', 'form-row skill-setting'), fieldId = 'skill-setting-' + s.id, label = el('label', null, s.label), input, shown = null;
                     label.htmlFor = fieldId; row.appendChild(label);
                     if (s.type === 'image' || s.type === 'music') { fileField(row, s, values[s.id]); }
                     else {
@@ -307,10 +307,10 @@
                         if (s.type === 'boolean') { input.type = 'checkbox'; input.checked = values[s.id]; input.setAttribute('role', 'switch'); }
                         if (s.type === 'slider') {
                             input.type = 'range'; input.min = s.min; input.max = s.max; input.step = s.step; input.value = values[s.id];
-                            var shown = el('output', 'skill-setting-value', String(values[s.id]));
+                            shown = el('output', 'skill-setting-value', String(values[s.id]));
                             input.oninput = function () { shown.textContent = input.value; };
                         }
-                        row.appendChild(input); if (shown) { row.appendChild(shown); shown = null; }
+                        row.appendChild(input); if (shown) { row.appendChild(shown); }
                         inputs[s.id] = { setting: s, input: input };
                     }
                     if (s.description) { row.appendChild(el('p', 'hint', s.description)); }
