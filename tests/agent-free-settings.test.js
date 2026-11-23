@@ -7,7 +7,7 @@ const settings = require(root + '/beacon/lib/agent-settings'), provider = requir
 async function run() {
     settings.save({ provider: 'openai', model: 'old', apiKey: 'must-not-leak' });
     const status = settings.save({ provider: 'free', model: 'ignored', endpoint: 'http://attacker.invalid', apiKey: 'also-ignore' });
-    assert.deepStrictEqual(status, { provider: 'free', endpoint: '', model: 'free', hasApiKey: false, ready: true });
+    assert.deepStrictEqual(status, { provider: 'free', endpoint: '', model: 'free', hasApiKey: false, ready: true, memory: false, nickname: '' });
     assert.strictEqual(settings.read().apiKey, '');
     assert.strictEqual(settings.resolve({ provider: 'free' }).model, 'free', 'BEefy picks the model');
     assert(!settings.requiresKey('free')); assert(!settings.local('free'));

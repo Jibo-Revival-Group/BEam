@@ -1314,3 +1314,6 @@ a.details-developer-name:hover { text-decoration: underline; }
 .details-permissions li:first-child::before { top: calc(.75em - 2px); }
 .details-permissions li.risky { color: #d64541; font-weight: 600; }
 .details-permissions li.risky::before { background: #d64541; }
+.memory-list { list-style: none; padding: 0; margin: 0; }
+.memory-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px solid rgba(127,127,127,.25); }
+.memory-list li span { overflow-wrap: anywhere; }

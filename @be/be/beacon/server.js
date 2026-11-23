@@ -45,6 +45,7 @@ const telemetry = require('./lib/telemetry-http');
 const sleep = require('./lib/sleep-http');
 const agentSettings = require('./lib/agent-settings');
 const agentProvider = require('./lib/agent-provider');
+const agentMemory = require('./lib/agent-memory');
 const jibosync = require('./lib/jibosync');
 
 const MAX_UPLOAD = 256 * 1024 * 1024;
@@ -110,6 +111,13 @@ const routes = {
     'POST /api/agent/settings': guard((req, res) => {
         return u.readJson(req, 8192).then(body => u.sendJson(res, 200, agentSettings.save(body)));
     }),
+    // Agent Mode's memory: read it, delete one note (?id=), or clear it all. Kept even while memory is turned off.
+    'GET /api/agent/memory': guard((req, res) => { u.sendJson(res, 200, { entries: agentMemory.list() }); }),
+    'DELETE /api/agent/memory': guard((req, res, query) => {
+        if (!query.id) throw fail('Missing id.', 400);
+        u.sendJson(res, 200, { entries: agentMemory.remove(String(query.id)) });
+    }),
+    'DELETE /api/agent/memory/all': guard((req, res) => { u.sendJson(res, 200, { entries: agentMemory.clear() }); }),
     'POST /api/agent/models': guard((req, res) => {
         return u.readJson(req, 8192).then(body => agentProvider.models(body)).then(data => u.sendJson(res, 200, data));
     }),

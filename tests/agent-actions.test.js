@@ -61,10 +61,22 @@ async function run() {
     assert.strictEqual(leaver.speech[1].text, 'Bye! Talk soon.'); leaver.speech[1].pending.resolve(); await flush();
     assert(!leaver.runtime.active); assert.strictEqual(leaver.exits(), 1); assert.strictEqual(leaver.turns.length, 1, 'no more listening');
 
+    // SHOW: a picture fills his face while he talks, not spoken, taken down afterwards.
+    const image = require('../@be/be/skills/agent/image-search'), shown = [];
+    image.show = (jibo, query) => { shown.push(query); return Promise.resolve(() => { shown.push('hidden'); }); };
+    assert.strictEqual(image.pick('x &quot;turl&quot;:&quot;https://tse1.mm.bing.net/th?id=OIP.ab_c-1&amp;'), 'http://tse1.mm.bing.net/th?id=OIP.ab_c-1&w=1280&h=720&c=7&rs=1&pid=1.7');
+    assert.strictEqual(image.pick('<html>nothing</html>'), null);
+    const shower = fixture('free'); await listening(shower);
+    await reply(shower, 'Here is an emperor penguin!\nSHOW: emperor penguin'); await flush();
+    assert.deepStrictEqual(shown, ['emperor penguin']); assert.strictEqual(shower.speech[1].text, 'Here is an emperor penguin!');
+    shower.speech[1].pending.resolve(); await new Promise(r => setTimeout(r, 2100)); await flush();
+    assert.deepStrictEqual(shown, ['emperor penguin', 'hidden'], 'taken down after he talks'); assert.strictEqual(shower.turns.length, 2);
+    await shower.runtime.close();
+
     const skills = [{ packageName: '@be/soundmachine', manifest: { name: 'Sound Machine' } }];
     assert.strictEqual(Runtime.storeSkill('open the Sound Machine', skills), '@be/soundmachine');
     assert.strictEqual(Runtime.storeSkill('open sound-machine', skills), '@be/soundmachine');
     assert.strictEqual(Runtime.storeSkill('tell me about the weather', skills), null);
-    console.log('Agent actions: DO commands run after speaking (paid and Free); dances play in Agent Mode and he keeps listening; Store skills match by name; LOOK takes one photo.');
+    console.log('Agent actions: DO commands run after speaking (paid and Free); dances play in Agent Mode and he keeps listening; Store skills match by name; LOOK takes one photo; SHOW shows a picture.');
 }
 run().catch(error => { console.error(error); process.exitCode = 1; });

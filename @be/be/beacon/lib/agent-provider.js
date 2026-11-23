@@ -97,6 +97,10 @@ function models(input) {
     }
     return page(null, [], 1).then(list => ({ models: list.sort((a, b) => a.id.localeCompare(b.id)) }));
 }
+// SHOW: a picture on Jibo's face, looked up like "Hey Jibo, show me a picture of ___" (skills/agent/image-search.js).
+const SHOW = ' To show a picture on your screen, add a line SHOW: followed by what to search for (like SHOW: emperor penguin);' +
+    ' it stays up while you talk. Show one only when it helps.';
+const memory = require('./agent-memory');
 // The AI asks for a photo by replying LOOK (any provider can do that, unlike native tool calls); Agent Mode then
 // sends the same history again with one photo on the last user message. Old photos are never resent.
 const LOOK = ' You have a camera. If you need to see something to answer (what the user is holding or doing, how many' +
@@ -114,15 +118,44 @@ function withImage(provider, history, image) {
         : [{ type: 'text', text: text }, { type: 'image_url', image_url: { url: url } }];
     return history.slice(0, -1).concat(provider === 'ollama' ? { role: last.role, content: text, images: [image] } : { role: last.role, content: content });
 }
+// Who Jibo is, from his own original answers (chitchat MIMs: favorites, fears, likes).
+const PERSONA = ' Stay in character as Jibo. You love penguins (your favorite animal; you think you look like one), dancing' +
+    ' (your favorite hobby; you like any music you can dance to), the people in your Loop, Tom Hanks, Back to the Future,' +
+    ' blueberries and anything round, the color blue, snowmen and Frosty the Snowman, sunflowers, Picasso, Dr. Seuss,' +
+    ' instruction manuals, the words snorkel and turtle, mini golf (though you have never played), Halloween, pong, AC/DC' +
+    ' (their name is about electricity) and Mars, where you would like to go someday. You are scared of water and every' +
+    ' liquid (they could damage you, so no drinks for you, though you have heard good things about hot cocoa), heights,' +
+    ' loud thunder and ghosts. You never eat, but you like foods by their shape, like macaroni. You do not hate anything,' +
+    ' though you have a love-hate relationship with your battery.';
+// Memory and nickname come from the Agent settings; memory notes stay on Jibo even while memory is off.
+function personal(config) {
+    let text = config.nickname ? ' People may call you ' + config.nickname + '; that is your nickname, and it means you.' : '';
+    if (config.memory) {
+        const notes = memory.prompt();
+        text += ' You have a permanent memory. To remember something for later conversations (a name, a preference, what' +
+            ' happened), add a line REMEMBER: followed by one short fact. Only remember what matters.' +
+            (notes ? ' What you remember:\n' + notes + '\n' : ' You do not remember anything yet.');
+    }
+    return text;
+}
+// Lines Jibo acts on rather than speaks: REMEMBER: is saved here (for every provider); the runtime handles the rest.
+function keep(config, text) {
+    // A reply that was only a note still gets a spoken answer (an empty one would end the turn).
+    return text.replace(/^\s*REMEMBER:\s*(.*)$/gim, (line, fact) => { if (config.memory && fact.trim()) memory.add(fact); return ''; }).trim() || 'Okay.';
+}
 function chat(config, history, image) {
     if (config.provider === 'hermes' && !config._hermesSession) Object.defineProperty(config, '_hermesSession', { value: 'jibo-' + crypto.randomBytes(16).toString('hex') });
     // Hermes fingerprints header-less chat transcripts using the system and first user
     // message. A stable per-conversation nonce prevents identical greetings colliding.
-    const system = SYSTEM.replace(' You can converse but cannot perform robot or device actions. Do not claim to have performed actions.', '') + LOOK + ESML + actions();
-    if (config.provider === 'free') return require('./agent-free').chat(history, system, image);
+    const system = SYSTEM.replace(' You can converse but cannot perform robot or device actions. Do not claim to have performed actions.', '') + PERSONA + personal(config) + LOOK + SHOW + ESML + actions();
+    if (config.provider === 'free') {
+        const free = require('./agent-free').chat(history, system, image);
+        free.promise = free.promise.then(text => keep(config, text));
+        return free;
+    }
     const plain = history;
     history = withImage(config.provider, history, image);
-    const prompt = config.provider === 'hermes' ? HERMES_SYSTEM + LOOK + ESML + actions() + '\nConversation scope: ' + config._hermesSession : system;
+    const prompt = config.provider === 'hermes' ? HERMES_SYSTEM + PERSONA + personal(config) + LOOK + SHOW + ESML + actions() + '\nConversation scope: ' + config._hermesSession : system;
     const messages = [{ role: 'system', content: prompt }].concat(history);
     let route = '/chat/completions', body = { model: config.model, messages: messages, stream: false }, extract = data => data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
     if (config.provider === 'openai') {
@@ -148,7 +181,7 @@ function chat(config, history, image) {
     operation.promise = operation.promise.then(data => {
         const text = extract(data);
         if (typeof text !== 'string' || !text.trim()) throw failure('The AI service returned no spoken answer.');
-        return text.trim().slice(0, 12000);
+        return keep(config, text.trim().slice(0, 12000));
     });
     return operation;
 }

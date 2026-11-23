@@ -15,8 +15,12 @@ function resolve(input, requireModel) {
     input = input || {};
     const saved = read(), provider = input.provider === undefined ? saved.provider : input.provider;
     if (providers.indexOf(provider) === -1) throw fail('Choose a supported provider.');
+    // Memory (on/off) and the nickname Jibo answers to belong to Agent Mode, whichever AI it uses.
+    const memory = input.memory === undefined ? !!saved.memory : input.memory === true;
+    const nickname = String(input.nickname === undefined ? saved.nickname || '' : input.nickname).trim();
+    if (nickname.length > 30 || /[^\w '.-]/.test(nickname)) throw fail('Use a nickname of up to 30 letters.');
     // BEefy picks Free's model (5x1 can switch it any time); "free" just means "whatever Free uses now".
-    if (provider === 'free') return { provider: 'free', endpoint: '', model: 'free', apiKey: '' };
+    if (provider === 'free') return { provider: 'free', endpoint: '', model: 'free', apiKey: '', memory: memory, nickname: nickname };
     const endpoint = local(provider) ? String(input.endpoint === undefined ? saved.endpoint || '' : input.endpoint).trim() : '';
     if (local(provider)) {
         const parsed = url.parse(endpoint);
@@ -31,12 +35,13 @@ function resolve(input, requireModel) {
     const model = String(input.model === undefined ? (same ? saved.model || '' : '') : input.model).trim();
     if (model.length > 256 || /[\r\n]/.test(model)) throw fail('Invalid model ID.');
     if (requireModel && !model) throw fail('Select or enter a model.');
-    return { provider: provider, endpoint: endpoint, model: model, apiKey: apiKey };
+    return { provider: provider, endpoint: endpoint, model: model, apiKey: apiKey, memory: memory, nickname: nickname };
 }
 function ready(config) { return !!config.model && (!local(config.provider) || !!config.endpoint) && (!requiresKey(config.provider) || !!config.apiKey); }
 function publicSettings(config) {
     config = config || read();
-    return { provider: config.provider, endpoint: config.endpoint, model: config.model, hasApiKey: !!config.apiKey, ready: ready(config) };
+    return { provider: config.provider, endpoint: config.endpoint, model: config.model, hasApiKey: !!config.apiKey, ready: ready(config),
+        memory: !!config.memory, nickname: config.nickname || '' };
 }
 function save(input) {
     const config = resolve(input, true);

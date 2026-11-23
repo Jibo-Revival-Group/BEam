@@ -12,7 +12,7 @@ const jibo = {
     expression: { setLEDColor: () => {} },
     embodied: { listen: {} },
     jetstream: { types: { TurnResultType: {} }, startLocalTurn: () => Promise.resolve({ promise: turn.promise, cancel: () => {} }) },
-    animDB: { getAnimByName: name => { assert.strictEqual(name, 'Thinking_Eye_Loop_01'); return { createFromConfig: config => { assert.strictEqual(config.loops, 0); return load.promise; } }; } },
+    animDB: { getAnimByName: name => { assert.strictEqual(name, 'Thinking_Dots_Loop_01'); return { createFromConfig: config => { assert.strictEqual(config.loops, 0); return load.promise; } }; } },
     tts: { speak: text => { calls.push('speak:' + text); return spoken.promise; }, stop: () => { spoken.resolve(); } }
 };
 jibo.embodied.speech = jibo.tts;

@@ -176,8 +176,15 @@
         <div class="form-row"><label for="agent-model" id="agent-model-label">Model</label><input id="agent-model" list="agent-models" required maxlength="256" placeholder="Load models or enter a model ID"><datalist id="agent-models"></datalist><button class="btn" type="button" id="agent-load-models">Load models</button></div>
         <p class="hint" id="agent-endpoint-hint" hidden>Use an OpenAI-compatible base URL including /v1. For OpenClaw, enable its chat-completions endpoint and select an agent such as openclaw/default. For Ollama, use the server root without /api.</p>
         <p class="hint" id="agent-free-hint" hidden></p>
+        <div class="form-row"><label for="agent-nickname">Nickname</label><input id="agent-nickname" maxlength="30" placeholder="For example, Jeebs"></div>
+        <div class="form-row"><label><input id="agent-memory" type="checkbox">Memory</label></div>
+        <p class="hint">With memory on, Jibo remembers things from your conversations and can use them later. Turning it off keeps what he remembers but stops him using it.</p>
         <div class="form-row"><button class="btn btn-primary" type="submit">Save</button></div>
         <p class="hint" id="agent-status" role="status" aria-live="polite"></p>
+        <p class="section-header">What Jibo remembers</p>
+        <ul id="agent-memory-list" class="memory-list"></ul>
+        <p class="hint" id="agent-memory-empty">Nothing yet.</p>
+        <div class="form-row"><button class="btn" type="button" id="agent-memory-clear">Clear all</button></div>
     </form>
     <p class="section-header" id="jibosync-header">JiboSync</p>
     <div class="setting-block" id="jibosync">

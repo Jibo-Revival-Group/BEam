@@ -30,7 +30,7 @@
         field('endpoint-hint').textContent = hermes ? 'Use your Hermes Agent API server URL, such as http://hermes-server:8642/v1, and its API_SERVER_KEY. The default model is hermes-agent; load models to select a profile. Hermes can use its configured tools and retain server-side history. Localhost here means Jibo.' : 'Use an OpenAI-compatible base URL including /v1. For OpenClaw, enable its chat-completions endpoint and select an agent such as openclaw/default. For Ollama, use the server root without /api.';
         field('key-status').textContent = same() && saved.hasApiKey ? 'A key is saved on Jibo. Leave blank to keep it.' : 'No saved key for this service.';
     }
-    function body() { var free = field('provider').value === 'free'; return { provider: field('provider').value, endpoint: local() ? field('endpoint').value.trim() : '', model: free ? 'free' : field('model').value.trim(), apiKey: free ? '' : field('key').value, clearApiKey: free || field('clear-key').checked }; }
+    function body() { var free = field('provider').value === 'free'; return { provider: field('provider').value, endpoint: local() ? field('endpoint').value.trim() : '', model: free ? 'free' : field('model').value.trim(), memory: field('memory').checked, nickname: field('nickname').value.trim(), apiKey: free ? '' : field('key').value, clearApiKey: free || field('clear-key').checked }; }
     function api(method, route, data) {
         return fetch('/api/agent/' + route, { method: method, headers: { 'Content-Type': 'application/json' }, body: data ? JSON.stringify(data) : undefined }).then(function (response) {
             return response.json().then(function (value) { if (!response.ok) throw new Error(value.error && value.error.message || value.error || 'Agent settings request failed.'); return value; });
@@ -39,7 +39,25 @@
     function apply(data) {
         saved = data; field('provider').value = data.provider; field('endpoint').value = data.endpoint || ''; field('model').value = data.model || '';
         field('key').value = ''; field('clear-key').checked = false; render();
+        field('memory').checked = !!data.memory; field('nickname').value = data.nickname || '';
     }
+    // What Jibo remembers: each note with a Delete button, and Clear all.
+    function showMemory(data) {
+        var list = field('memory-list'); list.textContent = '';
+        var entries = data && data.entries || [];
+        entries.forEach(function (entry) {
+            var item = document.createElement('li'), text = document.createElement('span'), remove = document.createElement('button');
+            text.textContent = entry.text; remove.type = 'button'; remove.className = 'btn'; remove.textContent = 'Delete';
+            remove.setAttribute('aria-label', 'Delete: ' + entry.text);
+            remove.onclick = function () { api('DELETE', 'memory?id=' + encodeURIComponent(entry.id)).then(showMemory, failed); };
+            item.appendChild(text); item.appendChild(remove); list.appendChild(item);
+        });
+        field('memory-empty').hidden = entries.length > 0; field('memory-clear').hidden = !entries.length;
+    }
+    function failed(error) { field('status').textContent = error.message; }
+    field('memory-clear').onclick = function () {
+        if (window.confirm('Clear everything Jibo remembers?')) api('DELETE', 'memory/all').then(showMemory, failed);
+    };
     function busy(value) { Array.prototype.forEach.call(form.querySelectorAll('button'), function (button) { button.disabled = value; }); }
     form.addEventListener('input', function () { ++revision; render(); });
     field('provider').addEventListener('change', function () {
@@ -66,6 +84,7 @@
     };
     window.BEaconAgent = { load: function () {
         var version = revision;
+        api('GET', 'memory').then(showMemory, failed);
         return api('GET', 'settings').then(function (data) { if (version === revision) apply(data); }).catch(function (error) { field('status').textContent = error.message; });
     } };
     render();

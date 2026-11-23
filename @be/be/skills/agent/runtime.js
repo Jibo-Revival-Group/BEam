@@ -1,5 +1,5 @@
 'use strict';
-const ThinkingEye = require('./thinking-eye'), esml = require('./esml');
+const ThinkingEye = require('./thinking-eye'), esml = require('./esml'), image = require('./image-search');
 const BYE = /^\s*BYE\W*$/im, LOOK = /^\s*LOOK\W*$/i, LOOKED = ' [You looked: Jibo took a photo for this message and you answered from it.]';
 
 const STOP = new Set(['stop', 'stop chatting', 'exit ai mode', 'end conversation', 'cancel', 'goodbye', 'good bye', 'bye', 'bye bye']);
@@ -118,10 +118,15 @@ class Runtime {
                     }) : "Sorry, I couldn't take a picture.")).then(reply => {
                     if (!reply || !this.active) return;
                     this.operation = null; this.history.push({ role: 'assistant', content: reply });
-                    const match = /^\s*DO:\s*(.+?)\s*$/im.exec(reply), bye = BYE.test(reply);
-                    const spoken = reply.replace(/^\s*DO:.*$/gim, '').replace(BYE, '').trim();
+                    const match = /^\s*DO:\s*(.+?)\s*$/im.exec(reply), bye = BYE.test(reply), picture = /^\s*SHOW:\s*(.+?)\s*$/im.exec(reply);
+                    const spoken = reply.replace(/^\s*(DO|SHOW):.*$/gim, '').replace(BYE, '').trim();
                     const command = match && this.act ? match[1] : null, dance = esml.danceFor(command);
-                    return (spoken ? this.speak(spoken) : Promise.resolve()).then(() => {
+                    // SHOW: the picture fills his face while he talks, then goes away.
+                    return (picture && !this.private() ? image.show(this.jibo, picture[1]) : Promise.resolve(null)).then(hide => {
+                        if (hide && !this.active) return hide();
+                        this.hide = hide;
+                        return spoken ? this.speak(spoken) : null;
+                    }).then(() => this.unshow(2000)).then(() => {
                         // A dance plays here, not through the cloud's dance (no "Watch this"), then he listens again.
                         if (dance) return this.speak(dance).then(() => bye ? this.leave() : this.listen());
                         if (!command) return bye ? this.leave() : this.listen(); // BYE: the AI ended the chat
@@ -152,6 +157,10 @@ class Runtime {
         }));
         return Promise.all([photo, shutter]).then(results => results[0]);
     }
+    unshow(delay) {
+        const hide = this.hide; this.hide = null;
+        return hide ? new Promise(resolve => setTimeout(resolve, delay)).then(hide) : Promise.resolve();
+    }
     fail(error) {
         if (!this.active) return;
         // Only our local validation/provider errors may be spoken.
@@ -181,6 +190,7 @@ class Runtime {
         }
         this.turn = null;
         if (this.speaking) cleanup.push(Promise.resolve(jibo.embodied.speech.stop())); this.speaking = false;
+        cleanup.push(this.unshow(0));
         if (this.attention) cleanup.push(Promise.resolve(this.attention.release())); this.attention = null;
         if (this.hotword) cleanup.push(Promise.resolve(this.hotword.release())); this.hotword = null;
         if (this.dot) {
