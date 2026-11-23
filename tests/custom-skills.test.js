@@ -85,6 +85,7 @@ async function run() {
     await service.remove(service.inventory().skills[0].id); layout.sync(); assert(!JSON.stringify(layout.inventory().tree).includes('@be/test-skill'));
     tree = layout.inventory().tree; const empty = { type: 'folder', id: 'folder-empty', name: 'Empty', colors: ['#123456', '#234567'], icon: 'resources/icons/fun-stuff.png', children: [] };
     layout.save(tree.concat(empty)); assert(!layout.inventory().tree.some(n => n.id === empty.id));
+    version = '3.2.0'; // the real Bad Apple needs 3.2.0 or newer
     const real = {}; const appleRoot = path.resolve(__dirname, '../../BadApple');
     function collect(dir, rel) { fs.readdirSync(dir).forEach(n => { const file = path.join(dir, n), name = rel + n; if (fs.statSync(file).isDirectory()) { collect(file, name + '/'); } else { real[name] = fs.readFileSync(file); } }); }
     collect(appleRoot, ''); const apple = custom.create(Object.assign({}, options, { timeout: 120000 }));

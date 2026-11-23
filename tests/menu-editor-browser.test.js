@@ -185,9 +185,9 @@ const server = http.createServer((req, res) => {
         assert((await page.locator('#store-list .store-publisher').textContent()).includes('theme-dev'));
         await page.locator('#store-tab-skills').click(); assert((await page.locator('#store-skills').textContent()).includes('potential malware'));
         assert((await page.locator('#store-skill-list .store-publisher').textContent()).includes('★ 42'));
-        await page.locator('#store-skill-list .store-install').click(); await page.locator('.theme-download-progress.is-failed').waitFor();
+        await page.locator('#store-skill-list .store-install').click(); await page.locator('#skill-notice-yes').click(); await page.locator('.theme-download-progress.is-failed').waitFor();
         assert.strictEqual(await page.locator('#store-skill-list .store-install').isEnabled(), true, 'Failure releases install UI');
-        installFailed = false; await page.locator('#store-skill-list .store-install').click(); await page.locator('#store-skill-list .store-install', { hasText: 'Remove' }).waitFor();
+        installFailed = false; await page.locator('#store-skill-list .store-install').click(); await page.locator('#skill-notice-yes').click(); await page.locator('#store-skill-list .store-install', { hasText: 'Remove' }).waitFor();
         assert.strictEqual(await page.locator('#store-skill-list .store-apply').count(), 0, 'Skills do not have theme Apply actions');
         page.on('dialog', d => d.accept()); await page.locator('#store-skill-list .store-install').click(); await page.locator('#store-skill-list .store-install', { hasText: 'Install' }).waitFor();
         assert.strictEqual(await page.locator('#github-auth-start').count(), 0, 'The Store has no GitHub sign-in');

@@ -22,7 +22,7 @@
             field('model').value = freeModel || 'Loading…';
             if (!freeModel && !freeLoading) {
                 freeLoading = true;
-                api('POST', 'models', { provider: 'free' }).then(function (data) { freeModel = data.models[0].id; }, function () { freeModel = 'Unavailable right now'; })
+                api('POST', 'models', { provider: 'free' }).then(function (data) { freeModel = data && data.models && data.models[0] ? data.models[0].id : 'Unavailable right now'; }, function () { freeModel = 'Unavailable right now'; })
                     .then(function () { freeLoading = false; render(); });
             }
         }

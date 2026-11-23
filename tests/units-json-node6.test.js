@@ -26,5 +26,5 @@ fs.writeFileSync = realWrite; fs.renameSync = realRename;
 assert.strictEqual(writes.indexOf(file), -1, 'units.json is never written in place');
 assert.deepStrictEqual(renames, [[writes[0], file]]);
 assert.strictEqual(units.get().temperature, 'celsius');
-assert.deepStrictEqual(fs.readdirSync(dir).filter(function (n) { return /^units/.test(n); }), ['units.json']);
+assert.deepStrictEqual(fs.readdirSync(dir).filter(function (n) { return /^units/.test(n) && !/\.damaged-\d+$/.test(n); }), ['units.json']);
 console.log('PASS corrupt units.json falls back at boot; units.set writes atomically');

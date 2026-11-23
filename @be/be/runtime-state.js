@@ -50,24 +50,27 @@ function createObject(file, data, mode) {
     return readObject(file);
 }
 
+// A file that can't be read or is invalid (e.g. 0 bytes after a power cut) is kept as
+// <file>.damaged-<time> and replaced with the default, so it never stops PM or a service starting.
 function defaultObject(file, data, validate, mode) {
-    var current = readObject(file);
-    if (current === null) { current = createObject(file, data, mode); }
-    if (validate && !validate(current)) { throw new Error('Invalid settings at ' + file); }
-    return current;
+    var current;
+    try { current = readObject(file); }
+    catch (err) { current = undefined; }
+    if (current === null) { return createObject(file, data, mode); }
+    if (current && (!validate || validate(current))) { return current; }
+    var kept = file + '.damaged-' + Date.now();
+    try { fs.renameSync(file, kept); }
+    catch (err) { if (err.code !== 'ENOENT') { throw err; } }
+    console.error('[bootstrap] repaired ' + file + ' (damaged copy kept at ' + kept + ')');
+    return createObject(file, data, mode);
 }
 
 function beamData(dir) {
     directory(dir);
     ['eye', 'themes', 'custom-skills'].forEach(function (name) { directory(path.join(dir, name)); });
-    try {
-        defaultObject(path.join(dir, 'units.json'), { temperature: 'fahrenheit' }, function (v) {
-            return v.temperature === 'fahrenheit' || v.temperature === 'celsius';
-        });
-    } catch (err) {
-        // units.js already reads a damaged file as Fahrenheit; a unit preference must not stop Be booting.
-        if (!/JSON|Invalid settings/.test(err.message)) { throw err; }
-    }
+    defaultObject(path.join(dir, 'units.json'), { temperature: 'fahrenheit' }, function (v) {
+        return v.temperature === 'fahrenheit' || v.temperature === 'celsius';
+    });
     defaultObject(path.join(dir, 'camera-stream-settings.json'), { enabled: true }, function (v) {
         return typeof v.enabled === 'boolean';
     });
@@ -92,16 +95,30 @@ var groups = {
     });
 });
 
+var JOAP = 'http://joap.5x1.com:80';
+
 function credentials(root) {
     directory(root + '/var/jibo', 0o755);
-    return defaultObject(root + '/var/jibo/credentials.json', {
+    var file = root + '/var/jibo/credentials.json';
+    var creds = defaultObject(file, {
         accessKeyId: 'local-' + crypto.randomBytes(16).toString('hex'),
         secretAccessKey: crypto.randomBytes(32).toString('hex'),
-        region: 'api', endpoint: 'http://joap.5x1.com:80'
+        region: 'api', endpoint: JOAP
     }, function (v) {
         return typeof v.accessKeyId === 'string' && !!v.accessKeyId.trim() &&
             typeof v.secretAccessKey === 'string' && !!v.secretAccessKey.trim();
     }, 0o600);
+    // The stock updater asks credentials.json's endpoint for updates: keep it on BEaker, keys untouched.
+    if (creds.endpoint !== JOAP || creds.region !== 'api') {
+        creds.region = 'api';
+        creds.endpoint = JOAP;
+        var tmp = file + '.bootstrap-' + process.pid + '-' + crypto.randomBytes(8).toString('hex');
+        fs.writeFileSync(tmp, JSON.stringify(creds, null, 2) + '\n', { flag: 'wx', mode: 0o600 });
+        fs.chmodSync(tmp, 0o600);
+        fs.renameSync(tmp, file);
+        console.error('[bootstrap] pointed updates at ' + JOAP);
+    }
+    return creds;
 }
 
 function ensure(options) {
@@ -120,9 +137,8 @@ function ensure(options) {
     if (opts.credentials !== false) {
         try { credentials(root); }
         catch (err) {
-            // Only cloud clients read credentials; a damaged file must not stop body, audio or SSM from starting.
-            if (!/JSON|Invalid settings/.test(err.message)) { throw err; }
-            console.error('[bootstrap] warning: ' + err.message + ' (left unchanged)');
+            // Only cloud clients read credentials; a failure here must not stop body, audio or SSM from starting.
+            console.error('[bootstrap] warning: ' + err.message);
         }
     }
     if (service === 'all' || service === 'beam' || service === 'ssm') {
