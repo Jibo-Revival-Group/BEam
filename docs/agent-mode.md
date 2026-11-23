@@ -31,7 +31,7 @@ says the rest of the reply and leaves Agent Mode.
 
 The AI plays Jibo, with his loves and fears from his original answers (penguins, dancing, blueberries, Tom Hanks;
 scared of water and every liquid, heights, thunder and ghosts). In BEacon's Agent settings you can give him a
-**nickname** (like "Jeebs") that he knows means him, and turn on **memory**: he then saves short notes from your
+**nickname** (like "Jeebs") that he knows means him (it does not change the wake word; you still say "Hey Jibo"), and turn on **memory**: he then saves short notes from your
 conversations (a `REMEMBER:` line, never spoken) and gets them back in later ones. Turning memory off keeps the
 notes but stops him reading or adding them. Under "What Jibo remembers" BEacon lists every note, with Delete for each
 and Clear all. A `SHOW: emperor penguin` line looks up a picture the way "Hey Jibo, show me a picture of ___" does
