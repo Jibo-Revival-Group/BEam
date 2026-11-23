@@ -198,8 +198,9 @@
     <div class="card"><p>See every service running on Jibo and open their built-in developer pages in one console.</p><a class="btn btn-primary" href="/services.html">Open Services</a></div>
     <p class="section-header">Main Menu</p>
     <div class="card"><p>Arrange skills and customize folders on Jibo’s main menu.</p><a class="btn btn-primary" href="#menu">Edit Main Menu</a></div>
-    <p class="section-header">Language</p>
-    <div class="setting-block">
+    <!-- Hidden for now (Zane, 3.2.0-r2): the setting still works through /api/language. -->
+    <p class="section-header" id="language-header" hidden>Language</p>
+    <div class="setting-block" id="language-block" hidden>
         <p class="hint">The language Jibo speaks, in his own voice. He still listens in English, and his screen stays in English. Other languages are experimental: he has an accent and translations can be wrong.</p>
         <div class="store-switch settings-switch" id="language-choices" role="radiogroup" aria-label="Jibo's speech language">
             <span class="store-switch-slider" aria-hidden="true"></span>

@@ -6,6 +6,9 @@ var paths = require('../@be/be/beacon/lib/paths');
 var dir = fs.mkdtempSync(path.join(os.tmpdir(), 'beam-language-'));
 paths.dataDir = function () { return dir; };
 var language = require('../@be/be/beacon/lib/speech-language');
+// BEacon hides the Language section for now (3.2.0-r2); the setting itself keeps working.
+var html = fs.readFileSync(path.join(__dirname, '../@be/be/beacon/public/index.html'), 'utf8');
+assert(/<p class="section-header" id="language-header" hidden>/.test(html) && /<div class="setting-block" id="language-block" hidden>/.test(html), 'Language section hidden in BEacon');
 
 var EN = '<speak><STYLE set="NEUTRAL"> hey there ! </STYLE></speak>';
 var calls = [];
