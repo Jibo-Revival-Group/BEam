@@ -46,6 +46,13 @@ const sleep = require('./lib/sleep-http');
 const agentSettings = require('./lib/agent-settings');
 const agentProvider = require('./lib/agent-provider');
 const agentMemory = require('./lib/agent-memory');
+const skillSettings = require('./lib/skill-settings');
+// An installed custom skill that has settings, by package name.
+function settingsSkill (id) {
+    const item = customSkills.inventory().skills.filter(s => s.packageName === id)[0];
+    if (!item || !item.manifest.settings) { throw fail('That skill has no settings.', 404); }
+    return item;
+}
 const jibosync = require('./lib/jibosync');
 
 const MAX_UPLOAD = 256 * 1024 * 1024;
@@ -160,6 +167,27 @@ const routes = {
     'GET /api/skills/progress': guard((req, res, query) => { u.sendJson(res, 200, customSkills.progress(query.id)); }),
     'PUT /api/skills/upload': guard((req, res, query) => {
         return u.readBody(req, themePackage.MAX_ZIP, 120000).then(buf => customSkills.upload(buf, query.name, String(query.accept || '').split(','))).then(data => u.sendJson(res, 200, data));
+    }),
+    // A custom skill's own settings (manifest "settings"): read, save text/switches/sliders, upload or clear a file.
+    'GET /api/skills/settings': guard((req, res, query) => {
+        const item = settingsSkill(query.id);
+        u.sendJson(res, 200, { settings: item.manifest.settings, values: skillSettings.values(item) });
+    }),
+    'POST /api/skills/settings': guard((req, res, query) => {
+        return u.readJson(req, 64 * 1024).then(body => u.sendJson(res, 200, { values: skillSettings.save(settingsSkill(query.id), body && body.values) }));
+    }),
+    'PUT /api/skills/settings/file': guard((req, res, query) => {
+        const item = settingsSkill(query.id);
+        return u.readBody(req, skillSettings.FILES.music.max, 120000).then(buf => u.sendJson(res, 200, { values: skillSettings.saveFile(item, query.setting, query.name, buf) }));
+    }),
+    'GET /api/skills/settings/file': guard((req, res, query) => {
+        const value = skillSettings.values(settingsSkill(query.id))[query.setting];
+        if (typeof value !== 'string') { throw fail('No file is set.', 404); }
+        const types = { '.webp': 'image/webp', '.mp3': 'audio/mpeg', '.m4a': 'audio/mp4', '.aac': 'audio/aac', '.wav': 'audio/wav', '.ogg': 'audio/ogg' };
+        u.serveFile(req, res, value, { contentType: types[require('path').extname(value).toLowerCase()] });
+    }),
+    'DELETE /api/skills/settings/file': guard((req, res, query) => {
+        u.sendJson(res, 200, { values: skillSettings.clearFile(settingsSkill(query.id), query.setting) });
     }),
     'DELETE /api/skills': guard((req, res, query) => { return customSkills.remove(query.id).then(data => u.sendJson(res, 200, data)); }),
     'GET /api/skills/asset': guard((req, res, query) => { u.serveFile(req, res, customSkills.asset(query.id, query.name), { contentType: 'image/png' }); }),

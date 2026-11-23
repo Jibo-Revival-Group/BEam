@@ -22,6 +22,9 @@ async function run() {
     assert.strictEqual(await say('REMEMBER: Sam has a cat named Cupcake.'), 'Okay.', 'a reply that was only a note still answers');
     await say('Hi!'); 
     assert(/People may call you Jeebs/.test(system) && /Sam has a cat named Cupcake/.test(system) && /REMEMBER:/.test(system), 'memory and nickname in the prompt');
+    assert(/It is now \w+day, \w+ \d+, 20\d\d/.test(system), 'the current date and time: ' + system.slice(0, 0));
+    const at = provider.now(new Date(2026, 10, 22, 19, 5));
+    assert(/Sunday, November 22, 2026/.test(at) && /7:05\s?PM/.test(at) && / where you are\.$/.test(at), at);
     assert(/penguins/.test(system) && /scared of water/.test(system) && /SHOW:/.test(system), 'Jibo\'s personality and pictures');
 
     settings.save({ provider: 'free', memory: false });

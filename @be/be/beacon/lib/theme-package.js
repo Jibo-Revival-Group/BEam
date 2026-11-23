@@ -181,6 +181,8 @@ function manifest(buf) {
             if (vague) { throw fail('"' + vague + '" is too general to be a launch phrase: start with words specific to the skill'); }
             out.phrases = m.phrases.map(p => p.trim());
         }
+        // Settings the owner changes in BEacon's Settings popup (lib/skill-settings.js).
+        if (m.settings !== undefined) { out.settings = require('./skill-settings').schema(m.settings); }
         const colors = m.buttonColor === undefined ? ['#58BCEB', '#246487'] : typeof m.buttonColor === 'string' ? m.buttonColor.trim().split(/\s+/) : m.buttonColor;
         if (!Array.isArray(colors) || colors.length < 1 || colors.length > 2 || colors.some(c => typeof c !== 'string' || !/^#[0-9a-f]{6}$/i.test(c))) { throw fail('buttonColor needs one or two #RRGGBB colors'); }
         out.buttonColor = colors.length === 1 ? [colors[0], colors[0]] : colors;

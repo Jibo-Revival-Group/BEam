@@ -140,6 +140,33 @@ theme and skill titles. The Skills page displays the requested malware and
 official-store review notice; custom sources/uploads are not claimed to be
 reviewed by the official store.
 
+## Settings
+
+A skill can list settings in `manifest.json`. BEacon then shows a **Settings** button on the skill's Store card
+(next to Remove) that opens a popup with one field per setting:
+
+```json
+"settings": [
+  { "id": "background", "type": "image", "label": "Background picture", "description": "Shown behind the clock." },
+  { "id": "alarm", "type": "music", "label": "Alarm sound" },
+  { "id": "petName", "type": "text", "label": "Pet name", "default": "Blob", "maxLength": 20 },
+  { "id": "loud", "type": "boolean", "label": "Loud mode", "default": false },
+  { "id": "speed", "type": "slider", "label": "Speed", "min": 1, "max": 10, "step": 1, "default": 5 }
+]
+```
+
+- Up to 20 settings. `id`: letters, numbers, `_` and `-`, unique. `label`: up to 60 characters. `description` is optional.
+- `image`: png, jpg, gif or webp, up to 10 MB. `music`: mp3, m4a, aac, wav or ogg, up to 30 MB. Files upload as soon as
+  they are chosen.
+- `text` (`maxLength` 1–1000, default 200), `boolean`, `slider` (`min`, `max`, `step`; `default` between them) are
+  saved with the popup's Save button.
+
+The skill reads its values from its own Knowledge folder, which needs no permission:
+`/opt/jibo/Knowledge/<skill>/settings.json` (`<skill>` is the package name without `@be/`). It holds
+`{ "<id>": value }`; image and music values are the absolute path of the chosen file (in `settings/` beside it), or
+`null`. Settings never set are missing from the file, so use your manifest's defaults. Read it when the skill opens,
+so changes apply the next time it starts. Settings stay when the skill is updated or removed.
+
 ## Background scripts
 
 A skill can keep a small script running while it is closed, for example to wait

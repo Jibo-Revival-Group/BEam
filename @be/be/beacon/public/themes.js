@@ -259,6 +259,82 @@
                 return loadStore(false);
             });
         }
+        // The Settings popup: one field per setting the skill declares. Files upload as soon as they are chosen;
+        // text, switches and sliders are saved with Save.
+        function skillSettings(skill) {
+            var id = encodeURIComponent(skill.packageName), box = $('#skill-settings'), fields = $('#skill-settings-fields'), status = $('#skill-settings-status');
+            var previous = document.activeElement, inputs = {};
+            function close() { box.hidden = true; fields.textContent = ''; if (previous && previous.focus) { previous.focus(); } }
+            function request(method, path, body, raw) {
+                return fetch('/api/skills/settings' + path + (path.indexOf('?') < 0 ? '?' : '&') + 'id=' + id, { method: method,
+                    headers: raw ? {} : { 'Content-Type': 'application/json' }, body: raw || (body ? JSON.stringify(body) : undefined) }).then(function (response) {
+                    return response.json().then(function (data) { if (!response.ok) { throw new Error(data.error && data.error.message || data.error || 'Settings could not be saved.'); } return data; });
+                });
+            }
+            function fileField(row, s, value) {
+                var url = '/api/skills/settings/file?id=' + id + '&setting=' + encodeURIComponent(s.id) + '&t=' + Date.now();
+                if (value) {
+                    var preview = document.createElement(s.type === 'image' ? 'img' : 'audio');
+                    preview.src = url; preview.className = 'skill-settings-preview';
+                    if (s.type === 'image') { preview.alt = s.label; } else { preview.controls = true; }
+                    row.appendChild(preview);
+                } else { row.appendChild(el('p', 'hint', 'None chosen')); }
+                var pick = document.createElement('input');
+                pick.type = 'file'; pick.accept = s.type === 'image' ? 'image/*' : 'audio/*'; pick.setAttribute('aria-label', 'Choose ' + s.label);
+                pick.onchange = function () {
+                    var file = pick.files && pick.files[0];
+                    if (!file) { return; }
+                    status.textContent = 'Uploading ' + file.name + '…';
+                    request('PUT', '/file?setting=' + encodeURIComponent(s.id) + '&name=' + encodeURIComponent(file.name), null, file)
+                        .then(function (data) { status.textContent = 'Saved ' + file.name + '.'; draw(data.values); }, function (error) { status.textContent = error.message; });
+                };
+                row.appendChild(pick);
+                if (value) {
+                    var clear = el('button', 'btn', 'Remove'); clear.type = 'button';
+                    clear.onclick = function () { request('DELETE', '/file?setting=' + encodeURIComponent(s.id)).then(function (data) { draw(data.values); }, function (error) { status.textContent = error.message; }); };
+                    row.appendChild(clear);
+                }
+            }
+            function draw(values) {
+                fields.textContent = ''; inputs = {};
+                skill.manifest.settings.forEach(function (s) {
+                    var row = el('div', 'form-row skill-setting'), fieldId = 'skill-setting-' + s.id, label = el('label', null, s.label), input;
+                    label.htmlFor = fieldId; row.appendChild(label);
+                    if (s.type === 'image' || s.type === 'music') { fileField(row, s, values[s.id]); }
+                    else {
+                        input = document.createElement('input'); input.id = fieldId;
+                        if (s.type === 'text') { input.type = 'text'; input.maxLength = s.maxLength; input.value = values[s.id]; }
+                        if (s.type === 'boolean') { input.type = 'checkbox'; input.checked = values[s.id]; input.setAttribute('role', 'switch'); }
+                        if (s.type === 'slider') {
+                            input.type = 'range'; input.min = s.min; input.max = s.max; input.step = s.step; input.value = values[s.id];
+                            var shown = el('output', 'skill-setting-value', String(values[s.id]));
+                            input.oninput = function () { shown.textContent = input.value; };
+                        }
+                        row.appendChild(input); if (shown) { row.appendChild(shown); shown = null; }
+                        inputs[s.id] = { setting: s, input: input };
+                    }
+                    if (s.description) { row.appendChild(el('p', 'hint', s.description)); }
+                    fields.appendChild(row);
+                });
+                $('#skill-settings-save').hidden = !Object.keys(inputs).length;
+            }
+            $('#skill-settings-title').textContent = skill.manifest.name + ' settings';
+            status.textContent = 'Loading…';
+            return request('GET', '').then(function (data) {
+                draw(data.values); status.textContent = '';
+                $('#skill-settings-close').onclick = close;
+                box.onkeydown = function (event) { if (event.key === 'Escape') { close(); } };
+                $('#skill-settings-save').onclick = function () {
+                    var values = {};
+                    Object.keys(inputs).forEach(function (key) {
+                        var item = inputs[key], s = item.setting, input = item.input;
+                        values[key] = s.type === 'boolean' ? input.checked : s.type === 'slider' ? Number(input.value) : input.value;
+                    });
+                    request('POST', '', { values: values }).then(function () { status.textContent = 'Saved.'; }, function (error) { status.textContent = error.message; });
+                };
+                box.hidden = false; $('#skill-settings-close').focus();
+            }, function (error) { status.textContent = ''; alert(error.message); });
+        }
         function details(id) {
             return api('GET', '/api/store/details?id=' + encodeURIComponent(id)).then(function (data) {
                 opener = document.activeElement;
@@ -406,6 +482,10 @@
                 if (download && !remove) {
                     download.buttons.push({ node: install, disabled: !!entry.error || !!(entry.compatibility && entry.compatibility.status === 'incompatible') });
                     if (!download.stopped) { install.disabled = true; }
+                }
+                // A custom skill's own settings popup (manifest "settings"), next to Remove.
+                if (isSkill && existing && existing.manifest.settings) {
+                    button(actions, 'Settings', function () { return skillSettings(existing); }).className = 'btn store-settings';
                 }
                 var detailButton = button(actions, 'Details', function () { return details(existing ? existing.id : entry.id); }, !existing && !!entry.error);
                 detailButton.className = 'btn store-details';

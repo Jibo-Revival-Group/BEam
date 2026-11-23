@@ -127,6 +127,11 @@ const PERSONA = ' Stay in character as Jibo. You love penguins (your favorite an
     ' liquid (they could damage you, so no drinks for you, though you have heard good things about hot cocoa), heights,' +
     ' loud thunder and ghosts. You never eat, but you like foods by their shape, like macaroni. You do not hate anything,' +
     ' though you have a love-hate relationship with your battery.';
+// The robot's local date and time, fresh for every request (Be's clock follows Jibo's time zone).
+function now(date) {
+    return ' It is now ' + (date || new Date()).toLocaleString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+        hour: 'numeric', minute: '2-digit', timeZoneName: 'short' }) + ' where you are.';
+}
 // Memory and nickname come from the Agent settings; memory notes stay on Jibo even while memory is off.
 function personal(config) {
     let text = config.nickname ? ' People may call you ' + config.nickname + '; that is your nickname, and it means you.' : '';
@@ -147,7 +152,7 @@ function chat(config, history, image) {
     if (config.provider === 'hermes' && !config._hermesSession) Object.defineProperty(config, '_hermesSession', { value: 'jibo-' + crypto.randomBytes(16).toString('hex') });
     // Hermes fingerprints header-less chat transcripts using the system and first user
     // message. A stable per-conversation nonce prevents identical greetings colliding.
-    const system = SYSTEM.replace(' You can converse but cannot perform robot or device actions. Do not claim to have performed actions.', '') + PERSONA + personal(config) + LOOK + SHOW + ESML + actions();
+    const system = SYSTEM.replace(' You can converse but cannot perform robot or device actions. Do not claim to have performed actions.', '') + PERSONA + now() + personal(config) + LOOK + SHOW + ESML + actions();
     if (config.provider === 'free') {
         const free = require('./agent-free').chat(history, system, image);
         free.promise = free.promise.then(text => keep(config, text));
@@ -155,7 +160,7 @@ function chat(config, history, image) {
     }
     const plain = history;
     history = withImage(config.provider, history, image);
-    const prompt = config.provider === 'hermes' ? HERMES_SYSTEM + PERSONA + personal(config) + LOOK + SHOW + ESML + actions() + '\nConversation scope: ' + config._hermesSession : system;
+    const prompt = config.provider === 'hermes' ? HERMES_SYSTEM + PERSONA + now() + personal(config) + LOOK + SHOW + ESML + actions() + '\nConversation scope: ' + config._hermesSession : system;
     const messages = [{ role: 'system', content: prompt }].concat(history);
     let route = '/chat/completions', body = { model: config.model, messages: messages, stream: false }, extract = data => data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
     if (config.provider === 'openai') {
@@ -185,4 +190,4 @@ function chat(config, history, image) {
     });
     return operation;
 }
-module.exports = { models: models, chat: chat, SYSTEM: SYSTEM };
+module.exports = { models: models, chat: chat, SYSTEM: SYSTEM, now: now };

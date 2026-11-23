@@ -29,7 +29,7 @@ While Jibo listens he shows his own listening eye and light ring, as after "Hey 
 conversation itself: when the user is done (goodbye, gotta go) it ends its reply with a line `BYE`, and Jibo
 says the rest of the reply and leaves Agent Mode.
 
-The AI plays Jibo, with his loves and fears from his original answers (penguins, dancing, blueberries, Tom Hanks;
+The AI knows the current date and time where Jibo is (sent with every request). The AI plays Jibo, with his loves and fears from his original answers (penguins, dancing, blueberries, Tom Hanks;
 scared of water and every liquid, heights, thunder and ghosts). In BEacon's Agent settings you can give him a
 **nickname** (like "Jeebs") that he knows means him (it does not change the wake word; you still say "Hey Jibo"), and turn on **memory**: he then saves short notes from your
 conversations (a `REMEMBER:` line, never spoken) and gets them back in later ones. Turning memory off keeps the
