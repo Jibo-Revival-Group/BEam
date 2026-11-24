@@ -1449,8 +1449,15 @@ class CircadianExpression {
                     animConfig.mutes = { AUDIO: false, SCREEN: true, BODY: true };
                 }
                 const playback = yield animation.createFromConfig(animConfig);
+                // 5x1: some idle animations (the eclipse jiboji) end with the eye turned 90°, which made every later
+                // blink look sideways. Turn it back upright when one of those finishes or is cut short.
+                const upright = () => {
+                    if (animation.meta && animation.meta.endsNeutral === false) {
+                        jibo.expression.centerRobot({ dofs: jibo.expression.dofs.EYE_ROTATE }).catch(err => this.skill.log.warn('eye upright:', err));
+                    }
+                };
                 const animationHandle = {
-                    promise: playback.play(),
+                    promise: playback.play().then(result => { upright(); return result; }, err => { upright(); throw err; }),
                     cancel: () => playback.stop()
                 };
                 return animationHandle;
