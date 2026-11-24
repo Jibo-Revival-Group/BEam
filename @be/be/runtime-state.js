@@ -97,6 +97,23 @@ var groups = {
 
 var JOAP = 'http://joap.5x1.com:80';
 
+// Be (BEacon's calendar, commute and phone-battery reports) runs as jibo-skill and signs BEefy requests with these
+// keys: root owns the file, only the jibo-skill group may read it. A root-only file (0600) left BEacon without them.
+function shareWithBe(root, file) {
+    var gid = null;
+    try {
+        fs.readFileSync(root + '/etc/group', 'utf8').split('\n').forEach(function (line) {
+            var parts = line.split(':');
+            if (parts[0] === 'jibo-skill' && /^\d+$/.test(parts[2])) { gid = Number(parts[2]); }
+        });
+    } catch (err) { /* no group file: leave the file as it is */ }
+    if (gid === null) { return; }
+    try {
+        if (typeof process.getuid === 'function' && process.getuid() === 0) { fs.chownSync(file, 0, gid); }
+        fs.chmodSync(file, 0o640);
+    } catch (err) { console.error('[bootstrap] warning: ' + err.message); }
+}
+
 function credentials(root) {
     directory(root + '/var/jibo', 0o755);
     var file = root + '/var/jibo/credentials.json';
@@ -118,6 +135,7 @@ function credentials(root) {
         fs.renameSync(tmp, file);
         console.error('[bootstrap] pointed updates at ' + JOAP);
     }
+    shareWithBe(root, file);
     return creds;
 }
 
