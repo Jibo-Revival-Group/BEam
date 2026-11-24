@@ -144,6 +144,16 @@ function ensure(options) {
     if (service === 'all' || service === 'beam' || service === 'ssm') {
         beamData(root + '/opt/jibo/Knowledge/beacon');
     }
+    if (service === 'all') { moveOldBackup(root); }
+}
+
+// Old PM scripts left a full copy of the previous skills in Skills/old-BEer. system-manager checks every file under
+// Skills while SSM waits (~5 s for that copy), so keep the backup beside Skills instead (a rename: same disk, kept as is).
+function moveOldBackup(root) {
+    var from = root + '/opt/jibo/Jibo/Skills/old-BEer', to = root + '/opt/jibo/old-BEer';
+    try {
+        if (fs.lstatSync(from).isDirectory() && !fs.existsSync(to)) { fs.renameSync(from, to); console.error('[bootstrap] moved ' + from + ' to ' + to); }
+    } catch (err) { if (err.code !== 'ENOENT') { console.error('[bootstrap] warning: ' + err.message); } }
 }
 
 function ensureBeam() {
