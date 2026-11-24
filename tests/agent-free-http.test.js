@@ -34,6 +34,12 @@ async function run() {
         // 3.2.0: Jibo's instructions (with the DO: actions) go along; any model BEefy names is accepted, junk is not.
         assert.strictEqual(await client.chat(history,'You are Jibo.\nDO: ...').promise,'A free answer.');
         assert.strictEqual(seen[seen.length-1].body.system,'You are Jibo.\nDO: ...');
+        // 3.2.1: time, nickname and memory go as context (BEefy caches the shared system prompt); together within 8000.
+        assert.strictEqual(await client.chat(history,'You are Jibo.',null,' It is now noon.').promise,'A free answer.');
+        assert.strictEqual(seen[seen.length-1].body.system,'You are Jibo.');assert.strictEqual(seen[seen.length-1].body.context,' It is now noon.');
+        await client.chat(history,'x'.repeat(5000),null,'y'.repeat(5000)).promise;
+        assert.strictEqual(seen[seen.length-1].body.system.length+seen[seen.length-1].body.context.length,8000);
+        await client.chat(history,undefined,null,' It is now noon.').promise;assert(!('context' in seen[seen.length-1].body),'no context without a system prompt');
         const photo='A'.repeat(60000);assert.strictEqual(await client.chat(history,'s',photo).promise,'A free answer.');
         assert.strictEqual(seen[seen.length-1].body.image,photo,'a photo goes along, past the usual 30 KB cap');
         assert.strictEqual(seen[seen.length-1].body.messages[0].content,history[0].content);

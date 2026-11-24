@@ -33,7 +33,7 @@ function models() {
         } catch (_) { failed(); }
     });
 }
-function prepare(history, robotId, system, image) {
+function prepare(history, robotId, system, image, context) {
     if (!Array.isArray(history) || !history.length || history.length > 21 || history.length % 2 !== 1) throw fail('Free conversation history is invalid. Start a new conversation.');
     const messages = history.map((message, index) => {
         if (!message || message.role !== (index % 2 ? 'assistant' : 'user') || typeof message.content !== 'string' || !message.content.trim() || message.content.length > 12000) throw fail('Free conversation history is invalid. Start a new conversation.');
@@ -42,6 +42,8 @@ function prepare(history, robotId, system, image) {
     const request = { requestId: crypto.randomBytes(16).toString('hex'), messages: messages, robotId: robotId };
     // Jibo's instructions, including the "DO:" actions and installed skills, as paid models get them.
     if (typeof system === 'string' && system.trim()) request.system = system.slice(0, 8000);
+    // BEefy limits system + context to 8000 characters together.
+    if (request.system && typeof context === 'string' && context.trim() && request.system.length < 7999) request.context = context.slice(0, 8000 - request.system.length);
     if (image) request.image = image; // base64 JPEG for the last user message (BEefy allows a bigger request with one)
     const requestId = request.requestId, body = JSON.stringify(request);
     if (Buffer.byteLength(body, 'utf8') > 30000 + (image ? image.length : 0)) throw fail('Free conversation history is too long. Start a new conversation.');
@@ -50,7 +52,7 @@ function prepare(history, robotId, system, image) {
     options.method = 'POST'; options.headers = headers; secure(options);
     return { options: options, body: body, requestId: requestId };
 }
-function chat(history, system, image) {
+function chat(history, system, image, context) {
     let request, timer, settled = false, rejectPending;
     const promise = new Promise((resolve, reject) => {
         rejectPending = reject;
@@ -68,7 +70,7 @@ function chat(history, system, image) {
             const validId = id => typeof id === 'string' && !!id.trim() && id.length <= 128 && !/[\x00-\x1f\x7f-\x9f]/.test(id);
             const robotId = validId(snapshot && snapshot.robot) ? snapshot.robot : os.hostname();
             if (!validId(robotId)) throw fail('Free AI could not identify this robot.');
-            const prepared = prepare(history, robotId, system, image);
+            const prepared = prepare(history, robotId, system, image, context);
             request = https.request(prepared.options, response => {
                 let bytes = 0, chunks = [];
                 response.on('data', chunk => {

@@ -154,7 +154,10 @@ function chat(config, history, image) {
     // message. A stable per-conversation nonce prevents identical greetings colliding.
     const system = SYSTEM.replace(' You can converse but cannot perform robot or device actions. Do not claim to have performed actions.', '') + PERSONA + now() + personal(config) + LOOK + SHOW + ESML + actions();
     if (config.provider === 'free') {
-        const free = require('./agent-free').chat(history, system, image);
+        // What changes (time, nickname, memory) goes separately, so the rest is the same on every robot and BEefy can
+        // prompt-cache it.
+        const shared = SYSTEM.replace(' You can converse but cannot perform robot or device actions. Do not claim to have performed actions.', '') + PERSONA + LOOK + SHOW + ESML;
+        const free = require('./agent-free').chat(history, shared, image, now() + personal(config));
         free.promise = free.promise.then(text => keep(config, text));
         return free;
     }

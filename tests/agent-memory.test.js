@@ -8,7 +8,7 @@ paths.dataDir = () => temporary;
 const settings = require(root + '/beacon/lib/agent-settings'), provider = require(root + '/beacon/lib/agent-provider');
 const memory = require(root + '/beacon/lib/agent-memory'), free = require(root + '/beacon/lib/agent-free');
 let reply = '', system = '';
-free.chat = (history, prompt) => { system = prompt; return { promise: Promise.resolve(reply), cancel() {} }; };
+free.chat = (history, prompt, image, context) => { system = prompt + (context || ''); return { promise: Promise.resolve(reply), cancel() {} }; };
 async function say(text) { reply = text; return provider.chat(settings.resolve({}), [{ role: 'user', content: 'hi' }]).promise; }
 async function run() {
     let status = settings.save({ provider: 'free', memory: true, nickname: 'Jeebs' });
