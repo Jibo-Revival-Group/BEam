@@ -97,8 +97,9 @@ var groups = {
 
 var JOAP = 'http://joap.5x1.com:80';
 
-// Be (BEacon's calendar, commute and phone-battery reports) runs as jibo-skill and signs BEefy requests with these
-// keys: root owns the file, only the jibo-skill group may read it. A root-only file (0600) left BEacon without them.
+// Be runs as jibo-skill: BEacon signs BEefy requests with credentials.json (calendar, commute, phone battery) and its
+// Server tab rewrites the update endpoint and the jetstream hub in place. Root owns these files; only the jibo-skill
+// group may read and write them. Root-only files (0600/0750) left BEacon unable to.
 function shareWithBe(root, file) {
     var gid = null;
     try {
@@ -110,7 +111,7 @@ function shareWithBe(root, file) {
     if (gid === null) { return; }
     try {
         if (typeof process.getuid === 'function' && process.getuid() === 0) { fs.chownSync(file, 0, gid); }
-        fs.chmodSync(file, 0o640);
+        fs.chmodSync(file, 0o660);
     } catch (err) { console.error('[bootstrap] warning: ' + err.message); }
 }
 
@@ -162,7 +163,10 @@ function ensure(options) {
     if (service === 'all' || service === 'beam' || service === 'ssm') {
         beamData(root + '/opt/jibo/Knowledge/beacon');
     }
-    if (service === 'all') { moveOldBackup(root); }
+    if (service === 'all') {
+        moveOldBackup(root);
+        if (fs.existsSync(root + '/usr/local/etc/jibo-jetstream-service.json')) { shareWithBe(root, root + '/usr/local/etc/jibo-jetstream-service.json'); }
+    }
 }
 
 // Old PM scripts left a full copy of the previous skills in Skills/old-BEer. system-manager checks every file under
