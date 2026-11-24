@@ -1086,19 +1086,14 @@ const prify = jibo_cai_utils_1.PromiseUtils.promisify;
 /*
  * Registers service endpoint which exposes on-robot context data to those outside Be.
  */
-BeSkill_1.default.registerPlugin('context', (resolve, reject) => __awaiter(this, void 0, void 0, function* () {
+BeSkill_1.default.registerPlugin('context', (resolve, reject) => {
     const port = (jibo.runMode === jibo.RunMode.ON_ROBOT) ? 8588 : 0;
     const contextService = ContextService_1.ContextService.createInstance({ port: port, register: true });
-    try {
-        yield prify(h => contextService.init(h));
-        log.info(`Successfully initialized ContextService`);
-        resolve(ContextService_1.ContextService.instance);
-    }
-    catch (err) {
-        log.error(`Could not initialize ContextService`);
-        reject(err);
-    }
-}));
+    // Only callers outside Be use it, and registering with the service registry took up to ~6 s at boot:
+    // don't hold up the first skill for it.
+    resolve(ContextService_1.ContextService.instance);
+    prify(h => contextService.init(h)).then(() => log.info(`Successfully initialized ContextService`), (err) => log.error(`Could not initialize ContextService`, err));
+});
 
 },{"../../BeSkill":1,"../../log":4,"./ContextService":12,"jibo":undefined,"jibo-cai-utils":undefined}],14:[function(require,module,exports){
 "use strict";
