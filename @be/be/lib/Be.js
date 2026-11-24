@@ -280,7 +280,15 @@ class Be {
         ModuleVersions_1.default.log(this.log, jibo.utils.PathUtils.findRoot());
         this.log.debug('Initting jibo');
         const jiboInitStart = Date.now();
-        jibo.init({ display: 'face', analytics: new LibraryAnalytics_1.default() }, (err) => {
+        // jibo.init fails if expression isn't registered yet; at boot Be can get here before expression is up.
+        const onRobot = process.platform === 'linux' && process.arch === 'arm';
+        const waitForExpression = onRobot ? (cb) => require('./wait-for-record')('expression', {}, (err) => {
+            if (err) {
+                this.log.warn('expression not registered after 60 s; starting anyway');
+            }
+            cb();
+        }) : (cb) => cb();
+        waitForExpression(() => jibo.init({ display: 'face', analytics: new LibraryAnalytics_1.default() }, (err) => {
             if (err) {
                 this.log.error(err);
                 this.initDoneCallback(err);
@@ -351,7 +359,7 @@ class Be {
                     be_framework_1.BeSkill.init(this.initPlugins.bind(this));
                 });
             });
-        });
+        }));
     }
     initPlugins(err) {
         if (err) {
