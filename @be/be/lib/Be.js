@@ -31,6 +31,8 @@ const BACKGROUND_CONSTRUCT = {
     '@be/clock': true,
     '@be/settings': true
 };
+/** Build them anyway if the first skill hasn't opened by then. */
+const BACKGROUND_CONSTRUCT_FALLBACK_MS = 20000;
 /** Skills whose postInit may run in the background and need not block first launch. */
 const BACKGROUND_POSTINIT_IDS = {
     '@be/clock': true,
@@ -245,6 +247,10 @@ class Be {
         return promise;
     }
     _startBackgroundConstructs() {
+        if (this._backgroundConstructsStarted) {
+            return;
+        }
+        this._backgroundConstructsStarted = true;
         Object.keys(BACKGROUND_CONSTRUCT).forEach((id) => {
             const run = () => {
                 try {
@@ -355,12 +361,13 @@ class Be {
         }
         // Arm postInit for skills already constructed (idle + surprises). First
         // launch waits only for idle + the selected first skill; clock/settings
-        // construct + postInit in the background.
+        // are built after the face is up (they took ~1.9 s of the renderer's only
+        // thread before it). Asked-for skills are built on demand anyway.
         this._postInitsArmed = true;
         for (let id in this.skills) {
             this._startSkillPostInit(id, this.skills[id]);
         }
-        this._startBackgroundConstructs();
+        setTimeout(() => this._startBackgroundConstructs(), BACKGROUND_CONSTRUCT_FALLBACK_MS);
         this._bootMark('postInits started');
         this.afterPluginsReady();
     }
@@ -497,6 +504,7 @@ class Be {
         };
         const firstSkillHasOpened = () => {
             this._bootMark('first skill opened');
+            setTimeout(() => this._startBackgroundConstructs(), 1000);
             if (!firstErrorId) {
                 this.enableSkillSwitching();
             }
