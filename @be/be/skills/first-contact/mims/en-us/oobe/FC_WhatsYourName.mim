@@ -1,0 +1,40 @@
+{
+	"mim_id": "FC_WhatsYourName",
+	"skill_id": "first-contact",
+	"mim_type": "optional-response",
+	"rule_name": "first-contact/your_name",
+	"rule_slots": "",
+	"screen_slots_available": false,
+	"timeout": 6,
+	"max_tries": null,
+	"force_confirmation": false,
+	"barge_in": true,
+	"photo_quality_light": false,
+	"notes": "5x1: asked only when the loop has nobody (or only BEacon's placeholder). Any answer ends the MIM; ask-name.js reads asrResults.text.",
+	"prompts": [
+		{
+			"prompt_category": "Entry-Core",
+			"prompt_sub_category": "AN",
+			"index": 1,
+			"condition": "",
+			"prompt": "<anim cat='glances' filter='up'>But</anim> I don't know anyone here yet. <pitch mult='1.2'>What's</pitch> your name?",
+			"media": "TTS",
+			"prompt_id": "FC_WhatsYourName_01",
+			"weight": 1
+		},
+		{
+			"prompt_category": "Entry-Core",
+			"prompt_sub_category": "AN",
+			"index": 1,
+			"condition": "",
+			"prompt": "I haven't met anybody here yet. <pitch mult='1.1'>So,</pitch> what's your name?",
+			"media": "TTS",
+			"prompt_id": "FC_WhatsYourName_02",
+			"weight": 1
+		}
+	],
+	"ignore_no_match": false,
+	"parse_all_asr": false,
+	"thanks_handling": "ignore",
+	"parse_launch": false
+}

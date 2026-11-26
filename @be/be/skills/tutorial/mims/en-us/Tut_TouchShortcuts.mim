@@ -1,0 +1,36 @@
+{
+	"mim_id": "Tut_TouchShortcuts",
+	"skill_id": "tutorial",
+	"mim_type": "announcement",
+	"rule_name": "N/A",
+	"rule_slots": "",
+	"screen_slots_available": false,
+	"timeout": 0,
+	"max_tries": null,
+	"force_confirmation": false,
+	"barge_in": false,
+	"photo_quality_light": false,
+	"notes": "5x1: the Shortcuts shade (idle/shortcuts.js) opens on a drag down from the top third of the eye.",
+	"prompts": [
+		{
+			"prompt_category": "Entry-Core",
+			"prompt_sub_category": "AN",
+			"index": 1,
+			"condition": "",
+			"prompt": "<pitch mult='1.2'>One</pitch> more thing. If you drag down from the very top of my screen, you'll find my shortcuts, like Wi-Fi, Bluetooth and Settings.",
+			"media": "TTS",
+			"prompt_id": "Tut_TouchShortcuts_01",
+			"weight": 1
+		},
+		{
+			"prompt_category": "Entry-Core",
+			"prompt_sub_category": "AN",
+			"index": 1,
+			"condition": "",
+			"prompt": "<pitch mult='1.1'>Oh,</pitch> and if you pull down from the very top of my screen, <pitch mult='1.1'>you'll</pitch> find shortcuts, like Wi-Fi, Bluetooth and Settings.",
+			"media": "TTS",
+			"prompt_id": "Tut_TouchShortcuts_02",
+			"weight": 1
+		}
+	]
+}

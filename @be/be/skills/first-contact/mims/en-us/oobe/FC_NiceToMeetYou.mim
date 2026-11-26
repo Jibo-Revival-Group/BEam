@@ -1,0 +1,36 @@
+{
+	"mim_id": "FC_NiceToMeetYou",
+	"skill_id": "first-contact",
+	"mim_type": "announcement",
+	"rule_name": "N/A",
+	"rule_slots": "",
+	"screen_slots_available": false,
+	"timeout": 0,
+	"max_tries": null,
+	"force_confirmation": false,
+	"barge_in": false,
+	"photo_quality_light": false,
+	"notes": "",
+	"prompts": [
+		{
+			"prompt_category": "Entry-Core",
+			"prompt_sub_category": "AN",
+			"index": 1,
+			"condition": "",
+			"prompt": "<anim cat='emoji' filter='blue-heart, !hot-frame' nonBlocking='true'/><pitch mult='1.2'>${name}</pitch>. Nice to meet you, ${name}.",
+			"media": "TTS",
+			"prompt_id": "FC_NiceToMeetYou_01",
+			"weight": 1
+		},
+		{
+			"prompt_category": "Entry-Core",
+			"prompt_sub_category": "AN",
+			"index": 1,
+			"condition": "",
+			"prompt": "Hi, <pitch mult='1.2'>${name}</pitch>! I'm so glad to meet you.",
+			"media": "TTS",
+			"prompt_id": "FC_NiceToMeetYou_02",
+			"weight": 1
+		}
+	]
+}

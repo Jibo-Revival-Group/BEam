@@ -2016,6 +2016,23 @@ module.exports = function (blackboard, notepad, result, emitter) {
                 }
             };
         },
+        // 5x1: the Shortcuts shade (drag down from the top of the eye) came after the stock tutorial.
+        '5x1-touch-shortcuts': function () {
+            return {
+                'id': '5x1-touch-shortcuts',
+                'name': 'Touch Shortcuts',
+                'asset-pack': 'core',
+                'transitions': [{ 'frm': '5x1-touch-shortcuts', 'to': 'af469b41-5636-490e-bec6-7e3b6f6ff2df', 'value': '' }],
+                'exceptions': [],
+                'class': 'Mim.Announcement',
+                'options': {
+                    'mimPath': 'mims/en-us/Tut_TouchShortcuts.mim',
+                    'getPromptData': () => {
+                        return {};
+                    }
+                }
+            };
+        },
         '3cae14dd-6776-47f6-bbb8-e45cc922daee': function () {
             return {
                 'id': '3cae14dd-6776-47f6-bbb8-e45cc922daee',
@@ -2023,7 +2040,7 @@ module.exports = function (blackboard, notepad, result, emitter) {
                 'asset-pack': 'core',
                 'transitions': [{
                         'frm': '3cae14dd-6776-47f6-bbb8-e45cc922daee',
-                        'to': 'af469b41-5636-490e-bec6-7e3b6f6ff2df',
+                        'to': '5x1-touch-shortcuts',
                         'value': ''
                     }],
                 'exceptions': [],

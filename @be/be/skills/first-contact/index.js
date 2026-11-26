@@ -534,7 +534,7 @@ module.exports = function (blackboard, notepad, result, emitter) {
                 'asset-pack': 'core',
                 'transitions': [{
                         'frm': 'f82ccf6a-d8b0-4374-8096-adff2249f7af',
-                        'to': '6e1ea933-a75b-4233-b114-7b6727c76d98',
+                        'to': '5x1-need-name',
                         'value': ''
                     }],
                 'exceptions': [],
@@ -546,6 +546,91 @@ module.exports = function (blackboard, notepad, result, emitter) {
                             loopNames: notepad.loopNames,
                             loopCount: notepad.loopNames.length > 0 ? notepad.loopNames.length : 0
                         };
+                    }
+                }
+            };
+        },
+        '5x1-need-name': function () {
+            return {
+                'id': '5x1-need-name',
+                'name': 'nobody in the loop?',
+                'asset-pack': 'core',
+                'transitions': [
+                    { 'frm': '5x1-need-name', 'to': '5x1-whats-your-name', 'value': 'ask' },
+                    { 'frm': '5x1-need-name', 'to': '6e1ea933-a75b-4233-b114-7b6727c76d98', 'value': '' }
+                ],
+                'exceptions': [],
+                'class': 'Flow.Eval',
+                'options': {
+                    'Script': () => {
+                        return notepad.loopNames.length ? '' : 'ask';
+                    }
+                }
+            };
+        },
+        '5x1-whats-your-name': function () {
+            return {
+                'id': '5x1-whats-your-name',
+                'name': 'F C_ Whats Your Name',
+                'asset-pack': 'core',
+                'transitions': [{ 'frm': '5x1-whats-your-name', 'to': '5x1-save-name', 'value': '' }],
+                'exceptions': [],
+                'class': 'Mim.Optional-Response',
+                'options': {
+                    'mimPath': 'mims/en-us/oobe/FC_WhatsYourName.mim',
+                    'getPromptData': () => {
+                        return {};
+                    },
+                    'onStatus': status => {
+                    },
+                    'onSuccess': results => {
+                        let asrResults = results.asrResults;
+                        notepad.name = require('./ask-name').parseName(asrResults && asrResults.text);
+                        blackboard.log.info('first contact heard a name:', !!notepad.name);
+                        return '';
+                    }
+                }
+            };
+        },
+        '5x1-save-name': function () {
+            return {
+                'id': '5x1-save-name',
+                'name': 'save the name',
+                'asset-pack': 'core',
+                'transitions': [
+                    { 'frm': '5x1-save-name', 'to': '5x1-nice-to-meet-you', 'value': 'saved' },
+                    { 'frm': '5x1-save-name', 'to': '6e1ea933-a75b-4233-b114-7b6727c76d98', 'value': '' }
+                ],
+                'exceptions': [],
+                'class': 'Flow.Eval-Async',
+                'options': {
+                    'exec': done => {
+                        if (!notepad.name) {
+                            done('');
+                            return;
+                        }
+                        require('./ask-name').save(notepad.name, notepad.loop).then(() => done('saved'), (err) => {
+                            blackboard.log.warn('first contact could not save the name', err);
+                            done('');
+                        });
+                    },
+                    'onStop': () => {
+                    }
+                }
+            };
+        },
+        '5x1-nice-to-meet-you': function () {
+            return {
+                'id': '5x1-nice-to-meet-you',
+                'name': 'F C_ Nice To Meet You',
+                'asset-pack': 'core',
+                'transitions': [{ 'frm': '5x1-nice-to-meet-you', 'to': '6e1ea933-a75b-4233-b114-7b6727c76d98', 'value': '' }],
+                'exceptions': [],
+                'class': 'Mim.Announcement',
+                'options': {
+                    'mimPath': 'mims/en-us/oobe/FC_NiceToMeetYou.mim',
+                    'getPromptData': () => {
+                        return { name: notepad.name.firstName };
                     }
                 }
             };
@@ -581,10 +666,10 @@ module.exports = function (blackboard, notepad, result, emitter) {
                         notepad.loopNames = [];
                         blackboard.attentionHandler.release();
                         jibo.kb.loop.loadLoop((err, loop) => {
-                            for (let looper of loop) {
-                                if (!looper.isJibo) {
-                                    notepad.loopNames.push(looper.toString());
-                                }
+                            // 5x1: BEacon's FirstName LastName placeholder is nobody; with nobody, Jibo asks a name.
+                            notepad.loop = loop || [];
+                            for (let looper of require('./ask-name').realPeople(notepad.loop)) {
+                                notepad.loopNames.push(looper.toString());
                             }
                             done('');
                         });
