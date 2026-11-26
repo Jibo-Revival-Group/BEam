@@ -62,9 +62,11 @@ module.exports = function (blackboard, notepad, result, emitter) {
                                 updateIcon(currentIcon);
                             }
                         };
+                        // 5x1: no Jibo Inc account keys; the updater reads BEnch's credentials.json itself.
+                        var key = notepad.accessKey || {};
                         var creds = {
-                            accessKeyId: notepad.accessKey.accessKeyId,
-                            secretAccessKey: notepad.accessKey.secretAccessKey,
+                            accessKeyId: key.accessKeyId,
+                            secretAccessKey: key.secretAccessKey,
                             region: blackboard.region
                         };
                         notepad.skipInstallAttempt = false;

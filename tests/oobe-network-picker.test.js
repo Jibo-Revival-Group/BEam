@@ -52,4 +52,13 @@ reachable(cloud).forEach((n) => { if (n.options && n.options.exec) n.options.exe
 assert.strictEqual(result.cloudAuthorized, true);
 assert.ok(!reachable(cloud).some((n) => /create an account/.test(n.name || '')), 'no Jibo Inc account step');
 
+// The download step runs without Jibo Inc account keys (it crashed on notepad.accessKey.accessKeyId).
+const otaNotepad = { accessKey: null, log: { error() {} }, maskUpdater: { updateMask() {} },
+    oobeMC: { icons: { loadingIcon: { gotoAndStop() {} }, loadingText: { textfield: {} } } } };
+let downloaded = false;
+const ota = require(path.join(dir, 'ota-download'))({ loaderIcons: [], app: { animator: { play() {} } },
+    updater: { download(creds, status, done) { downloaded = true; done(true); } } }, otaNotepad, {}, null);
+Object.keys(ota).forEach((k) => { if (ota[k].name === 'progress bar and download') ota[k].options.exec(() => {}, () => {}); });
+assert.ok(downloaded && otaNotepad.otaComplete, 'OTA download step completes without account keys');
+
 console.log('oobe-network-picker ok');
