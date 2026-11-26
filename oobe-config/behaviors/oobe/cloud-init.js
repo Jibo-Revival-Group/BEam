@@ -5,7 +5,8 @@ module.exports = function (blackboard, notepad, result, emitter) {
         '1': {
             'id': '1',
             'class': 'Sequence',
-            'children': ['0322acda-01d9-4619-a7e4-f7ef6ff045e2', '6cb53940-b2aa-4f63-ac42-e55bcd34591a', '69abc918-f022-4806-8454-5af6731c24b8'],
+            // 5x1: no Jibo Inc account. BEnch keeps credentials.json on BEaker (joap.5x1.com) in every mode.
+            'children': ['0322acda-01d9-4619-a7e4-f7ef6ff045e2', '69abc918-f022-4806-8454-5af6731c24b8'],
             'options': {}
         },
         '0322acda-01d9-4619-a7e4-f7ef6ff045e2': (function (self) {
@@ -17,10 +18,8 @@ module.exports = function (blackboard, notepad, result, emitter) {
                 'class': 'ExecuteScript',
                 'options': {
                     'exec': function exec() {
-                        notepad.JSC = require('@jibo/jibo-server-client');
-                        notepad.JSC.config.update({ region: blackboard.region });
                         notepad.errorCode = null;
-                        notepad.cloudAuthorized = false;
+                        notepad.cloudAuthorized = true;
                         notepad.accessKey = null;
                     }
                 }

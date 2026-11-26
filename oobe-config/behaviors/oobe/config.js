@@ -9,10 +9,32 @@ module.exports = function (blackboard, notepad, result, emitter) {
             'id': '1',
             'asset-pack': 'core',
             'class': 'Sequence',
-            'children': [1536421699826126, '66cbdcd0-66e0-4b1a-a2b7-7256e87479ab', 'b069be59-7a0c-40ad-baf4-8a2d0a9dc7f4', 1024537321800955, 2109682925476, '45123520-be0f-45fb-859b-4cd532c3a274', '9d6cb74b-7029-4d1b-ad03-22e7b174f708'],
+            // 5x1: pick the network on screen; the QR steps (Jibo Inc's retired app) are no longer in the tree.
+            'children': [1536421699826126, '5x1-pick-network', 2109682925476, '45123520-be0f-45fb-859b-4cd532c3a274', '9d6cb74b-7029-4d1b-ad03-22e7b174f708'],
             'decorators': [],
             'options': {}
         },
+        '5x1-pick-network': (function (self) {
+            return {
+                'id': '5x1-pick-network',
+                'name': 'pick a Wi-Fi network on screen',
+                'parent': 1,
+                'asset-pack': 'core',
+                'class': 'ExecuteScriptAsync',
+                'options': {
+                    'exec': function exec(succeed, fail) {
+                        require('./network-picker').pick(function (choice) {
+                            notepad.ssid = choice.ssid;
+                            notepad.password = choice.password;
+                            notepad.staticSettings = null;
+                            notepad.accessToken = null;
+                            blackboard.timer.start();
+                            succeed();
+                        });
+                    }
+                }
+            };
+        })({}),
         '2109682925469': {
             'id': '2109682925469',
             'name': 'Read Barcode',
