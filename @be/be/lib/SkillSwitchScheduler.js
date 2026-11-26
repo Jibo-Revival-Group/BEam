@@ -246,7 +246,9 @@ class SkillSwitchScheduler {
                         skillOptions: currentPendingSkillLifecycle.skillSwitchData.options,
                         beSkillPriority: currentPendingSkillLifecycle.skillSwitchData.priority,
                         beSkillPreferences: {
-                            cancelOrientOnStart: currentPendingSkillLifecycle.skillSwitchData.name === '@be/camera-stream'
+                            // A ready cloud answer shouldn't wait up to ~3 s for Hey Jibo's face search (HJOrient).
+                            cancelOrientOnStart: currentPendingSkillLifecycle.skillSwitchData.name === '@be/camera-stream' ||
+                                currentPendingSkillLifecycle.skillSwitchData.name === '@be/nimbus'
                         }
                     });
                     this.log.info("waiting on action system", currentPendingSkillLifecycle.skillSwitchData.name);
