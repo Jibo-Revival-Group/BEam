@@ -1,7 +1,7 @@
 'use strict';
 // BEefy sends changes that need beta robot code (until the next OTA) only when the robot's CONTEXT has runtime.beta;
-// the face's context provider adds it only on the robot at exactly 192.168.7.163. That robot is also local-first:
-// runtime.localFirst carries BEacon's report-settings.json (empty lists when it is missing or broken).
+// the face's context provider adds it only on the robot at exactly 192.168.7.163. Every robot is local-first once
+// BEacon has imported the cloud's settings: runtime.localFirst carries report-settings.json (none before the import).
 const assert = require('assert');
 const fs = require('fs');
 const os = require('os');
@@ -27,28 +27,29 @@ assert.strictEqual(ContextProvider.isBetaTester(at('fe80::1', '192.168.7.163')),
 });
 assert.strictEqual(typeof ContextProvider.isBetaTester(), 'boolean', 'reads this machine\'s interfaces by default');
 
-const empty = { calendarFeeds: [], commuteAddresses: [], newsTopics: [] };
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'local-first-'));
 const file = path.join(dir, 'report-settings.json');
-assert.deepStrictEqual(ContextProvider.localFirstSettings(file), empty, 'missing file');
+assert.strictEqual(ContextProvider.localFirstSettings(file), null, 'missing file: not local-first yet');
 fs.writeFileSync(file, '{not json');
-assert.deepStrictEqual(ContextProvider.localFirstSettings(file), empty, 'corrupt file');
+assert.strictEqual(ContextProvider.localFirstSettings(file), null, 'corrupt file');
+fs.writeFileSync(file, JSON.stringify({ newsTopics: [] }));
+assert.strictEqual(ContextProvider.localFirstSettings(file), null, 'not imported yet');
 const saved = { calendarFeeds: [{ memberId: 'zane', icalUrl: 'https://cal.example/x.ics', isEnabled: true, memberName: 'Zane', timeZone: 'America/New_York' }],
-    commuteAddresses: 'oops', newsTopics: [{ memberId: 'zane', memberName: 'Zane', disabledTopics: ['sports'] }] };
-fs.writeFileSync(file, JSON.stringify(saved));
-assert.deepStrictEqual(ContextProvider.localFirstSettings(file), Object.assign({}, saved, { commuteAddresses: [] }), 'non-list keys become empty');
+    commuteAddresses: [], newsTopics: [{ memberId: 'zane', memberName: 'Zane', disabledTopics: ['sports'] }] };
+fs.writeFileSync(file, JSON.stringify(Object.assign({ imported: true }, saved, { commuteAddresses: 'oops' })));
+assert.deepStrictEqual(ContextProvider.localFirstSettings(file), saved, 'non-list keys become empty');
 fs.unlinkSync(file); fs.rmdirSync(dir);
 
 (async () => {
     const provider = Object.create(ContextProvider.prototype);
     provider.skill = { id: null };
     provider.getRuntimeContext = () => Promise.resolve({ loop: { users: [] } });
-    ContextProvider.localFirstSettings = () => saved;
+    ContextProvider.localFirstSettings = () => null;
     ContextProvider.isBetaTester = () => false;
-    const regular = await provider.getContext([]);
-    assert.deepStrictEqual(regular.runtime, { loop: { users: [] } }, 'other robots: no beta and no localFirst key at all');
+    assert.deepStrictEqual((await provider.getContext([])).runtime, { loop: { users: [] } }, 'before the import: no beta and no localFirst key');
+    ContextProvider.localFirstSettings = () => saved;
+    assert.deepStrictEqual((await provider.getContext([])).runtime, { loop: { users: [] }, localFirst: saved }, 'any robot after the import');
     ContextProvider.isBetaTester = () => true;
-    const local = await provider.getContext([]);
-    assert.deepStrictEqual(local.runtime, { loop: { users: [] }, beta: true, localFirst: saved });
-    console.log('PASS only the robot at exactly 192.168.7.163 tags its CONTEXT runtime as beta and sends its local-first report settings');
+    assert.deepStrictEqual((await provider.getContext([])).runtime, { loop: { users: [] }, beta: true, localFirst: saved });
+    console.log('PASS only 192.168.7.163 is tagged beta; every robot sends its local-first report settings once imported');
 })().catch((err) => { console.error(err); process.exitCode = 1; });

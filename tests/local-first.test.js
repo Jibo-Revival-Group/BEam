@@ -1,5 +1,5 @@
 'use strict';
-// 5x1 local-first (the robot at exactly 192.168.7.163): BEacon keeps calendar feeds, commute addresses and news topics
+// 5x1 local-first (every robot, once BEacon has imported the cloud's copy): BEacon keeps calendar feeds, commute addresses and news topics
 // in Knowledge/beacon/report-settings.json and uses the cloud only to check feeds, geocode and list the topics.
 // Every other robot calls the cloud exactly as before.
 const assert = require('assert'), fs = require('fs'), os = require('os'), path = require('path');
@@ -14,9 +14,7 @@ const load = (name, stubs) => {
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'local-first-'));
 const store = load('local-first.js', { './paths': { dataDir: () => dir } });
-const at = address => ({ lo: [{ family: 'IPv4', address: '127.0.0.1' }], wlan0: [{ family: 'IPv4', address: address }] });
-assert.strictEqual(store.enabled(at('192.168.7.163')), true);
-['192.168.7.165', '192.168.7.1630', '10.0.0.163'].forEach(a => assert.strictEqual(store.enabled(at(a)), false, a));
+assert.strictEqual(store.enabled(), false, 'off until the cloud copy is imported');
 const empty = { calendarFeeds: [], commuteAddresses: [], newsTopics: [] };
 assert.deepStrictEqual(store.read(), empty, 'missing file');
 fs.writeFileSync(store.file(), '{broken');
@@ -147,6 +145,32 @@ const url = 'https://calendar.example/private/zane.ics';
     const defaultSettings = new Function('require', sync.slice(sync.indexOf('function defaultSettings ('), sync.indexOf('function sameVersions (')) + '\nreturn defaultSettings;')(
         n => ({ './calendars': { callCloud: () => { throw new Error('no cloud for local-first'); } }, './commute': {}, './news-topics': {}, './local-first': store })[n]);
     assert.deepStrictEqual(await defaultSettings(people).read(), { zane: { calendar: { url: url, enabled: true }, work: '2 WORK RD', news: ['sports'] } });
+    // The one-time import: the cloud's copy fills in members not already saved here, then local-first switches on.
+    fs.unlinkSync(store.file());
+    const real = load('local-first.js', { './paths': { dataDir: () => dir } });
+    store.put('newsTopics', 'zane', { memberId: 'zane', disabledTopics: ['world'] });
+    const asked = [];
+    const fakeCloud = (op, body) => {
+        asked.push([op, body]);
+        if (op === 'GetCalendarFeeds') return Promise.resolve({ members: [{ memberId: 'kev', icalUrl: 'https://cal.example/k.ics', isEnabled: false, memberName: 'Kev' }, { memberId: 'nourl' }] });
+        if (op === 'GetCommuteAddresses') return Promise.resolve({ addresses: [{ memberId: 'home', address: '1 Main St', lat: 42.6, lng: -71.4, city: 'Tyngsborough', mode: 'driving' }] });
+        return Promise.resolve({ people: [{ memberId: 'zane', disabledTopics: ['sports'] }, { memberId: 'kev', disabledTopics: [] }] });
+    };
+    let failing = true;
+    await real.importFromCloud(() => failing && Promise.reject(new Error('no credentials')), 'robot').then(() => assert.fail('should fail'), () => {});
+    assert.strictEqual(real.enabled(), false, 'a failed import leaves the robot on the cloud');
+    failing = false;
+    assert.strictEqual(await real.importFromCloud(fakeCloud, 'robot'), true);
+    assert.deepStrictEqual(asked.map(a => a[0]), ['GetCalendarFeeds', 'GetCommuteAddresses', 'GetNewsTopics']);
+    assert.deepStrictEqual(asked[0][1], { includeUrls: true }); assert.deepStrictEqual(asked[1][1], { includeDetails: true });
+    assert.strictEqual(real.enabled(), true);
+    const after = real.read();
+    assert.deepStrictEqual(after.calendarFeeds, [{ memberId: 'kev', icalUrl: 'https://cal.example/k.ics', isEnabled: false, memberName: 'Kev', timeZone: null }]);
+    assert.deepStrictEqual(after.commuteAddresses[0], { memberId: 'home', address: '1 Main St', lat: 42.6, lng: -71.4, city: 'Tyngsborough', mode: 'driving', memberName: null, timeZone: null });
+    assert.deepStrictEqual(after.newsTopics.map(t => [t.memberId, t.disabledTopics]), [['zane', ['world']], ['kev', []]], 'what the robot saved wins');
+    assert.strictEqual(await real.importFromCloud(fakeCloud, 'robot'), false, 'only once');
+    real.put('newsTopics', 'kev', null);
+    assert.strictEqual(real.enabled(), true, 'a later save keeps the imported flag');
     fs.unlinkSync(store.file()); fs.rmdirSync(dir);
     console.log('Local-first: report settings stay in report-settings.json (0600, atomic); other robots call the cloud as before');
 })().catch(err => { console.error(err); process.exitCode = 1; });

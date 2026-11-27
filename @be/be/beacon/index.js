@@ -151,6 +151,15 @@ function start (options, callback) {
             }
         };
         robotMember(20);
+        // Local-first: copy the report settings the cloud holds onto the robot once; retry every 10 minutes until it works.
+        const importSettings = () => {
+            const calendars = require('./lib/calendars');
+            require('./lib/people').list()
+                .then(snapshot => require('./lib/local-first').importFromCloud(calendars.callCloud, calendars.robotIdFrom(snapshot)))
+                .then(done => { if (done) log('local-first: copied the cloud report settings onto the robot'); })
+                .catch(err => { warn('local-first import (will retry):', err && err.message); setTimeout(importSettings, 600000); });
+        };
+        setTimeout(importSettings, 20000);
         // The Store no longer signs in to GitHub: remove the token older versions saved.
         try { require('fs').unlinkSync(require('path').join(paths.dataDir(), 'github', 'auth.json')); } catch (err) { /* none saved */ }
         // Keep Store listings current with no BEacon tab open. refresh(.., true) skips storefronts tried in the last 30 minutes.
