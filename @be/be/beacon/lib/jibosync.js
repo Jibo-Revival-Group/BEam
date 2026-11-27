@@ -87,15 +87,21 @@ function defaultSettings (people) {
     const calendars = require('./calendars');
     const commute = require('./commute');
     const newsTopics = require('./news-topics');
+    const localFirst = require('./local-first');
+    const local = () => {
+        const saved = localFirst.read();
+        return [{ members: saved.calendarFeeds }, { addresses: saved.commuteAddresses }, { people: saved.newsTopics }];
+    };
     return {
-        read: () => people.list().then((snap) => {
+        // Local-first robots read their own file; writes go through the modules below, which save there too.
+        read: () => (localFirst.enabled() ? Promise.resolve(local()) : people.list().then((snap) => {
             const robot = calendars.robotIdFrom(snap);
             return Promise.all([
                 calendars.callCloud('GetCalendarFeeds', { includeUrls: true }, robot),
                 calendars.callCloud('GetCommuteAddresses', {}, robot),
                 calendars.callCloud('GetNewsTopics', {}, robot)
             ]);
-        }).then((r) => {
+        })).then((r) => {
             const out = {};
             const at = (id) => (out[id] = out[id] || {});
             (r[0].members || []).forEach((f) => { if (f.icalUrl) at(f.memberId).calendar = { url: f.icalUrl, enabled: f.isEnabled !== false }; });

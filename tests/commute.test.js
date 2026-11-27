@@ -14,6 +14,7 @@ const stubs = {
             return Promise.resolve({ address: '1 Main St, Tyngsborough, MA', lat: 42.6, lng: -71.4, city: 'Tyngsborough', state: 'Massachusetts', stateAbbr: 'MA' });
         }
     },
+    './local-first': { enabled: () => false }, // the cloud path every other robot keeps; tests/local-first.test.js has the other
     './location': { applyAddress: found => { applied = found; return Promise.resolve({ location: { city: found.city } }); } },
     './people': {
         list: () => Promise.resolve({ members: [{ id: 'zane', firstName: 'Zane', lastName: 'Vincent' }, { id: 'robot', isJibo: true }] }),

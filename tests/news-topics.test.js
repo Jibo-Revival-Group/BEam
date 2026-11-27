@@ -14,6 +14,7 @@ const stubs = {
                 : { memberId: body.memberId, disabledTopics: body.disabledTopics });
         }
     },
+    './local-first': { enabled: () => false }, // the cloud path every other robot keeps; tests/local-first.test.js has the other
     './people': {
         list: () => Promise.resolve({ members: [] }),
         findMember: id => Promise.resolve({ member: id === 'robot' ? { id, isJibo: true } : { id, firstName: 'Zoe', lastName: 'Vincent' }, snapshot: {} })

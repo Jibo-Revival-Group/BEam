@@ -10,6 +10,7 @@
 const calendars = require('./calendars');
 const location = require('./location');
 const people = require('./people');
+const localFirst = require('./local-first');
 
 function fail (message, status) {
     const err = new Error(message);
@@ -23,9 +24,39 @@ function addressText (value) {
     return text;
 }
 
+// Local-first robots keep the addresses here; the cloud only says whether address lookup is set up.
+function getAddresses (robot) {
+    if (!localFirst.enabled()) { return calendars.callCloud('GetCommuteAddresses', {}, robot); }
+    return calendars.callCloud('GetCommuteAddresses', { localFirst: true }, robot).then(function (result) {
+        return { available: result.available, addresses: localFirst.read().commuteAddresses };
+    });
+}
+
+// Local-first: the cloud only geocodes; the result is saved here. A mode-only change (same address) needs no lookup.
+function setAddress (body, robot) {
+    if (!localFirst.enabled()) { return calendars.callCloud('SetCommuteAddress', body, robot); }
+    const memberId = body.memberId || 'home';
+    const saved = localFirst.find('commuteAddresses', memberId);
+    const modeOnly = body.mode != null && saved && String(saved.address).toLowerCase() === body.address.toLowerCase();
+    const lookup = modeOnly ? Promise.resolve(saved) : calendars.callCloud('SetCommuteAddress', Object.assign({}, body, { localFirst: true }), robot);
+    return lookup.then(function (found) {
+        localFirst.put('commuteAddresses', memberId, {
+            memberId: memberId, address: found.address, lat: found.lat, lng: found.lng, city: found.city,
+            mode: body.mode != null ? body.mode : (saved && saved.mode) || null,
+            memberName: body.memberName || null, timeZone: body.timeZone || null
+        });
+        return found;
+    });
+}
+
+function clearAddress (memberId, robot) {
+    if (localFirst.enabled()) { return localFirst.put('commuteAddresses', memberId, null); }
+    return calendars.callCloud('ClearCommuteAddress', { memberId: memberId }, robot);
+}
+
 function list () {
     return people.list().then(function (snapshot) {
-        return calendars.callCloud('GetCommuteAddresses', {}, calendars.robotIdFrom(snapshot));
+        return getAddresses(calendars.robotIdFrom(snapshot));
     });
 }
 
@@ -33,7 +64,7 @@ function list () {
 function attach (snapshot) {
     if (!snapshot) { return Promise.resolve(snapshot); }
     return Promise.resolve().then(function () {
-        return calendars.callCloud('GetCommuteAddresses', {}, calendars.robotIdFrom(snapshot));
+        return getAddresses(calendars.robotIdFrom(snapshot));
     }).then(function (result) {
         const byId = {}, modes = {};
         (result.addresses || []).forEach(function (item) { byId[String(item.memberId)] = item.address; modes[String(item.memberId)] = item.mode; });
@@ -64,7 +95,7 @@ function homeAddress () {
 function setHome (address) {
     const text = addressText(address);
     return people.list().then(function (snapshot) {
-        return calendars.callCloud('SetCommuteAddress', {
+        return setAddress({
             address: text,
             timeZone: calendars.homeTimeZone()
         }, calendars.robotIdFrom(snapshot));
@@ -91,7 +122,7 @@ function setWork (memberId, address, mode) {
             memberName: [member.firstName, member.lastName].filter(Boolean).join(' ') || member.writtenName || null
         };
         if (mode != null) { body.mode = mode; }
-        return calendars.callCloud('SetCommuteAddress', body, calendars.robotIdFrom(found.snapshot));
+        return setAddress(body, calendars.robotIdFrom(found.snapshot));
     }).then(function () { return people.list(); });
 }
 
@@ -104,9 +135,9 @@ function setPersonHome (memberId, address) {
         const member = found.member;
         if (member.isJibo) { throw fail('The robot does not have a home address of its own.', 400); }
         const robot = calendars.robotIdFrom(found.snapshot);
-        return calendars.callCloud('GetCommuteAddresses', {}, robot).then(function (result) {
+        return getAddresses(robot).then(function (result) {
             const hasHousehold = (result.addresses || []).some(function (item) { return item.memberId === 'home'; });
-            return calendars.callCloud('SetCommuteAddress', {
+            return setAddress({
                 memberId: homeKey(memberId),
                 address: text,
                 memberName: [member.firstName, member.lastName].filter(Boolean).join(' ') || member.writtenName || null
@@ -120,14 +151,14 @@ function setPersonHome (memberId, address) {
 function clearPersonHome (memberId) {
     if (!memberId) { return Promise.reject(fail('memberId is required.', 400)); }
     return people.list().then(function (snapshot) {
-        return calendars.callCloud('ClearCommuteAddress', { memberId: homeKey(memberId) }, calendars.robotIdFrom(snapshot));
+        return clearAddress(homeKey(memberId), calendars.robotIdFrom(snapshot));
     }).then(function () { return people.list(); });
 }
 
 function clearWork (memberId) {
     if (!memberId) { return Promise.reject(fail('memberId is required.', 400)); }
     return people.list().then(function (snapshot) {
-        return calendars.callCloud('ClearCommuteAddress', { memberId: String(memberId) }, calendars.robotIdFrom(snapshot));
+        return clearAddress(String(memberId), calendars.robotIdFrom(snapshot));
     }).then(function () { return people.list(); });
 }
 

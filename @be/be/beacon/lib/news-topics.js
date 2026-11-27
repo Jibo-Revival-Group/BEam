@@ -8,6 +8,7 @@
 
 const calendars = require('./calendars');
 const people = require('./people');
+const localFirst = require('./local-first');
 
 function fail (message, status) {
     const err = new Error(message);
@@ -18,11 +19,14 @@ function fail (message, status) {
 // Adds snapshot.newsTopics (null when the cloud is unreachable) and member.disabledNewsTopics.
 function attach (snapshot) {
     if (!snapshot) { return Promise.resolve(snapshot); }
+    let local = false;
     return Promise.resolve().then(function () {
-        return calendars.callCloud('GetNewsTopics', {}, calendars.robotIdFrom(snapshot));
+        local = localFirst.enabled();
+        return calendars.callCloud('GetNewsTopics', local ? { localFirst: true } : {}, calendars.robotIdFrom(snapshot));
     }).then(function (result) {
         const byId = {};
-        (result.people || []).forEach(function (item) { byId[String(item.memberId)] = item.disabledTopics || []; });
+        // Local-first: the cloud only lists the topics; who turned which off is kept here.
+        ((local ? localFirst.read().newsTopics : result.people) || []).forEach(function (item) { byId[String(item.memberId)] = item.disabledTopics || []; });
         snapshot.newsTopics = result.topics || [];
         (snapshot.members || []).forEach(function (member) {
             if (!member.isJibo) { member.disabledNewsTopics = byId[String(member.id)] || []; }
@@ -42,11 +46,13 @@ function set (memberId, disabledTopics) {
     return people.findMember(memberId).then(function (found) {
         const member = found.member;
         if (member.isJibo) { throw fail('The robot does not have news topics.', 400); }
-        return calendars.callCloud('SetNewsTopics', {
+        const body = {
             memberId: String(memberId),
             memberName: [member.firstName, member.lastName].filter(Boolean).join(' ') || member.writtenName || null,
             disabledTopics: disabledTopics
-        }, calendars.robotIdFrom(found.snapshot));
+        };
+        if (localFirst.enabled()) { return localFirst.put('newsTopics', body.memberId, body); }
+        return calendars.callCloud('SetNewsTopics', body, calendars.robotIdFrom(found.snapshot));
     }).then(function () { return people.list(); });
 }
 

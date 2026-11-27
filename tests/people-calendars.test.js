@@ -9,7 +9,7 @@ let credentials = null, credentialsOrIdentity = null;
 const calendarModule = { exports: {} };
 const calendarRequire = createRequire(path.join(beacon, 'lib/calendars.js'));
 new Function('require', 'module', 'exports', fs.readFileSync(path.join(beacon, 'lib/calendars.js'), 'utf8'))(
-    name => name === './paths' ? { credentialsPath: () => '/test/credentials.json', isFile: () => credentials !== null } :
+    name => name === './local-first' ? { enabled: () => false } : name === './paths' ? { credentialsPath: () => '/test/credentials.json', isFile: () => credentials !== null } :
         name === './people' ? { list: () => Promise.resolve(snapshot()), findMember: () => Promise.resolve({ member: snapshot().members[0], snapshot: snapshot() }) } :
         name === 'fs' ? { readFileSync: file => file === '/var/jibo/identity.json' ? (credentialsOrIdentity || '{}') : credentials } : calendarRequire(name), calendarModule, calendarModule.exports);
 const calendars = calendarModule.exports;

@@ -14,6 +14,7 @@ const url = require('url');
 
 const paths = require('./paths');
 const people = require('./people');
+const localFirst = require('./local-first');
 
 const TARGET_PREFIX = 'Loop_20160324';
 const MAX_RESPONSE = 256 * 1024;
@@ -167,9 +168,23 @@ function blankCalendar () {
     };
 }
 
+// A feed saved on a local-first robot, shaped like the cloud's status (the URL itself stays out of the page).
+function localStatus (feed) {
+    return {
+        memberId: feed.memberId,
+        configured: true,
+        isEnabled: feed.isEnabled !== false,
+        host: url.parse(String(feed.icalUrl)).hostname || null,
+        lastSuccessUtc: null,
+        lastError: null,
+        updatedUtc: null
+    };
+}
+
 function attachStatus (snapshot) {
     if (!snapshot) return Promise.resolve(snapshot);
     return Promise.resolve().then(function () {
+        if (localFirst.enabled()) return { members: localFirst.read().calendarFeeds.map(localStatus) };
         return callCloud('GetCalendarFeeds', {}, robotIdFrom(snapshot));
     }).then(function (payload) {
         const byId = {};
@@ -211,18 +226,29 @@ function homeTimeZone () {
 function save (memberId, icalUrl, isEnabled) {
     return requireHuman(memberId).then(function (snapshot) {
         const member = (snapshot.members || []).filter(function (m) { return String(m.id) === String(memberId); })[0] || {};
-        return callCloud('SetCalendarFeed', {
+        const body = {
             memberId: memberId,
             icalUrl: icalUrl,
             isEnabled: isEnabled !== false,
             memberName: [member.firstName, member.lastName].filter(Boolean).join(' ') || member.writtenName || null,
             timeZone: homeTimeZone()
-        }, robotIdFrom(snapshot));
+        };
+        if (!localFirst.enabled()) return callCloud('SetCalendarFeed', body, robotIdFrom(snapshot));
+        // The cloud only checks the feed; a save without a URL (on/off switch) keeps the one saved here.
+        body.icalUrl = icalUrl || (localFirst.find('calendarFeeds', memberId) || {}).icalUrl;
+        body.localFirst = true;
+        return callCloud('SetCalendarFeed', body, robotIdFrom(snapshot)).then(function () {
+            localFirst.put('calendarFeeds', memberId, {
+                memberId: String(memberId), icalUrl: String(body.icalUrl).trim(), isEnabled: body.isEnabled,
+                memberName: body.memberName, timeZone: body.timeZone
+            });
+        });
     }).then(reload);
 }
 
 function clear (memberId) {
     return requireHuman(memberId).then(function (snapshot) {
+        if (localFirst.enabled()) return localFirst.put('calendarFeeds', memberId, null);
         return callCloud('ClearCalendarFeed', { memberId: memberId }, robotIdFrom(snapshot));
     }).then(reload);
 }
@@ -231,6 +257,10 @@ function testFeed (memberId, icalUrl) {
     return requireHuman(memberId).then(function (snapshot) {
         const body = { memberId: memberId };
         if (icalUrl) body.icalUrl = icalUrl;
+        if (localFirst.enabled()) {
+            body.icalUrl = icalUrl || (localFirst.find('calendarFeeds', memberId) || {}).icalUrl;
+            body.localFirst = true;
+        }
         return callCloud('TestCalendarFeed', body, robotIdFrom(snapshot)).then(function (result) {
             return reload().then(function (snapshotAfter) {
                 snapshotAfter.calendarTest = result;
