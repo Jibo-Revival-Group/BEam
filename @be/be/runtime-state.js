@@ -18,7 +18,11 @@ function directory(dir, mode) {
         if (err.code !== 'EEXIST') { throw err; }
     }
     if (!fs.statSync(dir).isDirectory()) { throw new Error('Expected directory: ' + dir); }
-    if (created) { fs.chmodSync(dir, mode === undefined ? 0o777 : mode); }
+    var want = mode === undefined ? 0o777 : mode;
+    var have = fs.statSync(dir).mode & 0o7777;
+    // A factory reset recreates Knowledge/Photos/Recordings as root 0750, which locks Be (jibo-skill) out: widen, never narrow.
+    if (created) { fs.chmodSync(dir, want); }
+    else if ((have & want) !== want && process.getuid && process.getuid() === 0) { fs.chmodSync(dir, have | want); }
     fs.accessSync(dir, fs.constants.R_OK | fs.constants.W_OK | fs.constants.X_OK);
     return dir;
 }
