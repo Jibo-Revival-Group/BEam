@@ -44,6 +44,16 @@ function scan(callback) {
     request.send('{}');
 }
 
+// The network Jibo is already on (PM leaves him on the owner's Wi-Fi), or '' if none. Never waits more than 5 s.
+function current(wifi, callback) {
+    let answered = false;
+    const answer = (ssid) => { if (!answered) { answered = true; callback(ssid || ''); } };
+    setTimeout(() => answer(''), 5000);
+    try {
+        wifi.getCurrentNetwork((error, stats) => answer(!error && stats && stats.ssid));
+    } catch (err) { answer(''); }
+}
+
 function el(parent, css, text, onTap) {
     const d = document.createElement('div');
     d.style.cssText = 'position:absolute;box-sizing:border-box;font-family:' + FONT + ';color:' + C.text + ';' +
@@ -82,6 +92,11 @@ function pick(callback) {
         clear();
         el(root, 'left:148px;top:40px;width:984px;height:64px;justify-content:flex-start;font-size:40px;font-weight:bold;',
             networks.length ? 'Choose your Wi-Fi network' : 'No Wi-Fi networks found');
+        if (!networks.length) {
+            // Stock services have no network list (BEnch adds it): typing the name still works.
+            el(root, 'left:148px;top:124px;width:984px;height:120px;justify-content:flex-start;white-space:normal;font-size:30px;' +
+                'color:' + C.text2 + ';', 'Tap "Type a name" to enter your Wi-Fi network\'s name, or scan again.');
+        }
         networks.slice(first, first + PER_PAGE).forEach((net, i) => {
             const y = 124 + i * 92;
             el(root, 'left:148px;top:' + y + 'px;width:984px;height:80px;border-radius:16px;background:' + C.raised + ';', '', () => {
@@ -96,6 +111,8 @@ function pick(callback) {
         const bottom = 600;
         el(root, 'left:148px;top:' + bottom + 'px;width:260px;height:80px;border-radius:16px;font-size:28px;font-weight:bold;' +
             'background:' + C.accent + ';color:' + C.onAccent + ';', 'Scan again', () => searching());
+        el(root, 'left:428px;top:' + bottom + 'px;width:280px;height:80px;border-radius:16px;font-size:28px;font-weight:bold;' +
+            'background:' + C.raised + ';', 'Type a name', () => typeName(networks, first));
         if (first > 0) {
             el(root, 'left:744px;top:' + bottom + 'px;width:180px;height:80px;border-radius:16px;font-size:28px;background:' + C.raised + ';',
                 'Back', () => list(networks, first - PER_PAGE));
@@ -113,15 +130,33 @@ function pick(callback) {
     }
 
     function password(net, networks, first) {
+        keyboard({ title: 'Password for ' + net.ssid, placeholder: 'Password', min: MIN, go: 'Join',
+            back: () => list(networks, first), done: (text) => done(net.ssid, text) });
+    }
+
+    // A network that isn't listed: type its name, then its password (or choose No password).
+    function typeName(networks, first) {
+        keyboard({ title: 'Wi-Fi network name', placeholder: 'Network name', min: 1, go: 'Next', back: () => list(networks, first),
+            done: (ssid) => keyboard({ title: 'Password for ' + ssid, placeholder: 'Password', min: MIN, go: 'Join',
+                back: () => typeName(networks, first), done: (text) => done(ssid, text),
+                extra: { label: 'No password', tap: () => done(ssid, '') } }) });
+    }
+
+    function keyboard(opts) {
         let state = { text: '', shift: false, symbols: false, more: false };
         const KEYS = { y: [184, 264, 344], h: 72, w: 88, gap: 8, start: [164, 212, 308] };
         const LEFT = 148, W = 984, SPECIAL_Y = 424, SPECIAL_H = 88;
-        const ready = () => state.text.length >= MIN;
+        const ready = () => state.text.length >= opts.min;
+        const titleW = W - 176 - (opts.extra ? 236 : 0);
         clear();
         el(root, 'left:' + LEFT + 'px;top:16px;width:156px;height:72px;border-radius:16px;font-size:24px;font-weight:bold;' +
-            'background:' + C.raised + ';', 'Back', () => list(networks, first));
-        el(root, 'left:' + (LEFT + 176) + 'px;top:16px;width:' + (W - 176) + 'px;height:72px;justify-content:flex-start;' +
-            'font-size:32px;font-weight:bold;', 'Password for ' + net.ssid);
+            'background:' + C.raised + ';', 'Back', opts.back);
+        el(root, 'left:' + (LEFT + 176) + 'px;top:16px;width:' + titleW + 'px;height:72px;justify-content:flex-start;' +
+            'font-size:32px;font-weight:bold;', opts.title);
+        if (opts.extra) {
+            el(root, 'left:' + (LEFT + W - 220) + 'px;top:16px;width:220px;height:72px;border-radius:16px;font-size:24px;' +
+                'font-weight:bold;background:' + C.raised + ';', opts.extra.label, opts.extra.tap);
+        }
         const field = el(root, 'left:' + LEFT + 'px;top:100px;width:' + (W - 80) + 'px;height:72px;border-radius:12px;' +
             'justify-content:flex-start;padding-left:24px;font-size:32px;background:' + C.surface + ';');
         el(root, 'left:' + (LEFT + W - 72) + 'px;top:100px;width:72px;height:72px;border-radius:12px;font-size:32px;' +
@@ -142,14 +177,14 @@ function pick(callback) {
         el(root, 'left:' + (LEFT + 124) + 'px;top:' + SPECIAL_Y + 'px;width:564px;height:' + SPECIAL_H + 'px;border-radius:12px;' +
             'font-size:24px;background:' + C.surface + ';', 'Space', () => update('space'));
         const join = el(root, 'left:' + (LEFT + 700) + 'px;top:' + SPECIAL_Y + 'px;width:' + (W - 700) + 'px;height:' + SPECIAL_H + 'px;' +
-            'border-radius:16px;font-size:24px;font-weight:bold;', 'Join', () => { if (ready()) done(net.ssid, state.text); });
+            'border-radius:16px;font-size:24px;font-weight:bold;', opts.go, () => { if (ready()) opts.done(state.text); });
 
         function refresh() {
             keys.forEach((k) => { k.el.textContent = keyText(state, k.r, k.c); });
             shift.textContent = state.symbols ? (state.more ? '123' : '#+=') : 'Shift';
             shift.style.background = state.shift && !state.symbols ? C.raisedHi : C.surface;
             symbols.textContent = state.symbols ? 'ABC' : '123';
-            field.textContent = state.text || 'Password';
+            field.textContent = state.text || opts.placeholder;
             field.style.color = state.text ? C.text : C.text3;
             join.style.background = ready() ? C.accent : C.accentDark;
             join.style.color = ready() ? C.onAccent : C.disabled;
@@ -162,4 +197,4 @@ function pick(callback) {
     searching();
 }
 
-module.exports = { pick: pick, press: press, keyText: keyText, MIN: MIN, MAX: MAX };
+module.exports = { pick: pick, current: current, press: press, keyText: keyText, MIN: MIN, MAX: MAX };

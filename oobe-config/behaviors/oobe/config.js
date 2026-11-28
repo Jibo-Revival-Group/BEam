@@ -23,13 +23,25 @@ module.exports = function (blackboard, notepad, result, emitter) {
                 'class': 'ExecuteScriptAsync',
                 'options': {
                     'exec': function exec(succeed, fail) {
-                        require('./network-picker').pick(function (choice) {
-                            notepad.ssid = choice.ssid;
-                            notepad.password = choice.password;
+                        var picker = require('./network-picker');
+                        // Already on Wi-Fi (PM keeps the owner's network): keep it, no picker, no re-join.
+                        picker.current(jibo.wifi || {}, function (ssid) {
                             notepad.staticSettings = null;
                             notepad.accessToken = null;
-                            blackboard.timer.start();
-                            succeed();
+                            if (ssid) {
+                                notepad.log && notepad.log.info && notepad.log.info('Already on Wi-Fi: ' + ssid);
+                                notepad.ssid = ssid;
+                                notepad.password = '';
+                                notepad.alreadyConnected = notepad.networkConnected = true;
+                                blackboard.timer.start();
+                                return succeed();
+                            }
+                            picker.pick(function (choice) {
+                                notepad.ssid = choice.ssid;
+                                notepad.password = choice.password;
+                                blackboard.timer.start();
+                                succeed();
+                            });
                         });
                     }
                 }
@@ -154,6 +166,7 @@ module.exports = function (blackboard, notepad, result, emitter) {
                 'options': {
                     'exec': function exec() {
                         notepad.networkConnected = false;
+                        notepad.alreadyConnected = false;
                         notepad.ssid = false;
                     }
                 }
@@ -190,6 +203,10 @@ module.exports = function (blackboard, notepad, result, emitter) {
                 'options': {
                     'exec': function exec(succeed, fail) {
                         notepad.wifiError = undefined;
+                        if (notepad.alreadyConnected) {
+                            // Joining again would start with removeAllNetworks and drop the working network.
+                            return succeed();
+                        }
                         var networkData = {
                             ssid: notepad.ssid,
                             pswd: notepad.password,
